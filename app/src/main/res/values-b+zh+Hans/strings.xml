@@ -915,6 +915,7 @@
     <string name="preview_ctl_home">主屏幕</string>
     <string name="preview_ctl_recents">最近任务</string>
     <string name="preview_ctl_app_switcher">App 切换器</string>
+    <string name="preview_ctl_toggle_keyboard">显示／隐藏模拟器键盘</string>
     <string name="preview_ctl_lock">锁定</string>
     <string name="preview_ctl_volume_up">音量加</string>
     <string name="preview_ctl_volume_down">音量减</string>

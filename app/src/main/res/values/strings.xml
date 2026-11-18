@@ -928,6 +928,7 @@
     <string name="preview_ctl_home">Home</string>
     <string name="preview_ctl_recents">Recents</string>
     <string name="preview_ctl_app_switcher">App switcher</string>
+    <string name="preview_ctl_toggle_keyboard">Show/hide simulator keyboard</string>
     <string name="preview_ctl_lock">Lock</string>
     <string name="preview_ctl_volume_up">Volume up</string>
     <string name="preview_ctl_volume_down">Volume down</string>

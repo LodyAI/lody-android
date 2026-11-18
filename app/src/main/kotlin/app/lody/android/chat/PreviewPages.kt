@@ -122,7 +122,7 @@ private fun button(name: String) = JSONObject().put("kind", "button").put("butto
 private fun rotate(direction: String) = JSONObject().put("kind", "rotate").put("direction", direction)
 private fun appearance(value: String) = JSONObject().put("kind", "appearance").put("appearance", value)
 
-private fun controls(platform: DevicePlatform): List<ToolbarControl> = when (platform) {
+private fun controls(platform: DevicePlatform, deviceType: String?): List<ToolbarControl> = when (platform) {
     DevicePlatform.ANDROID -> listOf(
         ToolbarControl(R.string.preview_ctl_back, button("back")),
         ToolbarControl(R.string.preview_ctl_home, button("home")),
@@ -132,9 +132,11 @@ private fun controls(platform: DevicePlatform): List<ToolbarControl> = when (pla
         ToolbarControl(R.string.preview_ctl_light, appearance("light")),
         ToolbarControl(R.string.preview_ctl_dark, appearance("dark")),
     )
-    DevicePlatform.IOS -> listOf(
+    DevicePlatform.IOS -> listOfNotNull(
         ToolbarControl(R.string.preview_ctl_home, button("home")),
         ToolbarControl(R.string.preview_ctl_app_switcher, button("app-switcher")),
+        if (deviceType?.contains("iPhone", ignoreCase = true) == true || deviceType?.contains("iPad", ignoreCase = true) == true)
+            ToolbarControl(R.string.preview_ctl_toggle_keyboard, button("software-keyboard")) else null,
         ToolbarControl(R.string.preview_ctl_lock, button("lock")),
         ToolbarControl(R.string.preview_ctl_volume_up, button("volume-up")),
         ToolbarControl(R.string.preview_ctl_volume_down, button("volume-down")),
@@ -193,9 +195,12 @@ internal fun DevicePreviewPage(session: DevicePreviewSession, onClose: () -> Uni
     )
     val controlFailed = stringResource(R.string.preview_control_failed)
     val bridge = remember(session) { DeviceViewerBridge() }
+    val controlOperation = session.preview?.operationId
     val sendControl: (JSONObject) -> Unit = { control ->
         coroutines.launch {
+            if (controlOperation == null || controlOperation != session.preview?.operationId) return@launch
             val error = bridge.control(control) ?: return@launch
+            if (controlOperation != session.preview?.operationId) return@launch
             snackbar.currentSnackbarData?.dismiss()
             snackbar.showSnackbar(controlErrors[error] ?: controlFailed)
         }
@@ -239,7 +244,8 @@ internal fun DevicePreviewPage(session: DevicePreviewSession, onClose: () -> Uni
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = LodySpacing.md, vertical = LodySpacing.sm),
                 horizontalArrangement = Arrangement.spacedBy(LodySpacing.sm),
             ) {
-                controls(session.platform).forEach { item -> ControlCapsule(stringResource(item.label)) { sendControl(item.control) } }
+                val deviceType = session.devices?.firstOrNull { it.id == session.preview?.deviceId }?.deviceType
+                controls(session.platform, deviceType).forEach { item -> ControlCapsule(stringResource(item.label)) { sendControl(item.control) } }
                 ControlCapsule(stringResource(R.string.preview_ctl_paste)) { input = "text" }
                 if (session.platform == DevicePlatform.IOS) ControlCapsule(stringResource(R.string.preview_ctl_open_url)) { input = "url" }
             }
