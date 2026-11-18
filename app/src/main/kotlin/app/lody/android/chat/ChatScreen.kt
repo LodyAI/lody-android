@@ -109,6 +109,17 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     BackHandler(onBack = onBack)
     var retry by remember(id, scope) { mutableIntStateOf(0) }
     var status by remember(id, scope) { mutableStateOf("syncing") }
+    var observedSyncDetails by remember(id, scope) { mutableStateOf<ConversationSyncDetails?>(null) }
+    var syncSince by remember(id, scope) { mutableLongStateOf(System.currentTimeMillis()) }
+    var syncDetailsOpen by remember(id, scope) { mutableStateOf(false) }
+    val syncDetails = observedSyncDetails?.takeUnless {
+        status != "live" && it.phase == ConversationSyncDetails.Phase.Confirmed
+    } ?: ConversationSyncDetails(syncSince, ConversationSyncDetails.Step(when (status) {
+        "live" -> ConversationSyncDetails.Phase.Confirmed
+        "offline" -> ConversationSyncDetails.Phase.Disconnected
+        else -> ConversationSyncDetails.Phase.Connecting
+    }))
+    val executionUnconfirmed = status != "live" || syncDetails.phase != ConversationSyncDetails.Phase.Confirmed
     var historyHasMore by remember(id, scope) { mutableStateOf(false) }
     var historyLoading by remember(id, scope) { mutableStateOf(false) }
     // User turns plus queued inputs, as the free-plan quota counts them (runtime `billableTurnCount`).
@@ -218,6 +229,8 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 historyHasMore = snapshot.historyHasMore
                 historyLoading = snapshot.historyLoading
                 billableTurns = snapshot.billableTurnCount
+                if (status == "live" && snapshot.status != "live") syncSince = System.currentTimeMillis()
+                observedSyncDetails = snapshot.syncDetails
                 status = snapshot.status
                 if (snapshot.messages.any { it.streaming }) delay(33)
             }
@@ -810,6 +823,8 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         Column(Modifier.fillMaxSize().padding(padding).imePadding().navigationBarsPadding()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + headerHeight
+                val showSync = executionUnconfirmed && !creationUnconfirmed && context.session?.isTabClosed != true
+                val noticeInset = if (showSync || creationNotice != null) LodySize.controlLg else LodySpacing.none
                 if (context.session?.isTabClosed == true || all.isEmpty()) {
                     Box(Modifier.fillMaxSize().padding(top = top), contentAlignment = Alignment.Center) {
                         Text(stringResource(if (context.session?.isTabClosed == true) R.string.chat_tabs_all_closed else if (status == "live") R.string.chat_empty else if (status == "offline") R.string.chat_offline else R.string.chat_loading), style = LodyTheme.typography.body, color = colors.textSecondary)
@@ -817,7 +832,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 } else {
                     // The transcript scrolls under the floating header.
                     CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides transcriptLinks, LocalSessionImages provides sessionImages) { ChatTranscript(
-                        all, Modifier.fillMaxSize(), contentPadding = PaddingValues(top = top + if (creationNotice != null) LodySize.controlLg else LodySpacing.none, bottom = LodySpacing.md), state = listState, scrollToLatest = scrollToLatest,
+                        all, Modifier.fillMaxSize(), contentPadding = PaddingValues(top = top + noticeInset, bottom = LodySpacing.md), state = listState, scrollToLatest = scrollToLatest,
                         historyHasMore = historyHasMore, historyLoading = historyLoading,
                         loadEarlier = { repository.loadOlder(scope, id) },
                         onForgetPending = { forgetId = it },
@@ -840,23 +855,29 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                         respondPermission = if (status == "live" && context.session?.isTabClosed != true) ({ entryId, itemId, requestId, optionId, answers ->
                             repository.respondPermission(scope, id, entryId, itemId, requestId, optionId, answers)
                         }) else null,
+                        executionUnconfirmed = executionUnconfirmed,
                     ) }
                 }
                 ChatHeader(context.title, context.tabs, context.closedTabs, id, creatingTab, changingTab, onBack, onSelectTab, createTab, changeTab, context.machineName, machineOnline, loadMachine,
                     onBrowseFiles = if (ProjectFiles.browsable(context.session, creationUnconfirmed)) ({ browsingFiles = true }) else null,
-                    previews = previewMenu.takeIf { context.session?.isTabClosed != true && !creationUnconfirmed })
+                    previews = previewMenu.takeIf { context.session?.isTabClosed != true && !creationUnconfirmed },
+                    onSyncDetails = { syncDetailsOpen = true })
                 if (creationNotice != null) {
                     Text(creationNotice,
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = top).padding(horizontal = TranscriptMargin),
                         style = LodyTheme.typography.footnote, color = colors.textSecondary)
                 }
-                if (status == "offline" && !creationUnconfirmed) {
+                if (showSync && creationNotice == null) {
                     Row(
                         Modifier.align(Alignment.TopCenter).padding(top = top).padding(horizontal = TranscriptMargin).fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(stringResource(R.string.chat_offline), style = LodyTheme.typography.footnote, color = colors.textSecondary, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { retry++ }) { Text(stringResource(R.string.chat_retry), color = colors.accentFg) }
+                        TextButton(onClick = { syncDetailsOpen = true }, modifier = Modifier.weight(1f)) {
+                            Text(stringResource(syncDetails.phase.label), color = colors.textSecondary)
+                        }
+                        if (status == "offline") {
+                            TextButton(onClick = { retry++ }) { Text(stringResource(R.string.chat_retry), color = colors.accentFg) }
+                        }
                     }
                 }
                 // Web's round "scroll to latest" button, shown once the reader has scrolled up.
@@ -934,6 +955,9 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             // Docked between the prompt and the keyboard; rows never take focus, so the keyboard stays.
             MentionDock(mentions, field, active = composerFocused && canSend, loadShortcut = { shortcutId -> repository.shortcut(scope, shortcutId) }) { next -> field = next; prompt = next.text }
         }
+    }
+    if (syncDetailsOpen) {
+        ConversationSyncDetailsSheet(syncDetails, context.machineName) { syncDetailsOpen = false }
     }
     if (runConfig && session != null) {
         ModalBottomSheet(
@@ -1026,7 +1050,7 @@ private val HeaderFade = 24.dp
 
 /** Floating header: title over the tappable machine subtitle, with conditional Tabs and More. */
 @Composable
-internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, closedTabs: List<CatalogSession>, currentId: String, creating: Boolean, busy: String?, onBack: () -> Unit, onSelectTab: (String) -> Unit, onNewTab: () -> Unit, onChangeTab: (String, Boolean) -> Unit, machine: String = "", machineOnline: Boolean? = null, loadMachine: suspend () -> MachinePanelData = { MachinePanelData() }, onBrowseFiles: (() -> Unit)? = null, previews: PreviewMenu? = null) {
+internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, closedTabs: List<CatalogSession>, currentId: String, creating: Boolean, busy: String?, onBack: () -> Unit, onSelectTab: (String) -> Unit, onNewTab: () -> Unit, onChangeTab: (String, Boolean) -> Unit, machine: String = "", machineOnline: Boolean? = null, loadMachine: suspend () -> MachinePanelData = { MachinePanelData() }, onBrowseFiles: (() -> Unit)? = null, previews: PreviewMenu? = null, onSyncDetails: (() -> Unit)? = null) {
     var expanded by remember(currentId) { mutableStateOf(false) }
     var history by remember(currentId) { mutableStateOf(false) }
     var restoringId by remember(currentId) { mutableStateOf<String?>(null) }
@@ -1087,6 +1111,10 @@ internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, clos
                     Icon(LodyIcons.More, stringResource(R.string.bar_more), tint = colors.iconPrimary, modifier = Modifier.size(LodyIconSize.md))
                 }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                    if (onSyncDetails != null) DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_sync_title)) },
+                        onClick = { more = false; onSyncDetails() },
+                    )
                     if (onBrowseFiles != null) DropdownMenuItem(text = { Text(stringResource(R.string.files_title)) },
                         leadingIcon = { Icon(LodyIcons.Folder, null) }, onClick = { more = false; onBrowseFiles() })
                     if (previews != null) {

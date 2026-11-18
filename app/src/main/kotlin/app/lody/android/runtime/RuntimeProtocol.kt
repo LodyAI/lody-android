@@ -123,6 +123,18 @@ internal object RuntimeProtocol {
                 preview = PreviewJson.summary(envelope.optJSONObject("preview")),
                 historyHasMore = envelope.optBoolean("historyHasMore"),
                 historyLoading = envelope.optBoolean("historyLoading"),
+                syncDetails = envelope.optJSONObject("syncDetails")?.let { details ->
+                    fun step(key: String): ConversationSyncDetails.Step? {
+                        val value = details.optJSONObject(key) ?: return null
+                        val phase = ConversationSyncDetails.Phase.entries.firstOrNull {
+                            it.wire == value.optString("phase")
+                        } ?: return null
+                        return ConversationSyncDetails.Step(phase, value.opt("reason") as? String)
+                    }
+                    val since = details.optLong("since")
+                    val document = step("document")
+                    if (since > 0 && document != null) ConversationSyncDetails(since, document, step("history")) else null
+                },
                 billableTurnCount = (envelope.opt("billableTurnCount") as? Number)?.toInt()?.takeIf { it >= 0 },
             ))
         }

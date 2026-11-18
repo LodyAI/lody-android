@@ -377,6 +377,19 @@ data class RunChoice(
     val configOptionValues: Map<String, Any> = emptyMap(),
     val agentRoleId: String? = null, val roleKnown: Boolean = false,
 )
+data class ConversationSyncDetails(val since: Long, val document: Step, val history: Step? = null) {
+    enum class Phase(val wire: String) {
+        Connecting("connecting"), Syncing("syncing"), Retrying("retrying"),
+        Disconnected("disconnected"), Confirmed("confirmed"),
+    }
+
+    data class Step(val phase: Phase, val reason: String? = null)
+
+    val phase: Phase
+        get() = listOf(Phase.Disconnected, Phase.Retrying, Phase.Connecting, Phase.Syncing)
+            .firstOrNull { it == document.phase || it == history?.phase } ?: Phase.Confirmed
+}
+
 /** [preview]: the session's managed web preview candidate, null without one. */
 data class SessionSnapshot(
     val id: String,
@@ -389,6 +402,7 @@ data class SessionSnapshot(
     val historyLoading: Boolean = false,
     /** User turns plus queued inputs, as the free-plan turn quota counts them; null when unknown. */
     val billableTurnCount: Int? = null,
+    val syncDetails: ConversationSyncDetails? = null,
 )
 sealed interface RuntimeEvent {
     data class ProvidersChanged(val machineId: String) : RuntimeEvent

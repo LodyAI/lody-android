@@ -237,5 +237,12 @@
       "scripts/build.mjs"
     ],
     "note": "Mirrors the iOS DataRuntime CSP template: permit wss: alongside https: while retaining all other directives. Dependencies and licenses are unchanged."
+  },
+  "conversationSyncDetails": {
+    "commit": "75a1606c4207dafdb991333c6c22942e10941c97",
+    "files": [
+      "src/runtime/session.ts"
+    ],
+    "note": "The session snapshot reports the independent receive phases of the session stream and Roost owner history."
   }
 }

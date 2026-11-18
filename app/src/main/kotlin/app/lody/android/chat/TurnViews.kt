@@ -203,7 +203,7 @@ internal fun Disclosure(label: String, expanded: Boolean, modifier: Modifier = M
 
 /** Text-only live status at the end of a running turn. */
 @Composable
-internal fun LiveStatus(thinking: Boolean, modifier: Modifier = Modifier) {
+internal fun LiveStatus(thinking: Boolean, modifier: Modifier = Modifier, unconfirmed: Boolean = false) {
     val colors = LodyTheme.colors
     Row(
         modifier.fillMaxWidth().padding(horizontal = TranscriptMargin, vertical = LodySpacing.sm),
@@ -211,10 +211,14 @@ internal fun LiveStatus(thinking: Boolean, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(LodySpacing.sm),
     ) {
         Text(
-            stringResource(if (thinking) R.string.chat_activity_thinking else R.string.chat_working),
+            stringResource(when {
+                unconfirmed -> R.string.chat_sync_execution_unconfirmed
+                thinking -> R.string.chat_activity_thinking
+                else -> R.string.chat_working
+            }),
             style = LodyTheme.typography.footnote,
             color = colors.textTertiary,
-            modifier = Modifier.shimmer(),
+            modifier = if (unconfirmed) Modifier else Modifier.shimmer(),
         )
     }
 }

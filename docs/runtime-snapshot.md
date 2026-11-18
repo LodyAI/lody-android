@@ -240,3 +240,11 @@ The trusted NetworkRuntime permits only the validated grant HTTPS origin and its
 matching WSS origin. The offline runtime keeps `connect-src none`. The mirrored
 iOS DataRuntime template permits `https:` and `wss:` while retaining its other CSP
 directives. This permission does not enable the Streams WebSocket transport.
+
+
+## Conversation sync status
+
+The snapshot mirrors the iOS runtime's session receive phases, observed
+failure reason, and waiting timestamp. The Kotlin adapter decodes the
+optional `syncDetails` field. Conversation status and Roost owner history
+remain independent while catching up and reconnecting.

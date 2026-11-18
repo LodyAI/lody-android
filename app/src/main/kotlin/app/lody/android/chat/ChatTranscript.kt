@@ -162,6 +162,7 @@ fun ChatTranscript(
     decideProposal: ProposalDecider? = null,
     /** Answers a permission request; null where there is no runtime or the session cannot take an answer. */
     respondPermission: PermissionResponder? = null,
+    executionUnconfirmed: Boolean = false,
 ) {
     // Only an actual drag leaves follow mode. Programmatic positioning and IME layout
     // changes must not look like the reader scrolled away from the end.
@@ -290,7 +291,7 @@ fun ChatTranscript(
             transcriptRows(
                 entries, open, toggle, details, openTasks, openFiles, actions,
                 relatedSessions, navigateSession, onForgetPending, onRetryPending, retryablePendingIds, meId, decideProposal,
-                respondPermission,
+                respondPermission, executionUnconfirmed,
             )
         }
         // A small stable end anchor avoids enormous scroll offsets and measuring the
@@ -353,6 +354,7 @@ private fun LazyListScope.transcriptRows(
     meId: String?,
     decideProposal: ProposalDecider?,
     respondPermission: PermissionResponder?,
+    executionUnconfirmed: Boolean,
 ) {
         entries.forEach { entry ->
             when (entry) {
@@ -384,7 +386,7 @@ private fun LazyListScope.transcriptRows(
                     if (entry.working) {
                         val last = layout.blocks.lastOrNull()
                         val thinking = last is TurnLayout.Activity && last.items.lastOrNull() is TurnItem.Thought
-                        item(key = "${entry.id}#live", contentType = "live") { LiveStatus(thinking, Modifier.animateItem()) }
+                        item(key = "${entry.id}#live", contentType = "live") { LiveStatus(thinking, Modifier.animateItem(), unconfirmed = executionUnconfirmed) }
                     }
                     turnOutput(entry, onOpenTasks, onOpenFiles)
                     turnFooter(entry, actions)

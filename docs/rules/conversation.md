@@ -60,3 +60,11 @@ Read before changing the conversation page: the transcript and its turns, compos
 
 - Workspace diff presence uses the complete changed-file count when provided by the catalog; older daemons retain the text-line fallback. Positive text totals remain visible for mixed comparisons; zero-line changes show the localized file count in the capsule, menu and accessibility description. Preserve the count through catalog caching.
 - Composer text drafts stay on the device until sent (`chat/ComposerDrafts`, SharedPreferences per backend storage suffix, keyed by account, workspace and conversation or the new-chat page), mirroring iOS: `ChatScreen` and `CreateSessionScreen` restore the draft on open and save each change; a sent turn clears it, and a turn handed back to the composer is saved again. The new-chat draft is cleared once the chat is submitted. Only plaintext workspaces persist drafts; logout clears them with other account data. Attachments are not persisted.
+
+
+- Conversation sync details are available from the header's More menu and
+  from the waiting or interruption banner. Each diagram names the source, any
+  relay and the receiving device, with arrows in the direction conversation data
+  flows. The session stream and Roost owner history have separate statuses. Retained turns remain visible
+  while a path is unconfirmed; they show execution status as unconfirmed
+  and pause the live indicator until the current subscription catches up.

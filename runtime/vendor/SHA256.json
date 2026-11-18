@@ -112,7 +112,7 @@
   "src/runtime/roost-history.ts": "ce6b4185ff7374673169cd1c5447ee2aaaac62ce3fec2d45088071270efafb2c",
   "src/runtime/schedules.ts": "c8e5bd5252a989b88b9c21ad9419ae72e1ba9871b2be30d4731ef70dfc157538",
   "src/runtime/session-read.ts": "bd288469e11213ef0dfd8623cf0d9668285ef6da6ea1fb1ed70944ee2db6413b",
-  "src/runtime/session.ts": "430b1a86d3f03cd3baf677080a661084be5d444a5aa85a16f6744e929f6410c7",
+  "src/runtime/session.ts": "cb8433d7b8c0c87cb5b2d6b67c3497e8c8420f60a4e63937092b4c2cf65f0078",
   "src/runtime/settings.ts": "87b4403311099618554a3770d29ae8eba72583e11a8aec10b6235d044bd77e66",
   "src/runtime/sharing/history.ts": "41bb3abb311a444ae07581760a310f8449e13efaa44e42f5867dc49127125265",
   "src/runtime/sharing/README.md": "6f8fd3c6f5c0ef508eb4c06b62a2ceee11467b57fce5526d794f80b775df7cc9",

@@ -4,6 +4,16 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
 class RuntimeProtocolTest {
+ @Test fun showsRoostHistoryFailureSeparatelyFromConfirmedControlStream() {
+  val envelope = """{"v":1,"status":"syncing","entries":[],"syncDetails":{"since":1234,"document":{"phase":"confirmed"},"history":{"phase":"retrying","reason":"timeout"}}}"""
+  val event = JSONObject().put("type", "session").put("sessionId", "s").put("session", envelope)
+  val details = (RuntimeProtocol.event(event) as RuntimeEvent.SessionUpdated).snapshot.syncDetails!!
+  assertEquals(1234L, details.since)
+  assertEquals(ConversationSyncDetails.Phase.Confirmed, details.document.phase)
+  assertEquals(ConversationSyncDetails.Phase.Retrying, details.phase)
+  assertEquals("timeout", details.history?.reason)
+ }
+
  private val fixtures=JSONObject(File(System.getProperty("runtime.fixtures")).readText())
  private fun operationMessages(items: String): List<SessionMessage> = (RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
   .put("session", """{"v":1,"status":"live","entries":[{"id":"event","role":"system","items":$items}]}""")) as RuntimeEvent.SessionUpdated).snapshot.messages
