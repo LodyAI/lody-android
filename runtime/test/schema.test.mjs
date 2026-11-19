@@ -19,6 +19,10 @@ test('shared schemas retain accepted identities and reject extra or malformed fi
  assert.equal(memory.memoryAssociation.safeParse({...identity,secret:'forbidden'}).success,false);
  assert.equal(shortcut.PromptShortcutTargetSchema.safeParse({kind:'agent_role',agentRoleId:'role'}).success,true);
  assert.equal(shortcut.PromptShortcutTargetSchema.safeParse({kind:'issue',repository:'owner/repo',number:-1}).success,false);
+ const validShortcut={v:1,id:'s1',workspaceId:'w1',ownerUserId:'u1',name:'Review',slug:'review',scope:{},revision:'r1',createdAt:1,updatedAt:1,prompt:'Review changes',mentions:[]};
+ assert.deepEqual(shortcut.PromptShortcutSchema.parse(validShortcut),validShortcut);
+ assert.deepEqual(shortcut.PromptShortcutSchema.parse({...validShortcut,visibility:'private'}),validShortcut);
+ assert.equal(shortcut.PromptShortcutSchema.safeParse({...validShortcut,unknown:'forbidden'}).success,false);
  const object={id:'object',mediaType:'text/plain',sizeBytes:0,sha256:'a'.repeat(64)};
  assert.deepEqual(share.ShareObjectSchema.parse(object),object);
  assert.equal(share.ShareObjectSchema.safeParse({...object,sizeBytes:-1}).success,false);

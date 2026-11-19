@@ -249,5 +249,27 @@
       "src/runtime/session.ts"
     ],
     "note": "Context window usage comes from catalog session meta `contextWindowUsage` (as on web) through sessionQuotaProjection, not the session document, so the composer ring shows context occupancy first. Dependencies and licenses are unchanged."
+  },
+  "promptShortcutsUserSpace": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "0f4e373fb7e00aeac156a8a1062e99b56699c45c",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/115",
+    "files": [
+      "contract/fixtures/to-host.json",
+      "contract/fixtures/to-runtime.json",
+      "contract/runtime-contract.json",
+      "src/contract/shortcuts.ts",
+      "src/protocol/prompt-shortcuts/access.ts",
+      "src/protocol/prompt-shortcuts/catalog.ts",
+      "src/protocol/prompt-shortcuts/document.ts",
+      "src/protocol/prompt-shortcuts/model.ts",
+      "src/runtime/handlers/context.ts",
+      "src/runtime/handlers/mentions.ts",
+      "src/runtime/handlers/sessions.ts",
+      "src/runtime/handlers/settings.ts",
+      "src/runtime/prompt-shortcuts.ts",
+      "src/runtime/settings.ts"
+    ],
+    "note": "Prompt Shortcuts migrate to workspace UserSpace streams (`<workspace>:shortcut-index` and `<workspace>:shortcut:<id>`) using the cached workspace Loro Streams token, remove `visibility` (`Share with workspace`) while stripping legacy stored `visibility`, update shortcut body documents in place without rotating `bodyDocId`, and retain Phase 1 read-only fallback to legacy `shortcut-index:*` and `shortcut-body:*` streams. Dependencies and licenses are unchanged."
   }
 }

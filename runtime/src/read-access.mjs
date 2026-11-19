@@ -21,9 +21,11 @@ export function createReadAccess(fetch, emit=()=>{}) {
   // Schedules: the Flock registry and one schedule's Loro doc are each created, read and appended.
   // Agent Roles: the workspace Flock is read, created when missing and appended by Role edits.
   if(stream===config.workspace+':wf:workspace')return read || ['PUT','POST'].includes(request.method);
-  // Prompt shortcuts: this workspace's index Flocks and body docs, under stream-specific tokens.
-  if(new RegExp('^shortcut-index:'+config.workspace+':[^:/]{1,600}:(private|workspace)$').test(stream))return read || ['PUT','POST'].includes(request.method);
-  if(/^shortcut-body:[^:/]{1,600}$/.test(stream))return read || ['PUT','POST'].includes(request.method);
+  // Prompt shortcuts: workspace-scoped index Flock and body docs; legacy streams are Phase 1 read-only.
+  if(stream===config.workspace+':shortcut-index')return read || ['PUT','POST'].includes(request.method);
+  if(new RegExp('^'+config.workspace+':shortcut:[^:/]{1,600}$').test(stream))return read || ['PUT','POST'].includes(request.method);
+  if(new RegExp('^shortcut-index:'+config.workspace+':[^:/]{1,600}:(private|workspace)$').test(stream))return read;
+  if(/^shortcut-body:[^:/]{1,600}$/.test(stream))return read;
   if(stream===config.workspace+':sr')return true;
   if(new RegExp('^'+config.workspace+':schedule:[a-zA-Z0-9_-]{1,128}$').test(stream))return true;
   if(new RegExp('^'+config.workspace+':s:[a-zA-Z0-9_-]{1,128}$').test(stream))return true;

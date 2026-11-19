@@ -186,36 +186,31 @@ internal fun ShortcutsScreen(home: ChatListUiState, service: ShortcutSettingsSer
             if (state?.busy == true || opening) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             if (state?.error != null) item { ShortcutNotice(stringResource(R.string.shortcuts_load_failed)) }
             if (state?.entries != null && entries.isEmpty()) item { ShortcutNotice(stringResource(R.string.shortcuts_empty)) }
-            for ((shared, title) in listOf(false to R.string.shortcuts_private, true to R.string.shortcuts_workspace)) {
-                val group = entries.filter { it.shared == shared }
-                if (group.isEmpty()) continue
-                item(key = "header-$shared") { SettingsHeading(stringResource(title)) }
-                items(group, key = { "shortcut-${it.id}" }) { entry ->
-                    val viewOnly = entry.ownerUserId != home.userId || !entry.simple
-                    SettingsLine(entry.name, LodyIcons.File, "/${entry.slug}", onClick = {
-                        if (state == null) return@SettingsLine
-                        // Open at once from the list entry; the body fills in when its read returns
-                        // and saving waits for it (iOS #2531).
-                        val opened = ShortcutDraft(entry, null, state.cachedBody(entry))
-                        draft = opened
-                        opening = true
-                        tasks.launch {
-                            val body = state.read(entry)
-                            opening = false
-                            if (draft !== opened) return@launch
-                            if (body == null) { draft = null; snackbar.showSnackbar(changed); state.refresh() } else draft = ShortcutDraft(entry, body)
-                        }
-                    }, leading = {
-                        val glyph = entry.emoji
-                        if (glyph != null) Text(glyph, style = LodyTheme.typography.body)
-                        else Icon(LodyIcons.File, null, Modifier.size(LodyIconSize.md), tint = LodyTheme.colors.textSecondary)
-                    }, trailing = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LodySpacing.sm)) {
-                            if (viewOnly) Icon(LodyIcons.Eye, stringResource(R.string.shortcuts_view_only), Modifier.size(LodyIconSize.sm), tint = LodyTheme.colors.textSecondary)
-                            Icon(LodyIcons.Forward, null, Modifier.size(LodyIconSize.sm), tint = LodyTheme.colors.textSecondary)
-                        }
-                    })
-                }
+            items(entries, key = { "shortcut-${it.id}" }) { entry ->
+                val viewOnly = entry.ownerUserId != home.userId || !entry.simple
+                SettingsLine(entry.name, LodyIcons.File, "/${entry.slug}", onClick = {
+                    if (state == null) return@SettingsLine
+                    // Open at once from the list entry; the body fills in when its read returns
+                    // and saving waits for it (iOS #2531).
+                    val opened = ShortcutDraft(entry, null, state.cachedBody(entry))
+                    draft = opened
+                    opening = true
+                    tasks.launch {
+                        val body = state.read(entry)
+                        opening = false
+                        if (draft !== opened) return@launch
+                        if (body == null) { draft = null; snackbar.showSnackbar(changed); state.refresh() } else draft = ShortcutDraft(entry, body)
+                    }
+                }, leading = {
+                    val glyph = entry.emoji
+                    if (glyph != null) Text(glyph, style = LodyTheme.typography.body)
+                    else Icon(LodyIcons.File, null, Modifier.size(LodyIconSize.md), tint = LodyTheme.colors.textSecondary)
+                }, trailing = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LodySpacing.sm)) {
+                        if (viewOnly) Icon(LodyIcons.Eye, stringResource(R.string.shortcuts_view_only), Modifier.size(LodyIconSize.sm), tint = LodyTheme.colors.textSecondary)
+                        Icon(LodyIcons.Forward, null, Modifier.size(LodyIconSize.sm), tint = LodyTheme.colors.textSecondary)
+                    }
+                })
             }
             if (entries.isNotEmpty()) item { ShortcutNotice(stringResource(R.string.shortcuts_hint)) }
         }
@@ -234,7 +229,6 @@ private fun ShortcutEditor(state: ShortcutsState, draft: ShortcutDraft, userId: 
     var slug by remember(base?.id) { mutableStateOf(base?.slug.orEmpty()) }
     var prompt by remember(base?.id) { mutableStateOf((body ?: draft.cached)?.prompt.orEmpty()) }
     LaunchedEffect(base?.id, body) { if (body != null) prompt = body.prompt }
-    var shared by remember(base?.id) { mutableStateOf(base?.shared == true) }
     // A save of unknown outcome is held unchanged so a retry can only repeat that same save.
     var attempt by remember(base?.id) { mutableStateOf<ShortcutSettingsAction.Save?>(null) }
     var failure by remember(base?.id) { mutableStateOf<String?>(null) }
@@ -243,8 +237,8 @@ private fun ShortcutEditor(state: ShortcutsState, draft: ShortcutDraft, userId: 
     val editable = !loading && !readOnly && !saving && attempt == null
     val valid = name.isNotBlank() && prompt.isNotBlank() && ShortcutSettingsJson.validSlug(slug) && prompt.length <= ShortcutSettingsJson.PROMPT_LIMIT
     val save = {
-        val action = attempt ?: ShortcutSettingsJson.save(state.scope, base, body, ShortcutFields(name, slug, prompt, shared))
-        val preview = ShortcutEntry(action.id, userId, base?.shared ?: shared, name.trim(), base?.emoji, slug, true)
+        val action = attempt ?: ShortcutSettingsJson.save(state.scope, base, body, ShortcutFields(name, slug, prompt))
+        val preview = ShortcutEntry(action.id, userId, name.trim(), base?.emoji, slug, true)
         saving = true; failure = null
         tasks.launch {
             val code = state.save(action, preview)
@@ -285,11 +279,6 @@ private fun ShortcutEditor(state: ShortcutsState, draft: ShortcutDraft, userId: 
             SettingsGroup(stringResource(R.string.shortcuts_prompt)) {
                 OutlinedTextField(prompt, { if (it.length <= ShortcutSettingsJson.PROMPT_LIMIT) prompt = it },
                     Modifier.fillMaxWidth().heightIn(min = 180.dp).padding(horizontal = LodySpacing.sm), enabled = editable)
-            }
-            SettingsGroup {
-                SettingsLine(stringResource(R.string.shortcuts_workspace_toggle), LodyIcons.Share, stringResource(R.string.shortcuts_visibility_hint), trailing = {
-                    Switch(shared, { shared = it }, enabled = editable && base == null)
-                })
             }
             Spacer(Modifier.height(LodySpacing.xxl))
         }

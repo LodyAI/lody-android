@@ -6,14 +6,14 @@ import java.util.UUID
 
 /** One readable prompt shortcut from the runtime `promptShortcuts` index (iOS `PromptShortcutEntry`). */
 data class ShortcutEntry(
-    val id: String, val ownerUserId: String, val shared: Boolean, val name: String, val emoji: String?, val slug: String,
+    val id: String, val ownerUserId: String, val name: String, val emoji: String?, val slug: String,
     /** No project / computer / provider scope and no structured references: mobile can edit it. */
     val simple: Boolean,
     internal val raw: String = "",
 )
 /** A shortcut's body as read fresh before editing. */
 data class ShortcutBody(val prompt: String, val simple: Boolean, internal val raw: String)
-data class ShortcutFields(val name: String, val slug: String, val prompt: String, val shared: Boolean)
+data class ShortcutFields(val name: String, val slug: String, val prompt: String)
 
 sealed interface ShortcutSettingsAction {
     data object List : ShortcutSettingsAction
@@ -35,7 +35,7 @@ internal object ShortcutSettingsJson {
     private fun scopeSimple(scope: JSONObject?) = scope == null || listOf("project", "machineId", "providerKey").none { scope.has(it) && !scope.isNull(it) }
 
     private fun entry(value: JSONObject) = ShortcutEntry(
-        value.getString("id"), value.getString("ownerUserId"), value.optString("visibility") == "workspace",
+        value.getString("id"), value.getString("ownerUserId"),
         value.optString("name"), (value.opt("emoji") as? String)?.takeIf { it.isNotBlank() }, value.optString("slug"),
         scopeSimple(value.optJSONObject("scope")) && (value.optJSONArray("dependencySummary")?.length() ?: 0) == 0,
         value.toString(),
@@ -66,23 +66,27 @@ internal object ShortcutSettingsJson {
     }
 
     /**
-     * iOS `PromptShortcutEditorController.makeRequest`: a fresh revision and body document; an
-     * edit keeps the stored id, visibility, emoji, description, scope and creation time.
+     * iOS `PromptShortcutEditorController.makeRequest`: a fresh revision; an edit keeps the stored
+     * id, bodyDocId, emoji, description, scope and creation time.
      */
     fun save(scope: RuntimeScope, base: ShortcutEntry?, body: ShortcutBody?, fields: ShortcutFields, now: Long = System.currentTimeMillis()): ShortcutSettingsAction.Save {
+        val baseEntry = base?.raw?.let(::JSONObject)
         val previous = body?.raw?.let(::JSONObject)
-        val id = previous?.optString("id")?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString().lowercase()
+        val id = previous?.optString("id")?.takeIf { it.isNotBlank() }
+            ?: baseEntry?.optString("id")?.takeIf { it.isNotBlank() }
+            ?: UUID.randomUUID().toString().lowercase()
+        val bodyDocId = baseEntry?.optString("bodyDocId")?.takeIf { it.isNotBlank() } ?: id
         val value = JSONObject().put("v", 1).put("id", id).put("workspaceId", scope.workspaceId).put("ownerUserId", scope.accountId)
-            .put("visibility", previous?.optString("visibility")?.takeIf { it == "workspace" || it == "private" } ?: if (fields.shared) "workspace" else "private")
             .put("name", fields.name.trim()).put("slug", fields.slug)
             .put("scope", previous?.optJSONObject("scope") ?: JSONObject())
             .put("revision", UUID.randomUUID().toString().lowercase())
-            .put("createdAt", previous?.optLong("createdAt")?.takeIf { it > 0 } ?: now).put("updatedAt", now)
+            .put("createdAt", previous?.optLong("createdAt")?.takeIf { it > 0 } ?: baseEntry?.optLong("createdAt")?.takeIf { it > 0 } ?: now)
+            .put("updatedAt", now)
             .put("prompt", fields.prompt).put("mentions", JSONArray())
         previous?.opt("emoji")?.takeIf { it is String }?.let { value.put("emoji", it) }
         previous?.opt("description")?.takeIf { it is String }?.let { value.put("description", it) }
-        val payload = JSONObject().put("action", "save").put("entry", base?.raw?.let(::JSONObject) ?: JSONObject.NULL)
-            .put("value", value).put("bodyDocId", UUID.randomUUID().toString().lowercase())
+        val payload = JSONObject().put("action", "save").put("entry", baseEntry ?: JSONObject.NULL)
+            .put("value", value).put("bodyDocId", bodyDocId)
         return ShortcutSettingsAction.Save(id, payload.toString())
     }
 }

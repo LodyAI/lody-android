@@ -209,13 +209,14 @@ replicas with online and own computers first, loads prompt-shortcut indexes in
 parallel, accepts a Role `emoji` on save and removes the project-history action.
 `role-commands.mjs` bridges `agentRoleSettings` (list / save / delete) with the native
 identity and a closed error vocabulary; both network gates permit read, create and
-append of `<workspace>:wf:workspace` only. Prompt shortcuts: the contract bridge forwards
-the runtime's allow-listed `shortcutCloud` host calls for the current workspace to native as
-`shortcutCloud` events and answers each once through `shortcutCloudReply` (`{value}` or
-null → `shortcut_unavailable`, 60-second native deadline); `shortcut-commands.mjs` bridges
-`shortcutSettings` (list / read / save). Both gates permit read, create and append of
-`shortcut-index:<workspace>:<owner>:<visibility>` and `shortcut-body:<id>`, whose
-stream-specific tokens come from `getStreamToken`.
+append of `<workspace>:wf:workspace` only. Prompt shortcuts (`0f4e373f`, `lody-ios` #115):
+`shortcut-commands.mjs` bridges `shortcutSettings` (list / read / save / delete) without
+`visibility`, updating shortcut body documents in place (`<workspace>:shortcut:<id>`) and
+indexing them in `<workspace>:shortcut-index` using the cached workspace Loro Streams token;
+both network gates permit read, create and append of `<workspace>:shortcut-index` and
+`<workspace>:shortcut:<id>`, while retaining Phase 1 read-only access to legacy
+`shortcut-index:<workspace>:<owner>:<visibility>` and `shortcut-body:<id>` streams (plus
+`revokeDocument` via `shortcutCloud` when deleting an unmigrated legacy shortcut).
 
 ## Previews
 
