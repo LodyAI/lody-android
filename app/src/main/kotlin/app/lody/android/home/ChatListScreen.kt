@@ -41,10 +41,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.widthIn
@@ -320,7 +325,9 @@ fun ChatListScreen(
     Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = homePageColor(),
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        // Bars handle their own edges; Scaffold supplies the bottom inset when search hides the bar.
+        contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+            .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             when {
@@ -329,14 +336,14 @@ fun ChatListScreen(
                     HomeTopBar(state, onSearch = { searching = true }, onSelectWorkspace = onSelectWorkspace) {
                         ViewMenu(homeScope, selectScope, grouping, selectGrouping, details, toggleDetail, archived) { archived = it }
                     }
-                    HomeSyncPill(state.sync, Modifier.align(Alignment.Center).statusBarsPadding())
+                    HomeSyncPill(state.sync, Modifier.align(Alignment.Center).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)))
                 }
                 // Schedules keeps the Chats header (workspace, sync, search) with its own view menu.
                 tab == HomeTab.Schedules -> Box {
                     HomeTopBar(state, onSearch = { searching = true }, onSelectWorkspace = onSelectWorkspace) {
                         ScheduleViewMenu(showFinished) { showFinished = it }
                     }
-                    HomeSyncPill(state.sync, Modifier.align(Alignment.Center).statusBarsPadding())
+                    HomeSyncPill(state.sync, Modifier.align(Alignment.Center).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)))
                 }
                 else -> TitleTopBar(stringResource(tab.label), onBack = null)
             }
@@ -424,6 +431,7 @@ private fun HomeTopBar(
 ) {
     val colors = LodyTheme.colors
     TopAppBar(
+        windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         title = { WorkspaceCapsule(state, onSelectWorkspace) },
         actions = {
             val search = stringResource(R.string.home_search)
@@ -441,6 +449,7 @@ private fun HomeTopBar(
 private fun TitleTopBar(title: String, onBack: (() -> Unit)?) {
     val colors = LodyTheme.colors
     TopAppBar(
+        windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         title = { Text(title, style = LodyTheme.typography.headline, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
             if (onBack != null) {
@@ -711,7 +720,7 @@ private fun SearchTopBar(query: String, onQueryChange: (String) -> Unit, onClose
         modifier = Modifier
             .fillMaxWidth()
             .background(homePageColor())
-            .statusBarsPadding()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
             .padding(horizontal = LodySpacing.xs, vertical = LodySpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -769,7 +778,10 @@ internal fun HomeBottomBar(selected: HomeTab, collapsed: Boolean, onSelect: (Hom
     val height = BarHeight + (LodySize.controlLg - BarHeight) * shrink
     val labelHeight = with(LocalDensity.current) { LodyTheme.typography.micro.lineHeight.toDp() }
     BoxWithConstraints(
-        Modifier.fillMaxWidth().navigationBarsPadding()
+        Modifier.fillMaxWidth().windowInsetsPadding(
+            WindowInsets.systemBars.union(WindowInsets.displayCutout)
+                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+        )
             .padding(horizontal = LodyLayout.screenPaddingX, vertical = LodySpacing.xs)
             .height(BarHeight),
     ) {

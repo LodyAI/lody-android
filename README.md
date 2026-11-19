@@ -36,6 +36,18 @@ The debug launcher automatically runs compatibility checks and provides Run, Res
 
 Only debug runtimes for the `offline-fixture` account bypass account/workspace admission, so offline diagnostics need no login. All other debug accounts and every release runtime retain native plaintext/E2EE admission.
 
+## System bars and keyboard
+
+Home and conversation backgrounds extend behind system bars. Custom headers and
+bottom controls avoid system bars and display cutouts, including side insets in
+landscape. Home search retains bottom system-bar clearance when its bottom bar
+is hidden. The conversation transcript still scrolls beneath its floating header.
+The creation page consumes Scaffold padding before applying keyboard insets, so
+the navigation-bar space is not added twice. Picker search keeps its existing
+keyboard ownership. These layouts use Android window insets without device-brand
+checks or fixed system-bar heights; HarmonyOS APK compatibility still needs
+validation on the affected device/runtime.
+
 ## Push notifications
 
 The native app supports OneSignal (default) and direct FCM. Only the backend

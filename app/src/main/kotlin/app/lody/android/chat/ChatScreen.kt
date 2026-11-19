@@ -807,9 +807,13 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         snackbarHost = { SnackbarHost(snackbar) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).imePadding().navigationBarsPadding()) {
+        Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            .imePadding().windowInsetsPadding(
+                WindowInsets.navigationBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Bottom),
+            )) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + headerHeight
+                val top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() + headerHeight
                 if (context.session?.isTabClosed == true || all.isEmpty()) {
                     Box(Modifier.fillMaxSize().padding(top = top), contentAlignment = Alignment.Center) {
                         Text(stringResource(if (context.session?.isTabClosed == true) R.string.chat_tabs_all_closed else if (status == "live") R.string.chat_empty else if (status == "offline") R.string.chat_offline else R.string.chat_loading), style = LodyTheme.typography.body, color = colors.textSecondary)
@@ -1053,7 +1057,7 @@ internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, clos
                     endY = size.height + fade,
                 ), size = androidx.compose.ui.geometry.Size(size.width, size.height + fade))
             }
-            .statusBarsPadding()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
             .padding(horizontal = LodySpacing.sm, vertical = LodySpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(LodySpacing.xs),

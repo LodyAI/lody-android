@@ -75,7 +75,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -364,10 +370,12 @@ fun CreateSessionScreen(snapshot: CatalogSnapshot?, repository: CreationService,
 
 
     Scaffold(
+        contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
         containerColor = colors.bgBase,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
                 title = { Text(stringResource(R.string.create_title), style = LodyTheme.typography.headline, color = colors.textPrimary) },
                 navigationIcon = {
                     val back = stringResource(R.string.chat_back)
@@ -383,8 +391,8 @@ fun CreateSessionScreen(snapshot: CatalogSnapshot?, repository: CreationService,
             Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .consumeWindowInsets(padding)
                 .imePadding()
-                .navigationBarsPadding()
                 .pointerInput(dismissKeyboard) { detectTapGestures(onTap = { dismissKeyboard(); openContext = null }) },
         ) {
             // Bottom-aligned above the composer; an expanded list grows upward and, once the
