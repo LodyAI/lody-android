@@ -244,5 +244,26 @@
       "src/runtime/session.ts"
     ],
     "note": "The session snapshot reports the independent receive phases of the session stream and Roost owner history."
+  },
+  "conversationReceiveConfirmation": {
+    "repository": "https://github.com/LodyAI/lody-ios",
+    "baseCommit": "69ca86548ddc76aef00bdb5345e221b36befcb25",
+    "commit": "eaf294c127511aaed5dc9411437691e4caf88ddb",
+    "files": [
+      "src/runtime/handlers/lifecycle.ts",
+      "src/runtime/session.ts"
+    ],
+    "note": "Mirrors the two iOS runtime files verbatim. Foreground wake requires a fresh read and stream readiness requires all received Loro updates to be applied."
+  },
+  "conversationReceiveFollowup": {
+    "repository": "https://github.com/LodyAI/lody-ios",
+    "commit": "38bcf123ff2161ed8e64b04a5bc1b254644c6645",
+    "files": [
+      "src/runtime/session.ts",
+      "src/runtime/upstream-roost-history.ts",
+      "src/runtime/upstream-roost.d.ts",
+      "src/runtime/upstream-roost.js"
+    ],
+    "note": "Mirrors the updated session and browser reader. Pending incoming operations affect confirmation independently of session control readiness."
   }
 }

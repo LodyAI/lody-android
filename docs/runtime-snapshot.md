@@ -247,4 +247,7 @@ directives. This permission does not enable the Streams WebSocket transport.
 The snapshot mirrors the iOS runtime's session receive phases, observed
 failure reason, and waiting timestamp. The Kotlin adapter decodes the
 optional `syncDetails` field. Conversation status and Roost owner history
-remain independent while catching up and reconnecting.
+remain independent while catching up and reconnecting. A server tail receipt
+does not confirm a conversation document while Loro still holds pending updates.
+Session controls such as Stop retain their existing readiness. Foreground
+recovery opens a new session watch while retaining the cached transcript.
