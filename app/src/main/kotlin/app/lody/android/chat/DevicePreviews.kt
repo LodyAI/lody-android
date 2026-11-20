@@ -105,10 +105,11 @@ class DevicePreviewSession(
     }
 
     /**
-     * Stops the device preview, then lists devices again for the picker (unless another action
+     * Stops the device preview (and optionally shuts down the simulator/emulator when
+     * [shutdownDevice] is true), then lists devices again for the picker (unless another action
      * came first). Never retried; a failure is reported through [onFailure].
      */
-    fun stop(onFailure: (DevicePreviewFailure) -> Unit = {}) {
+    fun stop(shutdownDevice: Boolean = false, onFailure: (DevicePreviewFailure) -> Unit = {}) {
         val token = ++version
         job?.cancel(); job = null
         val operationId = preview?.operationId
@@ -116,7 +117,7 @@ class DevicePreviewSession(
         onStopped()
         if (operationId == null) { open(); return }
         tasks.launch {
-            try { request(DeviceCommand.Stop(operationId)) }
+            try { request(DeviceCommand.Stop(operationId, shutdownDevice)) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) { onFailure(error as? DevicePreviewFailure ?: DevicePreviewFailure("failed")) }
             if (token == version) { loading = false; open() }

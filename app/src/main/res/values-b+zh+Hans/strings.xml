@@ -880,6 +880,13 @@
     <string name="preview_open_label">打开预览（%1$s）</string>
     <string name="preview_stop">停止预览</string>
     <string name="preview_stopped">预览已停止</string>
+    <string name="preview_stopped_with_process">已关闭预览并结束进程</string>
+    <string name="preview_disconnect_options">断开预览选项</string>
+    <string name="preview_disconnect_remote_only">只关闭远程预览</string>
+    <string name="preview_disconnect_and_stop_process">关闭预览并结束进程</string>
+    <string name="preview_disconnect_preview_only">只关闭预览</string>
+    <string name="preview_stop_and_shutdown_simulator">关闭预览并关闭模拟器</string>
+    <string name="preview_stop_and_shutdown_emulator">关闭预览并关闭模拟器</string>
     <string name="preview_stop_failed">无法停止预览</string>
     <string name="preview_failed">无法打开预览</string>
     <string name="preview_open_browser">在浏览器中打开</string>

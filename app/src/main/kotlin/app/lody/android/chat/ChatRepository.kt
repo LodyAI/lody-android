@@ -143,8 +143,9 @@ class ChatRepository(
         sessionId: String,
         action: BrowserPreviewAction = BrowserPreviewAction.CREATE,
         restart: Boolean = false,
+        stopProcess: Boolean = false,
     ): BrowserPreviewReply =
-        owner.use(scope) { (it.execute(RuntimeCommand.SessionPreview(sessionId, action, restart)) as RuntimeResult.Preview).value }
+        owner.use(scope) { (it.execute(RuntimeCommand.SessionPreview(sessionId, action, restart, stopProcess)) as RuntimeResult.Preview).value }
 
     /** One iOS Simulator / Android Emulator lifecycle call for the session; start and stop are never retried. */
     suspend fun deviceControl(scope: RuntimeScope, platform: DevicePlatform, sessionId: String, command: DeviceCommand): DeviceControlReply =

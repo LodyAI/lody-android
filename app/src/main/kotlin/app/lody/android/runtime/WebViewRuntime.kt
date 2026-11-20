@@ -214,7 +214,10 @@ open class WebViewRuntime internal constructor(
         // The runtime's own 330 s / 100 s budgets end first; these deadlines only fence a lost reply.
         is RuntimeCommand.SessionPreview -> {
             val args = JSONArray().put(command.sessionId).put(command.action.wire)
-            if (command.restart) args.put(true)
+            if (command.restart || command.stopProcess) {
+                args.put(command.restart)
+                if (command.stopProcess) args.put(true)
+            }
             val value = call("sessionPreview", args, CommandDeadline.PREVIEW)
             RuntimeResult.Preview(PreviewJson.browser(value as? JSONObject ?: JSONObject()))
         }

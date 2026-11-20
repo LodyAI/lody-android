@@ -85,6 +85,7 @@ sealed interface RuntimeCommand {
         val sessionId: String,
         val action: BrowserPreviewAction = BrowserPreviewAction.CREATE,
         val restart: Boolean = false,
+        val stopProcess: Boolean = false,
     ) : RuntimeCommand
     /** One iOS Simulator / Android Emulator lifecycle call for the session (list / start / status / stop). */
     data class DeviceControl(val platform: DevicePlatform, val sessionId: String, val command: DeviceCommand) : RuntimeCommand
@@ -231,6 +232,8 @@ data class CatalogSnapshot(
     val machineSimulators: Map<String, String> = emptyMap(),
     /** Computer id to Android Emulator support (`available`). */
     val machineEmulators: Map<String, String> = emptyMap(),
+    /** Computer id to numeric protocol capability versions advertised by its CLI. */
+    val machineCapabilities: Map<String, Map<String, Int>> = emptyMap(),
 )
 /**
  * One transcript turn. [timestamp] is ISO-8601; [status] is upstream's (`seen` once the agent

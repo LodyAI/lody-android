@@ -98,6 +98,24 @@ object CatalogJson {
     /** Optional `machineEmulators` object (computer id to `available`). */
     fun machineEmulators(json: JSONObject): Map<String, String> = stringMap(json, "machineEmulators").filterValues { it == "available" }
 
+    /** Optional `machineCapabilities` object (computer id to capability name -> version). */
+    fun machineCapabilities(json: JSONObject): Map<String, Map<String, Int>> {
+        val raw = json.optJSONObject("machineCapabilities") ?: return emptyMap()
+        return raw.keys().asSequence().mapNotNull { machineId ->
+            val capsObj = raw.optJSONObject(machineId) ?: return@mapNotNull null
+            val caps = capsObj.keys().asSequence().mapNotNull { key ->
+                (capsObj.opt(key) as? Number)?.toInt()?.let { key to it }
+            }.toMap()
+            if (caps.isEmpty()) null else machineId to caps
+        }.toMap()
+    }
+
+    fun putMachineCapabilities(map: Map<String, Map<String, Int>>): JSONObject = JSONObject().apply {
+        map.forEach { (machineId, caps) ->
+            if (caps.isNotEmpty()) put(machineId, JSONObject(caps))
+        }
+    }
+
     private fun stringMap(json: JSONObject, key: String): Map<String, String> {
         val names = json.optJSONObject(key) ?: return emptyMap()
         return names.keys().asSequence().mapNotNull { id -> names.optText(id)?.let { id to it } }.toMap()

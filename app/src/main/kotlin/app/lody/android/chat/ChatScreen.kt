@@ -92,6 +92,8 @@ data class ChatContext(
     val machineSimulator: String? = null,
     /** The computer advertises the Android Emulator preview. */
     val machineEmulator: Boolean = false,
+    /** Numeric protocol capability versions advertised by the session's computer. */
+    val machineCapabilities: Map<String, Int> = emptyMap(),
 )
 
 /** The More menu's preview entries; null labels hide an entry. */
@@ -99,9 +101,10 @@ internal data class PreviewMenu(
     val browserLabel: String? = null,
     val browserActive: Boolean = false,
     val browserBusy: Boolean = false,
+    val browserCanStopProcess: Boolean = false,
     val onBrowser: () -> Unit = {},
     val onCopyBrowser: () -> Unit = {},
-    val onStopBrowser: () -> Unit = {},
+    val onStopBrowser: (Boolean) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -732,8 +735,11 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     }
     val previewTexts = PreviewTexts(
         stringResource(R.string.preview_unsupported), stringResource(R.string.preview_unauthorized), stringResource(R.string.preview_generic),
-        stringResource(R.string.preview_stopped), stringResource(R.string.preview_stop_failed), stringResource(R.string.preview_failed),
+        stringResource(R.string.preview_stopped), stringResource(R.string.preview_stopped_with_process), stringResource(R.string.preview_stop_failed), stringResource(R.string.preview_failed),
     )
+    val supportsPreviewStopProcess = (context.machineCapabilities["previewStopProcess"] ?: 0) >= 1
+    val supportsIosShutdown = (context.machineCapabilities["iosSimulatorShutdown"] ?: 0) >= 1
+    val supportsAndroidShutdown = (context.machineCapabilities["androidEmulatorShutdown"] ?: 0) >= 1
     val previewClipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val previewCopiedText = stringResource(R.string.preview_link_copied)
     val verifyCachedBrowser: (PreviewCache.BrowserEntry) -> Unit = verify@{ entry ->
@@ -867,20 +873,20 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             if (message != null) snackbar.showSnackbar(message)
         }
     }
-    val stopBrowserPreview: () -> Unit = stop@{
+    val stopBrowserPreview: (Boolean) -> Unit = stop@{ stopProcess ->
         if (browserBusy) return@stop
         browserCheckJob?.cancel()
         browserBusy = true
         coroutines.launch {
             val message = try {
-                val reply = repository.browserPreview(scope, id, BrowserPreviewAction.REVOKE)
+                val reply = repository.browserPreview(scope, id, BrowserPreviewAction.REVOKE, stopProcess = stopProcess)
                 when {
                     reply.error != null -> previewTexts.error(reply.error, reply.message)
                     else -> {
                         application.previewCache.removeBrowser(scope, id)
                         browserEntry = null
                         browserOpen = false
-                        previewTexts.stopped
+                        if (stopProcess) previewTexts.stoppedWithProcess else previewTexts.stopped
                     }
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
@@ -893,6 +899,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         browserLabel = browserCandidate?.let { stringResource(R.string.preview_open_label, it.label) },
         browserActive = browserCandidate?.active == true || browserEntry != null,
         browserBusy = browserBusy,
+        browserCanStopProcess = supportsPreviewStopProcess,
         onBrowser = openBrowserPreview,
         onCopyBrowser = copyBrowserLink,
         onStopBrowser = stopBrowserPreview,
@@ -925,13 +932,15 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     )
     devicePage?.let { platform ->
         val entry = if (platform == DevicePlatform.IOS) iosEntry else androidEntry
-        DevicePreviewPage(entry.session, cached = entry) { devicePage = null }
+        val canShutdown = if (platform == DevicePlatform.ANDROID) supportsAndroidShutdown else supportsIosShutdown
+        DevicePreviewPage(entry.session, cached = entry, canShutdownDevice = canShutdown) { devicePage = null }
     }
     if (browserOpen) browserEntry?.let { entry ->
         BrowserPreviewPage(
             label = browserCandidate?.label.orEmpty(),
             entry = entry,
             stopping = browserBusy,
+            canStopProcess = supportsPreviewStopProcess,
             onRegenerate = regenerateBrowserPreview,
             onStop = stopBrowserPreview,
             onCopy = copyBrowserLink,
@@ -1243,8 +1252,22 @@ internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, clos
                                 leadingIcon = { Icon(LodyIcons.ExternalLink, null) }, onClick = { more = false; previews.onBrowser() })
                             DropdownMenuItem(text = { Text(stringResource(R.string.preview_copy_link)) }, enabled = !previews.browserBusy,
                                 leadingIcon = { Icon(LodyIcons.Link, null) }, onClick = { more = false; previews.onCopyBrowser() })
-                            if (previews.browserActive) DropdownMenuItem(text = { Text(stringResource(R.string.preview_stop)) }, enabled = !previews.browserBusy,
-                                leadingIcon = { Icon(LodyIcons.Stop, null) }, onClick = { more = false; previews.onStopBrowser() })
+                            if (previews.browserActive) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(if (previews.browserCanStopProcess) R.string.preview_disconnect_remote_only else R.string.preview_stop)) },
+                                    enabled = !previews.browserBusy,
+                                    leadingIcon = { Icon(LodyIcons.Stop, null) },
+                                    onClick = { more = false; previews.onStopBrowser(false) },
+                                )
+                                if (previews.browserCanStopProcess) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.preview_disconnect_and_stop_process), color = LodyTheme.colors.dangerDefault) },
+                                        enabled = !previews.browserBusy,
+                                        leadingIcon = { Icon(LodyIcons.Stop, null, tint = LodyTheme.colors.dangerDefault) },
+                                        onClick = { more = false; previews.onStopBrowser(true) },
+                                    )
+                                }
+                            }
                         }
                     }
                     DropdownMenuItem(text = { Text(stringResource(R.string.chat_new_tab)) }, enabled = !creating && busy == null,
@@ -2385,7 +2408,7 @@ private fun PullRequestSheet(
 /** Preview copy resolved in composition, for messages raised from coroutines. */
 private class PreviewTexts(
     val unsupported: String, val unauthorized: String, val generic: String,
-    val stopped: String, val stopFailed: String, val failed: String,
+    val stopped: String, val stoppedWithProcess: String, val stopFailed: String, val failed: String,
 ) {
     fun error(code: String, message: String?): String = when (code) {
         "unsupported" -> unsupported

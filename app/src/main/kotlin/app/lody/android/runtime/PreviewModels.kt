@@ -40,7 +40,7 @@ sealed interface DeviceCommand {
     data object Devices : DeviceCommand
     data class Start(val deviceId: String, val quality: String? = null) : DeviceCommand
     data class Status(val operationId: String? = null) : DeviceCommand
-    data class Stop(val operationId: String) : DeviceCommand
+    data class Stop(val operationId: String, val shutdownDevice: Boolean = false) : DeviceCommand
 }
 
 /** [occupancy]: `available`, `this-session` or `other-session`. */
@@ -73,7 +73,9 @@ object PreviewJson {
             if (platform == DevicePlatform.ANDROID && command.quality in qualities) put("quality", command.quality)
         }
         is DeviceCommand.Status -> JSONObject().put("action", "status").apply { command.operationId?.let { put("operationId", it) } }
-        is DeviceCommand.Stop -> JSONObject().put("action", "stop").put("operationId", command.operationId)
+        is DeviceCommand.Stop -> JSONObject().put("action", "stop").put("operationId", command.operationId).apply {
+            if (command.shutdownDevice) put("shutdownDevice", true)
+        }
     }
 
     fun browser(json: JSONObject) = BrowserPreviewReply(

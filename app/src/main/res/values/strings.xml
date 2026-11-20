@@ -893,6 +893,13 @@
     <string name="preview_open_label">Open preview (%1$s)</string>
     <string name="preview_stop">Stop preview</string>
     <string name="preview_stopped">Preview stopped</string>
+    <string name="preview_stopped_with_process">Preview closed and server stopped</string>
+    <string name="preview_disconnect_options">Disconnect options</string>
+    <string name="preview_disconnect_remote_only">Stop remote preview only</string>
+    <string name="preview_disconnect_and_stop_process">Close preview &amp; stop server</string>
+    <string name="preview_disconnect_preview_only">Stop preview only</string>
+    <string name="preview_stop_and_shutdown_simulator">Stop preview &amp; shut down simulator</string>
+    <string name="preview_stop_and_shutdown_emulator">Stop preview &amp; shut down emulator</string>
     <string name="preview_stop_failed">Couldn\'t stop the preview</string>
     <string name="preview_failed">Couldn\'t open the preview</string>
     <string name="preview_open_browser">Open in browser</string>

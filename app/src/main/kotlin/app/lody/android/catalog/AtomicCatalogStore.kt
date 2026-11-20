@@ -200,7 +200,7 @@ internal class AtomicCatalogStore(context: Context, name: String = "catalog") : 
                 data.getJSONArray("sessions").objects().map { CatalogJson.session(CatalogSession(it.getString("id"), it.getString("machineId"), it.getString("projectId"), it.getString("title"), it.getString("status"), it.getBoolean("archived"), it.getBoolean("pinned"), it.getString("createdAt")), it) },
                 data.getJSONArray("machines").let { array -> (0 until array.length()).map { array.getString(it) } },
                 CatalogJson.machineNames(data), CatalogJson.machineOs(data),
-                machineSimulators = CatalogJson.machineSimulators(data), machineEmulators = CatalogJson.machineEmulators(data)), data.getLong("syncedAt"))
+                machineSimulators = CatalogJson.machineSimulators(data), machineEmulators = CatalogJson.machineEmulators(data), machineCapabilities = CatalogJson.machineCapabilities(data)), data.getLong("syncedAt"))
         } catch (_: Exception) { AtomicFile(file).delete(); null }
     }
     override suspend fun write(scope: RuntimeScope, catalog: SavedCatalog) = io {
@@ -212,6 +212,7 @@ internal class AtomicCatalogStore(context: Context, name: String = "catalog") : 
             .put("machineOs", JSONObject(snapshot.machineOs))
             .put("machineSimulators", JSONObject(snapshot.machineSimulators))
             .put("machineEmulators", JSONObject(snapshot.machineEmulators))
+            .put("machineCapabilities", CatalogJson.putMachineCapabilities(snapshot.machineCapabilities))
             .put("projects", JSONArray(snapshot.projects.map { CatalogJson.putProject(JSONObject().put("id", it.id).put("machineId", it.machineId).put("name", it.name).put("rootPath", it.rootPath), it) }))
             .put("sessions", JSONArray(snapshot.sessions.map { CatalogJson.putSession(JSONObject().put("id", it.id).put("machineId", it.machineId).put("projectId", it.projectId).put("title", it.title).put("status", it.status).put("archived", it.archived).put("pinned", it.pinned).put("createdAt", it.createdAt), it) }))
         val target = catalogFile(scope)

@@ -134,7 +134,7 @@ internal object RuntimeProtocol {
             val sessions = catalog.getJSONArray("sessions").objects().map {
                 CatalogJson.session(CatalogSession(it.text("id"), it.text("machineId"), it.text("projectId"), it.text("title"), it.text("status"), it.get("archived") as Boolean, it.get("pinned") as Boolean, it.text("createdAt")), it)
             }
-            RuntimeEvent.CatalogUpdated(CatalogSnapshot(message.nonnegative("revision"), projects, sessions, strings(catalog.getJSONArray("machineIds")), CatalogJson.machineNames(catalog), CatalogJson.machineOs(catalog), ProviderUsageJson.parse(catalog), CatalogJson.machineSimulators(catalog), CatalogJson.machineEmulators(catalog)))
+            RuntimeEvent.CatalogUpdated(CatalogSnapshot(message.nonnegative("revision"), projects, sessions, strings(catalog.getJSONArray("machineIds")), CatalogJson.machineNames(catalog), CatalogJson.machineOs(catalog), ProviderUsageJson.parse(catalog), CatalogJson.machineSimulators(catalog), CatalogJson.machineEmulators(catalog), CatalogJson.machineCapabilities(catalog)))
         }
         "synced" -> {
             val count = message.nonnegative("streams"); require(count <= Int.MAX_VALUE)

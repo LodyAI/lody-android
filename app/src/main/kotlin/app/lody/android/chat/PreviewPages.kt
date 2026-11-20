@@ -73,6 +73,90 @@ private fun PageBar(title: String, subtitle: String?, onClose: () -> Unit, actio
 }
 
 /**
+ * Split disconnect button modeled on the PR merge button: tapping the primary segment always
+ * performs the safe preview-only disconnect, while the downward-arrow chevron opens a menu with
+ * both safe and destructive (stop process / shut down device) disconnect options.
+ */
+@Composable
+private fun PreviewDisconnectSplitButton(
+    primaryLabel: String,
+    safeOptionLabel: String,
+    destructiveOptionLabel: String?,
+    enabled: Boolean = true,
+    onStopOnly: () -> Unit,
+    onStopAndTerminate: (() -> Unit)? = null,
+) {
+    val colors = LodyTheme.colors
+    if (onStopAndTerminate == null || destructiveOptionLabel == null) {
+        TextButton(onClick = onStopOnly, enabled = enabled) {
+            Text(primaryLabel, color = if (enabled) colors.dangerDefault else colors.textDisabled)
+        }
+        return
+    }
+    var menuOpen by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(LodyRadius.md)
+    Box {
+        Row(
+            Modifier
+                .height(34.dp)
+                .clip(shape)
+                .background(colors.bgRaised)
+                .border(0.5.dp, colors.borderSubtle, shape),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .clickable(enabled = enabled, role = Role.Button, onClick = onStopOnly)
+                    .padding(horizontal = LodySpacing.sm),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    primaryLabel,
+                    style = LodyTheme.typography.subhead,
+                    color = if (enabled) colors.textPrimary else colors.textDisabled,
+                    maxLines = 1,
+                )
+            }
+            Box(Modifier.width(0.5.dp).fillMaxHeight().background(colors.borderSubtle))
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .width(28.dp)
+                    .clickable(
+                        enabled = enabled,
+                        role = Role.Button,
+                        onClickLabel = stringResource(R.string.preview_disconnect_options),
+                        onClick = { menuOpen = true },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    LodyIcons.Expand,
+                    contentDescription = stringResource(R.string.preview_disconnect_options),
+                    tint = if (enabled) colors.iconPrimary else colors.textDisabled,
+                    modifier = Modifier.size(LodyIconSize.sm),
+                )
+            }
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text(safeOptionLabel) },
+                leadingIcon = { Icon(LodyIcons.Stop, null) },
+                enabled = enabled,
+                onClick = { menuOpen = false; onStopOnly() },
+            )
+            DropdownMenuItem(
+                text = { Text(destructiveOptionLabel, color = colors.dangerDefault) },
+                leadingIcon = { Icon(LodyIcons.Stop, null, tint = colors.dangerDefault) },
+                enabled = enabled,
+                onClick = { menuOpen = false; onStopAndTerminate() },
+            )
+        }
+    }
+}
+
+/**
  * The managed web preview's page: reuses the cached WebView & link, verifies availability in the
  * background while keeping the page visible, and surfaces an on-demand regenerate button on the
  * right side of the top bar when expired or unavailable.
@@ -82,8 +166,9 @@ internal fun BrowserPreviewPage(
     label: String,
     entry: PreviewCache.BrowserEntry,
     stopping: Boolean,
+    canStopProcess: Boolean = false,
     onRegenerate: () -> Unit,
-    onStop: () -> Unit,
+    onStop: (Boolean) -> Unit,
     onCopy: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -123,6 +208,14 @@ internal fun BrowserPreviewPage(
                 }
                 BrowserLinkStatus.IDLE -> Unit
             }
+            PreviewDisconnectSplitButton(
+                primaryLabel = stringResource(R.string.preview_stop),
+                safeOptionLabel = stringResource(R.string.preview_disconnect_remote_only),
+                destructiveOptionLabel = if (canStopProcess) stringResource(R.string.preview_disconnect_and_stop_process) else null,
+                enabled = !stopping,
+                onStopOnly = { onStop(false) },
+                onStopAndTerminate = if (canStopProcess) ({ onStop(true) }) else null,
+            )
             var menu by remember { mutableStateOf(false) }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(LodyIcons.More, stringResource(R.string.bar_more), tint = colors.iconPrimary, modifier = Modifier.size(LodyIconSize.md)) }
@@ -131,8 +224,20 @@ internal fun BrowserPreviewPage(
                         onClick = { menu = false; openExternal(context, entry.currentUrl) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.preview_copy_link)) }, leadingIcon = { Icon(LodyIcons.Link, null) },
                         onClick = { menu = false; onCopy() })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.preview_stop), color = colors.dangerDefault) }, enabled = !stopping,
-                        leadingIcon = { Icon(LodyIcons.Stop, null, tint = colors.dangerDefault) }, onClick = { menu = false; onStop() })
+                    DropdownMenuItem(
+                        text = { Text(stringResource(if (canStopProcess) R.string.preview_disconnect_remote_only else R.string.preview_stop), color = if (canStopProcess) colors.textPrimary else colors.dangerDefault) },
+                        enabled = !stopping,
+                        leadingIcon = { Icon(LodyIcons.Stop, null, tint = if (canStopProcess) colors.iconPrimary else colors.dangerDefault) },
+                        onClick = { menu = false; onStop(false) },
+                    )
+                    if (canStopProcess) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.preview_disconnect_and_stop_process), color = colors.dangerDefault) },
+                            enabled = !stopping,
+                            leadingIcon = { Icon(LodyIcons.Stop, null, tint = colors.dangerDefault) },
+                            onClick = { menu = false; onStop(true) },
+                        )
+                    }
                 }
             }
         }
@@ -233,6 +338,7 @@ internal object DeviceInput {
 internal fun DevicePreviewPage(
     session: DevicePreviewSession,
     cached: PreviewCache.DeviceEntry? = null,
+    canShutdownDevice: Boolean = false,
     onClose: () -> Unit,
 ) {
     val colors = LodyTheme.colors
@@ -292,9 +398,25 @@ internal fun DevicePreviewPage(
                     }
                 }
             }
-            if (session.running) TextButton(onClick = {
-                session.stop { coroutines.launch { snackbar.showSnackbar(stopFailed) } }
-            }) { Text(stringResource(R.string.preview_stop), color = colors.dangerDefault) }
+            if (session.running) {
+                val destructiveLabel = if (canShutdownDevice) {
+                    stringResource(
+                        if (session.platform == DevicePlatform.ANDROID) R.string.preview_stop_and_shutdown_emulator
+                        else R.string.preview_stop_and_shutdown_simulator,
+                    )
+                } else null
+                PreviewDisconnectSplitButton(
+                    primaryLabel = stringResource(R.string.preview_stop),
+                    safeOptionLabel = stringResource(R.string.preview_disconnect_preview_only),
+                    destructiveOptionLabel = destructiveLabel,
+                    onStopOnly = {
+                        session.stop(shutdownDevice = false) { coroutines.launch { snackbar.showSnackbar(stopFailed) } }
+                    },
+                    onStopAndTerminate = if (canShutdownDevice) ({
+                        session.stop(shutdownDevice = true) { coroutines.launch { snackbar.showSnackbar(stopFailed) } }
+                    }) else null,
+                )
+            }
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             val viewerUrl = session.viewerUrl
