@@ -10,17 +10,19 @@ import kotlinx.coroutines.*
 class DevicePreviewFailure(val code: String, val detail: String? = null) : Exception(code)
 
 /**
- * One conversation's iOS Simulator or Android Emulator preview (iOS `SessionSimulator`). Each
- * platform has its own instance per conversation page; it runs on the page's coroutine scope, so
- * leaving the page stops polling but never the device, and the next visit resumes it through
- * `status`. Every call goes through the app's existing runtime lease ([call]); nothing here creates
- * a runtime. Start / stop are never retried; a newer action fences an older one's late reply.
+ * One conversation's iOS Simulator or Android Emulator preview (iOS `SessionSimulator`). Hosted
+ * by [PreviewCache] so switching conversations keeps it alive in memory without reconnecting;
+ * explicit [stop], eviction, or logout tears it down. Every call goes through the app's existing
+ * runtime lease ([call]); nothing here creates a runtime. Start / stop are never retried; a newer
+ * action fences an older one's late reply.
  */
 class DevicePreviewSession(
     val platform: DevicePlatform,
     private val call: suspend (DeviceCommand) -> DeviceControlReply,
     private val tasks: CoroutineScope,
     private val pollDelayMillis: Long = 1_000,
+    private val onStopped: () -> Unit = {},
+    private val onOperationChanged: () -> Unit = {},
 ) {
     /** `closed` / `preparing` / `booting` / `connecting` / `ready` / `failed`. */
     var phase by mutableStateOf("closed"); private set
@@ -65,7 +67,7 @@ class DevicePreviewSession(
         }
     }
 
-    /** The page went away: stop polling; the device keeps running and the next visit resumes it. */
+    /** Stops background polling when evicted or cleared; never stops the remote device. */
     fun close() { version++; job?.cancel(); job = null; loading = false }
 
     /** Re-read the device list (after a failure or stop). */
@@ -88,6 +90,7 @@ class DevicePreviewSession(
     private fun start(deviceId: String, deviceName: String) {
         val token = ++version
         job?.cancel()
+        if (preview != null) onOperationChanged()
         name = deviceName; preview = null; phase = "preparing"; failure = null; loading = false
         job = tasks.launch {
             try {
@@ -110,6 +113,7 @@ class DevicePreviewSession(
         job?.cancel(); job = null
         val operationId = preview?.operationId
         preview = null; phase = "closed"; failure = null; loading = operationId != null
+        onStopped()
         if (operationId == null) { open(); return }
         tasks.launch {
             try { request(DeviceCommand.Stop(operationId)) }
@@ -126,13 +130,22 @@ class DevicePreviewSession(
     }
 
     private fun apply(reply: DeviceControlReply) {
+        val previousOperationId = preview?.operationId
+        val nextOperationId = reply.preview?.operationId
+        if (previousOperationId != null && previousOperationId != nextOperationId) {
+            onOperationChanged()
+        }
         preview = reply.preview
         phase = reply.preview?.phase ?: "closed"
+        if (phase == "closed" || phase == "failed") {
+            onStopped()
+        }
         if (phase == "failed") failure = DevicePreviewFailure("failed", reply.preview?.message)
     }
 
     private fun fail(error: Exception) {
         phase = "failed"
+        onStopped()
         failure = error as? DevicePreviewFailure ?: DevicePreviewFailure((error as? app.lody.android.runtime.RuntimeException)?.fault?.code ?: "failed")
     }
 

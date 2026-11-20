@@ -3,7 +3,9 @@ package app.lody.android.chat
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.MutableContextWrapper
 import android.net.Uri
+import android.view.ViewGroup
 import android.webkit.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -52,30 +54,90 @@ internal fun WebView.previewSettings(storage: Boolean) {
  * The managed web preview, full screen (iOS opens it in Safari). Only the tunnel's own origin
  * loads here; a link elsewhere that the reader taps opens in the browser, and anything else is
  * blocked. No native bridge is exposed to the page.
+ *
+ * When [cached] is supplied, the underlying `WebView` is parked in [PreviewCache.BrowserEntry]
+ * across page closes and conversation switches instead of being destroyed, preserving page state
+ * and scroll position until explicit Stop, regeneration, eviction, or logout.
  */
 @Composable
-fun BrowserPreviewWebView(url: String, modifier: Modifier = Modifier, onTitle: (String) -> Unit = {}) {
+fun BrowserPreviewWebView(
+    url: String,
+    modifier: Modifier = Modifier,
+    cached: PreviewCache.BrowserEntry? = null,
+    onUrlChanged: (String) -> Unit = {},
+    onTitle: (String) -> Unit = {},
+) {
     val origin = remember(url) { PreviewUrls.origin(url) } ?: return
-    AndroidView(
-        modifier = modifier,
-        factory = { context ->
-            WebView(context).apply {
-                previewSettings(storage = true)
-                webViewClient = object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                        val target = request.url.toString()
-                        if (PreviewUrls.origin(target) == origin) return false
-                        if (request.isForMainFrame && request.hasGesture() && request.url.scheme in setOf("http", "https")) openExternal(context, target)
-                        return true
+    val latestOnUrl by rememberUpdatedState(onUrlChanged)
+    val latestOnTitle by rememberUpdatedState(onTitle)
+    key(origin) {
+        AndroidView(
+            modifier = modifier,
+            factory = { context ->
+                val appContext = context.applicationContext
+                val reusable = cached?.webView?.takeIf { PreviewUrls.origin(cached.loadedUrl) == origin }
+                if (reusable != null) {
+                    (reusable.parent as? ViewGroup)?.removeView(reusable)
+                    cached.webViewContext?.baseContext = context
+                    reusable
+                } else {
+                    cached?.destroyWebView()
+                    val wrapped = MutableContextWrapper(context)
+                    WebView(wrapped).apply {
+                        previewSettings(storage = true)
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                                val target = request.url.toString()
+                                if (PreviewUrls.origin(target) == origin) return false
+                                if (request.isForMainFrame && request.hasGesture() && request.url.scheme in setOf("http", "https")) openExternal(appContext, target)
+                                return true
+                            }
+                            override fun doUpdateVisitedHistory(view: WebView, address: String?, isReload: Boolean) {
+                                if (address != null && PreviewUrls.origin(address) == origin) {
+                                    cached?.currentUrl = address
+                                    latestOnUrl(address)
+                                }
+                            }
+                            override fun onPageFinished(view: WebView, address: String?) {
+                                if (address != null && PreviewUrls.origin(address) == origin) {
+                                    cached?.currentUrl = address
+                                    latestOnUrl(address)
+                                }
+                                view.title?.takeIf { it.isNotBlank() }?.let {
+                                    cached?.title = it
+                                    latestOnTitle(it)
+                                }
+                            }
+                            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean = true
+                        }
+                        if (cached != null) {
+                            cached.webView = this
+                            cached.webViewContext = wrapped
+                            cached.loadedUrl = url
+                            cached.currentUrl = url
+                        }
+                        loadUrl(url)
                     }
-                    override fun onPageFinished(view: WebView, address: String?) { view.title?.takeIf { it.isNotBlank() }?.let(onTitle) }
-                    override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean = true
                 }
-                loadUrl(url)
-            }
-        },
-        onRelease = { it.stopLoading(); it.destroy() },
-    )
+            },
+            update = { view ->
+                if (cached != null && cached.webView === view && cached.loadedUrl != url) {
+                    cached.loadedUrl = url
+                    cached.currentUrl = url
+                    view.loadUrl(url)
+                }
+            },
+            onRelease = { view ->
+                if (cached != null && cached.webView === view) {
+                    (view.parent as? ViewGroup)?.removeView(view)
+                    cached.webViewContext?.baseContext = view.context.applicationContext
+                } else {
+                    view.stopLoading()
+                    view.destroy()
+                }
+            },
+        )
+    }
 }
 
 internal fun openExternal(context: Context, url: String) {
@@ -158,6 +220,9 @@ send({type:'hello'});
 /**
  * The device viewer in a native-owned WebView. Returns without drawing when the link is not a
  * preview tunnel link or the WebView lacks web message listeners.
+ *
+ * When [cached] is supplied, the live WebView & viewer stream stay parked in [PreviewCache.DeviceEntry]
+ * across page closes and conversation switches instead of tearing down on release.
  */
 @SuppressLint("RequiresFeature")
 @Composable
@@ -167,6 +232,7 @@ fun DeviceViewerWebView(
     visible: Boolean,
     bridge: DeviceViewerBridge,
     modifier: Modifier = Modifier,
+    cached: PreviewCache.DeviceEntry? = null,
     onState: (ViewerState) -> Unit,
 ) {
     val origin = remember(viewerUrl) { PreviewUrls.origin(viewerUrl) }
@@ -181,46 +247,79 @@ fun DeviceViewerWebView(
         AndroidView(
             modifier = modifier,
             factory = { context ->
-                bridge.reset()
-                val loader = WebViewAssetLoader.Builder().setDomain(HostDomain)
-                    .addPathHandler("/lody-preview/", WebViewAssetLoader.PathHandler { path ->
-                        if (path == "host.html") WebResourceResponse("text/html", "UTF-8", ByteArrayInputStream(HostPage.toByteArray())) else blocked()
-                    }).build()
-                WebView(context).apply {
-                    previewSettings(storage = false)
-                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                            val url = request.url.toString()
-                            if (request.url.host == HostDomain) return if (url == HostUrl && request.method == "GET") loader.shouldInterceptRequest(request.url) ?: blocked() else blocked()
-                            // The viewer frame and its own requests stay on the viewer's origin.
-                            return if (!request.isForMainFrame && PreviewUrls.origin(url) == origin) null else blocked()
-                        }
-                        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                            if (request.isForMainFrame) request.url.toString() != HostUrl else PreviewUrls.origin(request.url.toString()) != origin
-                        override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-                            bridge.reset(); latestState(ViewerState("error")); return true
-                        }
-                    }
-                    WebViewCompat.addWebMessageListener(this, "LodyPreview", setOf(HostOrigin)) { _, message, sourceOrigin, isMainFrame, replyProxy ->
-                        if (!isMainFrame || sourceOrigin.toString().trimEnd('/') != HostOrigin) return@addWebMessageListener
-                        val data = message.data?.takeIf { it.length <= 16 * 1024 } ?: return@addWebMessageListener
-                        val frame = try { JSONObject(data) } catch (_: Exception) { return@addWebMessageListener }
-                        when (frame.optString("type")) {
-                            "hello" -> {
-                                bridge.proxy = replyProxy
-                                replyProxy.postMessage(JSONObject().put("type", "open").put("url", viewerUrl).put("origin", origin)
-                                    .put("operationId", operationId).put("visible", latestVisible).toString())
+                val reusable = cached?.webView?.takeIf {
+                    cached.webViewViewerUrl == viewerUrl && cached.webViewOperationId == operationId
+                }
+                if (reusable != null) {
+                    (reusable.parent as? ViewGroup)?.removeView(reusable)
+                    cached.webViewContext?.baseContext = context
+                    if (bridge.loaded) bridge.visibility(latestVisible)
+                    reusable
+                } else {
+                    cached?.destroyWebView()
+                    bridge.reset()
+                    val wrapped = MutableContextWrapper(context)
+                    val loader = WebViewAssetLoader.Builder().setDomain(HostDomain)
+                        .addPathHandler("/lody-preview/", WebViewAssetLoader.PathHandler { path ->
+                            if (path == "host.html") WebResourceResponse("text/html", "UTF-8", ByteArrayInputStream(HostPage.toByteArray())) else blocked()
+                        }).build()
+                    WebView(wrapped).apply {
+                        previewSettings(storage = false)
+                        setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                                val url = request.url.toString()
+                                if (request.url.host == HostDomain) return if (url == HostUrl && request.method == "GET") loader.shouldInterceptRequest(request.url) ?: blocked() else blocked()
+                                // The viewer frame and its own requests stay on the viewer's origin.
+                                return if (!request.isForMainFrame && PreviewUrls.origin(url) == origin) null else blocked()
                             }
-                            "loaded" -> bridge.loaded = true
-                            "state" -> latestState(ViewerState(frame.optString("state"), frame.optInt("width"), frame.optInt("height")))
-                            "control-result" -> bridge.answered(frame.optString("requestId"), if (frame.isNull("error")) null else frame.optString("error"))
+                            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
+                                if (request.isForMainFrame) request.url.toString() != HostUrl else PreviewUrls.origin(request.url.toString()) != origin
+                            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                                cached?.destroyWebView() ?: bridge.reset()
+                                latestState(ViewerState("error"))
+                                return true
+                            }
                         }
+                        WebViewCompat.addWebMessageListener(this, "LodyPreview", setOf(HostOrigin)) { _, message, sourceOrigin, isMainFrame, replyProxy ->
+                            if (!isMainFrame || sourceOrigin.toString().trimEnd('/') != HostOrigin) return@addWebMessageListener
+                            val data = message.data?.takeIf { it.length <= 16 * 1024 } ?: return@addWebMessageListener
+                            val frame = try { JSONObject(data) } catch (_: Exception) { return@addWebMessageListener }
+                            when (frame.optString("type")) {
+                                "hello" -> {
+                                    bridge.proxy = replyProxy
+                                    replyProxy.postMessage(JSONObject().put("type", "open").put("url", viewerUrl).put("origin", origin)
+                                        .put("operationId", operationId).put("visible", latestVisible).toString())
+                                }
+                                "loaded" -> bridge.loaded = true
+                                "state" -> {
+                                    val next = ViewerState(frame.optString("state"), frame.optInt("width"), frame.optInt("height"))
+                                    cached?.viewerState = next
+                                    latestState(next)
+                                }
+                                "control-result" -> bridge.answered(frame.optString("requestId"), if (frame.isNull("error")) null else frame.optString("error"))
+                            }
+                        }
+                        if (cached != null) {
+                            cached.webView = this
+                            cached.webViewContext = wrapped
+                            cached.webViewViewerUrl = viewerUrl
+                            cached.webViewOperationId = operationId
+                        }
+                        loadUrl(HostUrl)
                     }
-                    loadUrl(HostUrl)
                 }
             },
-            onRelease = { bridge.reset(); it.stopLoading(); it.destroy() },
+            onRelease = { view ->
+                if (cached != null && cached.webView === view) {
+                    (view.parent as? ViewGroup)?.removeView(view)
+                    cached.webViewContext?.baseContext = view.context.applicationContext
+                } else {
+                    bridge.reset()
+                    view.stopLoading()
+                    view.destroy()
+                }
+            },
         )
     }
 }

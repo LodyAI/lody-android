@@ -46,7 +46,7 @@ const detail={
  readFile:(sessionId,path)=>runtime.readFile({sessionId,path}),
  // Previews of a session, always for the verified identity: the managed web preview (`create` /
  // `revoke`) and the iOS Simulator / Android Emulator lifecycle (list / start / status / stop).
- sessionPreview:(sessionId,action)=>{const scope=identity;if(!scope)throw Error('not_connected');if(!['create','revoke'].includes(action))throw Error('invalid_action');return runtime.sessionPreview({sessionId,userId:scope.userId,action});},
+ sessionPreview:(sessionId,action,restart)=>{const scope=identity;if(!scope)throw Error('not_connected');if(!['create','status','revoke'].includes(action))throw Error('invalid_action');return runtime.sessionPreview({sessionId,userId:scope.userId,action,...(restart===true?{restart:true}:{})});},
  iosSimulatorControl:(sessionId,command)=>{const scope=identity;if(!scope)throw Error('not_connected');return runtime.iosSimulatorControl({workspaceId:scope.workspaceId,sessionId,userId:scope.userId,command});},
  androidEmulatorControl:(sessionId,command)=>{const scope=identity;if(!scope)throw Error('not_connected');return runtime.androidEmulatorControl({workspaceId:scope.workspaceId,sessionId,userId:scope.userId,command});},
  // Stops the watched session's running turn; a write, never retried.

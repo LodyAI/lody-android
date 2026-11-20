@@ -137,9 +137,14 @@ class ChatRepository(
     suspend fun shortcut(scope: RuntimeScope, id: String): org.json.JSONObject =
         owner.use(scope) { (it.execute(RuntimeCommand.ShortcutBody(id)) as RuntimeResult.Shortcut).value }
 
-    /** The watched session's managed web preview: create (or reuse) its link, or revoke it. Never retried. */
-    suspend fun browserPreview(scope: RuntimeScope, sessionId: String, revoke: Boolean): BrowserPreviewReply =
-        owner.use(scope) { (it.execute(RuntimeCommand.SessionPreview(sessionId, revoke)) as RuntimeResult.Preview).value }
+    /** The watched session's managed web preview: create (or reuse), check status, or revoke. Never retried. */
+    suspend fun browserPreview(
+        scope: RuntimeScope,
+        sessionId: String,
+        action: BrowserPreviewAction = BrowserPreviewAction.CREATE,
+        restart: Boolean = false,
+    ): BrowserPreviewReply =
+        owner.use(scope) { (it.execute(RuntimeCommand.SessionPreview(sessionId, action, restart)) as RuntimeResult.Preview).value }
 
     /** One iOS Simulator / Android Emulator lifecycle call for the session; start and stop are never retried. */
     suspend fun deviceControl(scope: RuntimeScope, platform: DevicePlatform, sessionId: String, command: DeviceCommand): DeviceControlReply =

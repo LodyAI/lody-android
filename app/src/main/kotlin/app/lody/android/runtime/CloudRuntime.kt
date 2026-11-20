@@ -80,8 +80,12 @@ sealed interface RuntimeCommand {
     data class ScheduleDetail(val scheduleId: String) : RuntimeCommand
     /** An owner write (create / edit / pause / resume / run / delete); never retried here. */
     data class ScheduleCommand(val request: ScheduleCommandRequest) : RuntimeCommand
-    /** The watched session's managed web preview: open (or reuse) its link, or revoke it. Never retried. */
-    data class SessionPreview(val sessionId: String, val revoke: Boolean = false) : RuntimeCommand
+    /** The watched session's managed web preview: create (or reuse), check status, or revoke. Never retried. */
+    data class SessionPreview(
+        val sessionId: String,
+        val action: BrowserPreviewAction = BrowserPreviewAction.CREATE,
+        val restart: Boolean = false,
+    ) : RuntimeCommand
     /** One iOS Simulator / Android Emulator lifecycle call for the session (list / start / status / stop). */
     data class DeviceControl(val platform: DevicePlatform, val sessionId: String, val command: DeviceCommand) : RuntimeCommand
     /**

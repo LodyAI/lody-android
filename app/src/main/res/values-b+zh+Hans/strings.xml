@@ -885,6 +885,10 @@
     <string name="preview_open_browser">在浏览器中打开</string>
     <string name="preview_copy_link">复制链接</string>
     <string name="preview_link_copied">链接已复制</string>
+    <string name="preview_link_checking">正在检查预览链接</string>
+    <string name="preview_link_regenerating">正在重新生成预览链接…</string>
+    <string name="preview_link_regenerate">重新生成预览链接</string>
+    <string name="preview_link_unconfirmed">暂时无法确认连接</string>
     <string name="preview_close">关闭</string>
     <string name="preview_unsupported">请在这台电脑上更新 Lody 后再使用预览。</string>
     <string name="preview_unauthorized">你没有在这台电脑上预览的权限。</string>

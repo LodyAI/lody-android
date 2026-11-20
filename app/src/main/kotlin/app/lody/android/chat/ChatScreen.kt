@@ -100,6 +100,7 @@ internal data class PreviewMenu(
     val browserActive: Boolean = false,
     val browserBusy: Boolean = false,
     val onBrowser: () -> Unit = {},
+    val onCopyBrowser: () -> Unit = {},
     val onStopBrowser: () -> Unit = {},
 )
 
@@ -708,15 +709,23 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             ) { linkedPullRequest = null }
         }
     }
-    // Remote previews. Each device platform keeps its own state for this conversation; the page's
-    // scope runs it, so leaving stops polling and the next visit resumes through `status`.
-    val iosPreview = remember(scope, id) { DevicePreviewSession(DevicePlatform.IOS, { repository.deviceControl(scope, DevicePlatform.IOS, id, it) }, coroutines) }
-    val androidPreview = remember(scope, id) { DevicePreviewSession(DevicePlatform.ANDROID, { repository.deviceControl(scope, DevicePlatform.ANDROID, id, it) }, coroutines) }
-    DisposableEffect(iosPreview, androidPreview) { onDispose { iosPreview.close(); androidPreview.close() } }
+    // Remote previews. Device sessions and managed browser WebViews live in `application.previewCache`
+    // so switching conversations keeps them alive until explicit Stop, eviction, or logout.
+    val iosEntry = remember(scope, id) {
+        application.previewCache.device(scope, id, DevicePlatform.IOS) { repository.deviceControl(scope, DevicePlatform.IOS, id, it) }
+    }
+    val androidEntry = remember(scope, id) {
+        application.previewCache.device(scope, id, DevicePlatform.ANDROID) { repository.deviceControl(scope, DevicePlatform.ANDROID, id, it) }
+    }
+    val iosPreview = iosEntry.session
+    val androidPreview = androidEntry.session
     var devicePage by remember(scope, id) { mutableStateOf<DevicePlatform?>(null) }
     var simulatorUpgrade by remember(scope, id) { mutableStateOf(false) }
-    var browserPage by remember(scope, id) { mutableStateOf<String?>(null) }
+    var browserOpen by remember(scope, id) { mutableStateOf(false) }
+    var browserEntry by remember(scope, id) { mutableStateOf(application.previewCache.browser(scope, id)) }
     var browserBusy by remember(scope, id) { mutableStateOf(false) }
+    var browserCheckJob by remember(scope, id) { mutableStateOf<Job?>(null) }
+    DisposableEffect(scope, id) { onDispose { browserCheckJob?.cancel() } }
     val openDevice: (DevicePlatform) -> Unit = { platform ->
         if (platform == DevicePlatform.IOS && context.machineSimulator == "upgrade-required") { simulatorUpgrade = true }
         else { devicePage = platform }
@@ -725,30 +734,168 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         stringResource(R.string.preview_unsupported), stringResource(R.string.preview_unauthorized), stringResource(R.string.preview_generic),
         stringResource(R.string.preview_stopped), stringResource(R.string.preview_stop_failed), stringResource(R.string.preview_failed),
     )
-    val browserAction: (Boolean) -> Unit = browserAction@{ revoke ->
-        if (browserBusy) return@browserAction
+    val previewClipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val previewCopiedText = stringResource(R.string.preview_link_copied)
+    val verifyCachedBrowser: (PreviewCache.BrowserEntry) -> Unit = verify@{ entry ->
+        browserCheckJob?.cancel()
+        if (!entry.isValid()) {
+            entry.linkStatus = BrowserLinkStatus.NEEDS_REGENERATE
+            return@verify
+        }
+        entry.linkStatus = BrowserLinkStatus.CHECKING
+        browserCheckJob = coroutines.launch {
+            try {
+                val reply = repository.browserPreview(scope, id, BrowserPreviewAction.STATUS)
+                when {
+                    reply.active == true -> {
+                        val nextExpiresAt = PreviewCache.resolveExpiresAt(reply.expiresAt)
+                        val remoteUrl = reply.url
+                        val remoteOrigin = PreviewUrls.origin(remoteUrl)
+                        if (remoteUrl != null && remoteOrigin != null && remoteOrigin != PreviewUrls.origin(entry.url)) {
+                            entry.updateLink(PreviewCache.mergeRegeneratedUrl(remoteUrl, entry.currentUrl), nextExpiresAt)
+                        } else {
+                            entry.expiresAtMs = nextExpiresAt
+                        }
+                        entry.linkStatus = BrowserLinkStatus.IDLE
+                    }
+                    reply.active == false -> entry.linkStatus = BrowserLinkStatus.NEEDS_REGENERATE
+                    else -> entry.linkStatus = BrowserLinkStatus.UNCONFIRMED
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { entry.linkStatus = BrowserLinkStatus.UNCONFIRMED }
+        }
+    }
+    val openBrowserPreview: () -> Unit = open@{
+        val cached = application.previewCache.browser(scope, id)
+        if (cached != null && PreviewUrls.origin(cached.url) != null) {
+            browserEntry = cached
+            browserOpen = true
+            verifyCachedBrowser(cached)
+            return@open
+        }
+        if (browserBusy) return@open
         browserBusy = true
         coroutines.launch {
             val message = try {
-                val reply = repository.browserPreview(scope, id, revoke)
+                val reply = repository.browserPreview(scope, id, BrowserPreviewAction.CREATE)
                 when {
                     reply.error != null -> previewTexts.error(reply.error, reply.message)
-                    revoke -> { browserPage = null; previewTexts.stopped }
                     PreviewUrls.origin(reply.url) == null -> previewTexts.generic
-                    else -> { browserPage = reply.url; null }
+                    else -> {
+                        val entry = application.previewCache.storeBrowser(
+                            scope, id, reply.url!!,
+                            PreviewCache.resolveExpiresAt(reply.expiresAt),
+                            browserCandidate?.label.orEmpty(),
+                        )
+                        entry.linkStatus = BrowserLinkStatus.IDLE
+                        browserEntry = entry
+                        browserOpen = true
+                        null
+                    }
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { if (revoke) previewTexts.stopFailed else previewTexts.failed }
+            catch (_: Exception) { previewTexts.failed }
+            finally { browserBusy = false }
+            if (message != null) snackbar.showSnackbar(message)
+        }
+    }
+    val copyBrowserLink: () -> Unit = copy@{
+        val cached = application.previewCache.browser(scope, id)
+        if (cached != null && cached.isValid() && PreviewUrls.origin(cached.url) != null) {
+            previewClipboard.setText(androidx.compose.ui.text.AnnotatedString(cached.url))
+            android.widget.Toast.makeText(appContext, previewCopiedText, android.widget.Toast.LENGTH_SHORT).show()
+            return@copy
+        }
+        if (browserBusy) return@copy
+        browserBusy = true
+        coroutines.launch {
+            val message = try {
+                val reply = repository.browserPreview(scope, id, BrowserPreviewAction.CREATE)
+                when {
+                    reply.error != null -> previewTexts.error(reply.error, reply.message)
+                    PreviewUrls.origin(reply.url) == null -> previewTexts.generic
+                    else -> {
+                        val entry = application.previewCache.storeBrowser(
+                            scope, id, reply.url!!,
+                            PreviewCache.resolveExpiresAt(reply.expiresAt),
+                            browserCandidate?.label.orEmpty(),
+                        )
+                        browserEntry = entry
+                        previewClipboard.setText(androidx.compose.ui.text.AnnotatedString(entry.url))
+                        android.widget.Toast.makeText(appContext, previewCopiedText, android.widget.Toast.LENGTH_SHORT).show()
+                        null
+                    }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { previewTexts.failed }
+            finally { browserBusy = false }
+            if (message != null) snackbar.showSnackbar(message)
+        }
+    }
+    val regenerateBrowserPreview: () -> Unit = regen@{
+        val entry = browserEntry ?: application.previewCache.browser(scope, id) ?: return@regen
+        if (browserBusy || entry.linkStatus == BrowserLinkStatus.REGENERATING) return@regen
+        browserCheckJob?.cancel()
+        browserBusy = true
+        entry.linkStatus = BrowserLinkStatus.REGENERATING
+        val previousPage = entry.currentUrl
+        coroutines.launch {
+            val message = try {
+                val reply = repository.browserPreview(scope, id, BrowserPreviewAction.CREATE, restart = true)
+                when {
+                    reply.error != null -> {
+                        entry.linkStatus = BrowserLinkStatus.NEEDS_REGENERATE
+                        previewTexts.error(reply.error, reply.message)
+                    }
+                    PreviewUrls.origin(reply.url) == null -> {
+                        entry.linkStatus = BrowserLinkStatus.NEEDS_REGENERATE
+                        previewTexts.generic
+                    }
+                    else -> {
+                        val merged = PreviewCache.mergeRegeneratedUrl(reply.url!!, previousPage)
+                        entry.updateLink(merged, PreviewCache.resolveExpiresAt(reply.expiresAt))
+                        entry.linkStatus = BrowserLinkStatus.IDLE
+                        null
+                    }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) {
+                entry.linkStatus = BrowserLinkStatus.NEEDS_REGENERATE
+                previewTexts.failed
+            }
+            finally { browserBusy = false }
+            if (message != null) snackbar.showSnackbar(message)
+        }
+    }
+    val stopBrowserPreview: () -> Unit = stop@{
+        if (browserBusy) return@stop
+        browserCheckJob?.cancel()
+        browserBusy = true
+        coroutines.launch {
+            val message = try {
+                val reply = repository.browserPreview(scope, id, BrowserPreviewAction.REVOKE)
+                when {
+                    reply.error != null -> previewTexts.error(reply.error, reply.message)
+                    else -> {
+                        application.previewCache.removeBrowser(scope, id)
+                        browserEntry = null
+                        browserOpen = false
+                        previewTexts.stopped
+                    }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { previewTexts.stopFailed }
             finally { browserBusy = false }
             if (message != null) snackbar.showSnackbar(message)
         }
     }
     val previewMenu = PreviewMenu(
         browserLabel = browserCandidate?.let { stringResource(R.string.preview_open_label, it.label) },
-        browserActive = browserCandidate?.active == true,
+        browserActive = browserCandidate?.active == true || browserEntry != null,
         browserBusy = browserBusy,
-        onBrowser = { browserAction(false) },
-        onStopBrowser = { browserAction(true) },
+        onBrowser = openBrowserPreview,
+        onCopyBrowser = copyBrowserLink,
+        onStopBrowser = stopBrowserPreview,
     )
     // Device capsules in the action bar: shown once the agent started a preview (catalog request id)
     // or one is running. The CLI records an agent start on the conversation that owns the device,
@@ -777,18 +924,19 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         confirmButton = { TextButton(onClick = { simulatorUpgrade = false }) { Text(stringResource(R.string.preview_ok)) } },
     )
     devicePage?.let { platform ->
-        DevicePreviewPage(if (platform == DevicePlatform.IOS) iosPreview else androidPreview) { devicePage = null }
+        val entry = if (platform == DevicePlatform.IOS) iosEntry else androidEntry
+        DevicePreviewPage(entry.session, cached = entry) { devicePage = null }
     }
-    browserPage?.let { url ->
-        val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-        val copied = stringResource(R.string.preview_link_copied)
-        BrowserPreviewPage(browserCandidate?.label.orEmpty(), url, browserBusy,
-            onStop = { browserAction(true) },
-            onCopy = {
-                clipboard.setText(androidx.compose.ui.text.AnnotatedString(url))
-                android.widget.Toast.makeText(appContext, copied, android.widget.Toast.LENGTH_SHORT).show()
-            },
-            onClose = { browserPage = null })
+    if (browserOpen) browserEntry?.let { entry ->
+        BrowserPreviewPage(
+            label = browserCandidate?.label.orEmpty(),
+            entry = entry,
+            stopping = browserBusy,
+            onRegenerate = regenerateBrowserPreview,
+            onStop = stopBrowserPreview,
+            onCopy = copyBrowserLink,
+            onClose = { browserOpen = false },
+        )
     }
     val prompts = SessionInfoBar.Prompts(
         stringResource(R.string.bar_prompt_createPrOrigin), stringResource(R.string.bar_prompt_createDraftPrOrigin),
@@ -1093,6 +1241,8 @@ internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, clos
                         previews.browserLabel?.let { label ->
                             DropdownMenuItem(text = { Text(label) }, enabled = !previews.browserBusy,
                                 leadingIcon = { Icon(LodyIcons.ExternalLink, null) }, onClick = { more = false; previews.onBrowser() })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.preview_copy_link)) }, enabled = !previews.browserBusy,
+                                leadingIcon = { Icon(LodyIcons.Link, null) }, onClick = { more = false; previews.onCopyBrowser() })
                             if (previews.browserActive) DropdownMenuItem(text = { Text(stringResource(R.string.preview_stop)) }, enabled = !previews.browserBusy,
                                 leadingIcon = { Icon(LodyIcons.Stop, null) }, onClick = { more = false; previews.onStopBrowser() })
                         }

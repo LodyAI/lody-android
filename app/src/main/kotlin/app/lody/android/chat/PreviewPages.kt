@@ -72,20 +72,63 @@ private fun PageBar(title: String, subtitle: String?, onClose: () -> Unit, actio
     }
 }
 
-/** The managed web preview's page: the link in a WebView, with Stop, Copy link and Open in browser. */
+/**
+ * The managed web preview's page: reuses the cached WebView & link, verifies availability in the
+ * background while keeping the page visible, and surfaces an on-demand regenerate button on the
+ * right side of the top bar when expired or unavailable.
+ */
 @Composable
-internal fun BrowserPreviewPage(label: String, url: String, stopping: Boolean, onStop: () -> Unit, onCopy: () -> Unit, onClose: () -> Unit) {
+internal fun BrowserPreviewPage(
+    label: String,
+    entry: PreviewCache.BrowserEntry,
+    stopping: Boolean,
+    onRegenerate: () -> Unit,
+    onStop: () -> Unit,
+    onCopy: () -> Unit,
+    onClose: () -> Unit,
+) {
     val context = LocalContext.current
     val colors = LodyTheme.colors
-    var title by remember(url) { mutableStateOf(label) }
+    val displayTitle = entry.title.ifBlank { label }
+    val status = entry.linkStatus
+    val checkingCopy = stringResource(R.string.preview_link_checking)
+    val regeneratingCopy = stringResource(R.string.preview_link_regenerating)
+    val regenerateCopy = stringResource(R.string.preview_link_regenerate)
+    val unconfirmedCopy = stringResource(R.string.preview_link_unconfirmed)
+
     FullScreenPage(onClose) {
-        PageBar(title, label.takeIf { it != title }, onClose) {
+        PageBar(displayTitle, label.takeIf { it != displayTitle }, onClose) {
+            when (status) {
+                BrowserLinkStatus.CHECKING, BrowserLinkStatus.REGENERATING -> {
+                    val desc = if (status == BrowserLinkStatus.CHECKING) checkingCopy else regeneratingCopy
+                    Box(
+                        Modifier.size(LodySize.controlMd).semantics { contentDescription = desc },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(Modifier.size(LodyIconSize.sm), strokeWidth = 2.dp, color = colors.iconSecondary)
+                    }
+                }
+                BrowserLinkStatus.NEEDS_REGENERATE -> {
+                    IconButton(onClick = onRegenerate) {
+                        Icon(LodyIcons.Refresh, regenerateCopy, tint = colors.accentFg, modifier = Modifier.size(LodyIconSize.md))
+                    }
+                }
+                BrowserLinkStatus.UNCONFIRMED -> {
+                    Box(
+                        Modifier.size(LodySize.controlMd).semantics { contentDescription = unconfirmedCopy },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(LodyIcons.Alert, unconfirmedCopy, tint = colors.warningDefault, modifier = Modifier.size(LodyIconSize.sm))
+                    }
+                }
+                BrowserLinkStatus.IDLE -> Unit
+            }
             var menu by remember { mutableStateOf(false) }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(LodyIcons.More, stringResource(R.string.bar_more), tint = colors.iconPrimary, modifier = Modifier.size(LodyIconSize.md)) }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.preview_open_browser)) }, leadingIcon = { Icon(LodyIcons.ExternalLink, null) },
-                        onClick = { menu = false; openExternal(context, url) })
+                        onClick = { menu = false; openExternal(context, entry.currentUrl) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.preview_copy_link)) }, leadingIcon = { Icon(LodyIcons.Link, null) },
                         onClick = { menu = false; onCopy() })
                     DropdownMenuItem(text = { Text(stringResource(R.string.preview_stop), color = colors.dangerDefault) }, enabled = !stopping,
@@ -93,7 +136,28 @@ internal fun BrowserPreviewPage(label: String, url: String, stopping: Boolean, o
                 }
             }
         }
-        BrowserPreviewWebView(url, Modifier.weight(1f).fillMaxWidth()) { title = it }
+        if (status == BrowserLinkStatus.CHECKING || status == BrowserLinkStatus.REGENERATING || status == BrowserLinkStatus.UNCONFIRMED) {
+            Row(
+                Modifier.fillMaxWidth().background(colors.bgRaised).padding(horizontal = LodySpacing.md, vertical = LodySpacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(LodySpacing.xs),
+            ) {
+                if (status == BrowserLinkStatus.UNCONFIRMED) {
+                    Icon(LodyIcons.Alert, null, tint = colors.warningDefault, modifier = Modifier.size(LodyIconSize.xs))
+                    Text(unconfirmedCopy, style = LodyTheme.typography.footnote, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                } else {
+                    CircularProgressIndicator(Modifier.size(LodyIconSize.xs), strokeWidth = 1.5.dp, color = colors.iconSecondary)
+                    Text(if (status == BrowserLinkStatus.CHECKING) checkingCopy else regeneratingCopy, style = LodyTheme.typography.footnote, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        BrowserPreviewWebView(
+            url = entry.url,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            cached = entry,
+            onUrlChanged = { entry.currentUrl = it },
+            onTitle = { entry.title = it },
+        )
     }
 }
 
@@ -162,11 +226,15 @@ internal object DeviceInput {
 
 /**
  * One device preview, full screen: resume or pick a device, wait while it starts, then the screen
- * with its controls. Closing the page leaves the device running; Stop ends it.
+ * with its controls. Closing the page leaves the device and live viewer running; Stop ends it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun DevicePreviewPage(session: DevicePreviewSession, onClose: () -> Unit) {
+internal fun DevicePreviewPage(
+    session: DevicePreviewSession,
+    cached: PreviewCache.DeviceEntry? = null,
+    onClose: () -> Unit,
+) {
     val colors = LodyTheme.colors
     val type = LodyTheme.typography
     val snackbar = remember { SnackbarHostState() }
@@ -194,7 +262,7 @@ internal fun DevicePreviewPage(session: DevicePreviewSession, onClose: () -> Uni
         "unsupported" to stringResource(R.string.preview_control_unsupported),
     )
     val controlFailed = stringResource(R.string.preview_control_failed)
-    val bridge = remember(session) { DeviceViewerBridge() }
+    val bridge = cached?.bridge ?: remember(session) { DeviceViewerBridge() }
     val controlOperation = session.preview?.operationId
     val sendControl: (JSONObject) -> Unit = { control ->
         coroutines.launch {
@@ -233,7 +301,7 @@ internal fun DevicePreviewPage(session: DevicePreviewSession, onClose: () -> Uni
             val operationId = session.preview?.operationId
             when {
                 session.loading -> Waiting(stringResource(R.string.preview_checking))
-                viewerUrl != null && operationId != null -> DeviceScreen(session.platform, viewerUrl, operationId, foreground, bridge)
+                viewerUrl != null && operationId != null -> DeviceScreen(session.platform, viewerUrl, operationId, foreground, bridge, cached)
                 session.running -> Waiting(phaseText)
                 else -> DevicePicker(session)
             }
@@ -286,8 +354,16 @@ private fun BoxScope.Waiting(text: String) {
 
 /** The streamed screen, fitted whole inside the page (no bezel on Android). */
 @Composable
-private fun BoxScope.DeviceScreen(platform: DevicePlatform, viewerUrl: String, operationId: String, visible: Boolean, bridge: DeviceViewerBridge) {
-    var state by remember(viewerUrl, operationId) { mutableStateOf(ViewerState("connecting")) }
+private fun BoxScope.DeviceScreen(
+    platform: DevicePlatform,
+    viewerUrl: String,
+    operationId: String,
+    visible: Boolean,
+    bridge: DeviceViewerBridge,
+    cached: PreviewCache.DeviceEntry?,
+) {
+    var localState by remember(viewerUrl, operationId) { mutableStateOf(ViewerState("connecting")) }
+    val state = cached?.viewerState ?: localState
     var reload by remember(viewerUrl, operationId) { mutableIntStateOf(0) }
     val ratio = if (state.width > 0 && state.height > 0) state.width.toFloat() / state.height else if (platform == DevicePlatform.IOS) 0.46f else 0.45f
     BoxWithConstraints(Modifier.fillMaxSize().padding(LodySpacing.md), contentAlignment = Alignment.Center) {
@@ -296,7 +372,9 @@ private fun BoxScope.DeviceScreen(platform: DevicePlatform, viewerUrl: String, o
         val height = if (wide) maxWidth / ratio else maxHeight
         Box(Modifier.size(width, height).clip(RoundedCornerShape(LodyRadius.xl)).background(LodyTheme.colors.bgSunken)) {
             key(reload) {
-                DeviceViewerWebView(viewerUrl, operationId, visible, bridge, Modifier.fillMaxSize()) { state = it }
+                DeviceViewerWebView(viewerUrl, operationId, visible, bridge, Modifier.fillMaxSize(), cached) {
+                    if (cached != null) cached.viewerState = it else localState = it
+                }
             }
         }
     }
@@ -309,7 +387,10 @@ private fun BoxScope.DeviceScreen(platform: DevicePlatform, viewerUrl: String, o
             } else {
                 Text(stringResource(if (state.state == "disconnected") R.string.preview_viewer_disconnected else R.string.preview_viewer_error),
                     style = LodyTheme.typography.body, color = LodyTheme.colors.textSecondary)
-                TextButton(onClick = { state = ViewerState("connecting"); reload++ }) { Text(stringResource(R.string.preview_reload), color = LodyTheme.colors.accentFg) }
+                TextButton(onClick = {
+                    if (cached != null) cached.destroyWebView() else localState = ViewerState("connecting")
+                    reload++
+                }) { Text(stringResource(R.string.preview_reload), color = LodyTheme.colors.accentFg) }
             }
         }
     }
@@ -377,4 +458,3 @@ private fun DeviceInputDialog(url: Boolean, onDismiss: () -> Unit, onSend: (Stri
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.preview_cancel)) } },
     )
 }
-

@@ -22,6 +22,8 @@ open class LodyApplication : Application() {
         private set
     lateinit var creation: app.lody.android.create.CreationService
     val submissions by lazy { app.lody.android.create.CreationSubmissions(applicationScope) { scope, request -> creation.create(scope, request) } }
+    /** In-memory cache keeping active web and device previews alive across conversation switches; cleared on logout. */
+    val previewCache by lazy { app.lody.android.chat.PreviewCache(applicationScope) }
     lateinit var pullRequests: app.lody.android.chat.PullRequestWriter
     lateinit var mergeStates: app.lody.android.chat.PullRequestMergeReader
     lateinit var branches: app.lody.android.chat.PullRequestBranches
@@ -106,6 +108,7 @@ open class LodyApplication : Application() {
             if (::notifications.isInitialized) notifications.clear()
             app.lody.android.chat.ComposerDrafts.clear(this)
             scheduleCache.invalidate()
+            previewCache.clearAll()
             prepared = null
             submissions.activate(null)
             cloud.disconnect()

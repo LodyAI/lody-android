@@ -898,6 +898,10 @@
     <string name="preview_open_browser">Open in browser</string>
     <string name="preview_copy_link">Copy link</string>
     <string name="preview_link_copied">Link copied</string>
+    <string name="preview_link_checking">Checking preview link…</string>
+    <string name="preview_link_regenerating">Regenerating preview link…</string>
+    <string name="preview_link_regenerate">Regenerate preview link</string>
+    <string name="preview_link_unconfirmed">Unable to confirm connection right now</string>
     <string name="preview_close">Close</string>
     <string name="preview_unsupported">Update Lody on this computer to use previews.</string>
     <string name="preview_unauthorized">You don\'t have permission to preview on this computer.</string>
