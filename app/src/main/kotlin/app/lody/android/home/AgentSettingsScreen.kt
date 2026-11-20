@@ -2,6 +2,7 @@ package app.lody.android.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,6 +35,7 @@ internal fun AgentSettingsScreen(home: ChatListUiState, service: AgentProviderSe
     var editor by remember(scope, machine?.id) { mutableStateOf<ProviderEditor?>(null) }
     var deletion by remember(scope, machine?.id) { mutableStateOf<ProviderAction?>(null) }
     var deletionName by remember { mutableStateOf("") }
+    var usageFor by remember(scope, machine?.id) { mutableStateOf<AgentProvider?>(null) }
     val currentHome by rememberUpdatedState(home)
     LaunchedEffect(state) {
         snapshotFlow { currentHome.sync }.collect { state?.refresh() }
@@ -49,11 +51,15 @@ internal fun AgentSettingsScreen(home: ChatListUiState, service: AgentProviderSe
     val editing = editor
     if (editing != null && machine != null && state != null) {
         ProviderEditorScreen(editing, data?.catalog.orEmpty().filter { it.cliType != "builtin" || it.agentType == "deepseek" || machine.supportsSetup }, canManage,
-            busy = state.busy, error = state.error, service = service!!, scope = scope!!, machineId = machine.id, supportsCodexProfiles = machine.supportsCodexProfiles, supportsPiExtensions = machine.supportsPiExtensions, presets = data?.presets.orEmpty(),
+            busy = state.busy, error = state.error, service = service!!, scope = scope!!, machine = machine, presets = data?.presets.orEmpty(),
+            quotas = editing.base?.let { home.snapshot?.agentUsage?.get(machine.id)?.forProvider(it) }.orEmpty(),
             onBack = { editor = null }, onSave = { fields ->
                 tasks.launch {
                     if (state.perform(ProviderAction.Save(machine.id, editing.id, editing.base, fields))) editor = null
                 }
+            }, onDelete = {
+                // Confirmation shows over the list; the deletion itself is unchanged.
+                editing.base?.let { deletionName = it.name; deletion = ProviderAction.Delete(it); editor = null }
             })
         return
     }
@@ -90,27 +96,12 @@ internal fun AgentSettingsScreen(home: ChatListUiState, service: AgentProviderSe
                 val providers = data?.providers.orEmpty().filter { it.machineId == machine.id }
                 if (providers.isEmpty()) item { ProviderNotice(stringResource(R.string.settings_agent_empty)) }
                 items(providers, key = { "provider-${it.id}" }) { provider ->
-                    var menu by remember(provider.id) { mutableStateOf(false) }
-                    SettingsLine(provider.name, LodyIcons.Agent,
-                        if (state?.refreshing == provider.id) refreshLine(state.refreshProgress) else provider.agentType,
-                        onClick = { editor = ProviderEditor(provider) },
-                        leading = { AgentMark(provider.cliType, provider.agentType, LodyTheme.colors.textPrimary, Modifier.size(LodyIconSize.lg)) }, trailing = {
-                            Box {
-                                IconButton(onClick = { menu = true }, enabled = canManage && !provider.readOnly) {
-                                    Icon(LodyIcons.More, stringResource(R.string.settings_agent_more))
-                                }
-                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.settings_agent_edit)) }, onClick = { menu = false; editor = ProviderEditor(provider) })
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.settings_agent_refresh)) }, onClick = { menu = false; tasks.launch { state?.refreshModels(provider) } })
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.settings_agent_delete), color = LodyTheme.colors.dangerDefault) }, onClick = {
-                                        menu = false; deletionName = provider.name; deletion = ProviderAction.Delete(provider)
-                                    })
-                                }
-                            }
-                        })
-                    home.snapshot?.agentUsage?.get(machine.id)?.forProvider(provider).orEmpty().forEach { quota ->
-                        Column(Modifier.padding(horizontal = LodySpacing.xxl, vertical = LodySpacing.sm)) { app.lody.android.chat.UsageQuotaView(quota) }
-                    }
+                    ProviderRow(provider, data?.catalog.orEmpty(), home.snapshot?.agentUsage?.get(machine.id)?.forProvider(provider).orEmpty(),
+                        subtitle = if (state?.refreshing == provider.id) refreshLine(state.refreshProgress) else null,
+                        actionsEnabled = canManage && !provider.readOnly,
+                        onEdit = { editor = ProviderEditor(provider) }, onUsage = { usageFor = provider },
+                        onRefresh = { tasks.launch { state?.refreshModels(provider) } },
+                        onDelete = { deletionName = provider.name; deletion = ProviderAction.Delete(provider) })
                 }
                 val setups = data?.setups.orEmpty().filter { it.machineId == machine.id }
                 if (setups.isNotEmpty()) item { SettingsHeading(stringResource(R.string.settings_agent_setups)) }
@@ -145,6 +136,21 @@ internal fun AgentSettingsScreen(home: ChatListUiState, service: AgentProviderSe
         }
         Spacer(Modifier.height(LodySpacing.xxl))
     }
+    usageFor?.let { provider ->
+        val quotas = machine?.let { home.snapshot?.agentUsage?.get(it.id)?.forProvider(provider) }.orEmpty()
+        // Refresh usage is offered only when the provider's detail says the operation is available.
+        var refreshable by remember(provider.id) { mutableStateOf(false) }
+        LaunchedEffect(provider.id, canManage, machine?.online) {
+            refreshable = false
+            if (service != null && scope != null && canManage && !provider.readOnly && machine?.online == true) refreshable = try {
+                service.detail(scope, provider.machineId, provider.id).let { it.supportsRateLimitsRefresh && "rate-limits-refresh" !in it.unavailableActions }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (_: Exception) { false }
+        }
+        ProviderQuotaSheet(provider.name, quotas, offline = machine?.online != true,
+            refresh = if (refreshable && service != null && scope != null && canManage)
+                suspend { service.operation(scope, provider.machineId, provider.id, "rate-limits-refresh", provider.cliType, provider.agentType).success } else null,
+            onDismiss = { usageFor = null })
+    }
     val pending = deletion
     if (pending != null) AlertDialog(onDismissRequest = { deletion = null },
         title = { Text(stringResource(R.string.settings_agent_delete_title, deletionName)) },
@@ -167,7 +173,7 @@ internal fun refreshLine(progress: RuntimeEvent.ProviderRefreshProgress?): Strin
     else stringResource(R.string.settings_agent_reading_model_options, progress.modelName, progress.index, progress.total)
 
 @Composable
-private fun PresenceDot(online: Boolean) {
+internal fun PresenceDot(online: Boolean) {
     Box(Modifier.size(LodySize.dot).background(if (online) LodyTheme.colors.accentFg else LodyTheme.colors.textSecondary, CircleShape))
 }
 @Composable
@@ -191,3 +197,30 @@ internal fun providerError(code: String?): String = stringResource(when (code) {
     else -> R.string.settings_agent_write_unknown
 })
 
+
+/** Agent icon, name, kind and the compact quota line; the overflow menu keeps Edit, Refresh and Delete. */
+@Composable
+private fun ProviderRow(provider: AgentProvider, catalog: List<ProviderCatalogEntry>, quotas: List<UsageQuota>, subtitle: String?, actionsEnabled: Boolean,
+    onEdit: () -> Unit, onUsage: () -> Unit, onRefresh: () -> Unit, onDelete: () -> Unit) {
+    var menu by remember(provider.id) { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().heightIn(min = LodySize.listRowTwoLine).clickable(onClick = onEdit)
+        .padding(horizontal = LodySpacing.lg, vertical = LodySpacing.md),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LodySpacing.md)) {
+        AgentMark(provider.cliType, provider.agentType, LodyTheme.colors.textPrimary, Modifier.size(LodyIconSize.lg))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(LodySpacing.xxs)) {
+            Text(provider.name, style = LodyTheme.typography.body, color = LodyTheme.colors.textPrimary, maxLines = 1)
+            Text(subtitle ?: providerKind(provider, catalog), style = LodyTheme.typography.footnote, color = LodyTheme.colors.textSecondary, maxLines = 1)
+            ProviderQuotaLine(quotas, onClick = onUsage)
+        }
+        Box {
+            IconButton(onClick = { menu = true }, enabled = actionsEnabled) {
+                Icon(LodyIcons.More, stringResource(R.string.settings_agent_more))
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.settings_agent_edit)) }, onClick = { menu = false; onEdit() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.settings_agent_refresh_models)) }, onClick = { menu = false; onRefresh() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.settings_agent_delete), color = LodyTheme.colors.dangerDefault) }, onClick = { menu = false; onDelete() })
+            }
+        }
+    }
+}

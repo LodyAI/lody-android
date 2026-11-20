@@ -17,32 +17,63 @@ internal fun validEnvironmentKey(key: String) = key.matches(Regex("[A-Za-z_][A-Z
 /** Credentials are supplied only by the user; existing values never enter this component. */
 @Composable
 internal fun ProviderEnvironment(existingKeys: List<String>, patch: Map<String, String?>, enabled: Boolean, onChange: (Map<String, String?>) -> Unit) {
-    var newKey by remember { mutableStateOf("") }
-    Column(verticalArrangement = Arrangement.spacedBy(LodySpacing.md)) {
-        Text(stringResource(R.string.settings_agent_env), style = LodyTheme.typography.body)
-        Text(stringResource(R.string.settings_agent_env_hint), style = LodyTheme.typography.footnote, color = LodyTheme.colors.textSecondary)
-        (existingKeys + patch.keys).distinct().sorted().forEach { key ->
-            Column {
-                Text(key, style = LodyTheme.typography.footnote, color = LodyTheme.colors.textSecondary)
-                if (patch.containsKey(key) && patch[key] != null) {
-                    OutlinedTextField(patch[key].orEmpty(), { onChange(patch + (key to it)) },
-                        enabled = enabled, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        label = { Text(stringResource(R.string.settings_agent_env_value)) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false))
-                } else Text(stringResource(if (patch.containsKey(key)) R.string.settings_agent_env_removed else R.string.settings_agent_env_kept), style = LodyTheme.typography.footnote)
-                Row {
-                    if (!patch.containsKey(key) || patch[key] == null) TextButton(enabled = enabled, onClick = { onChange(patch + (key to "")) }) { Text(stringResource(R.string.settings_agent_env_replace)) }
-                    if (!patch.containsKey(key) || patch[key] != null) TextButton(enabled = enabled, onClick = { onChange(if (key in existingKeys) patch + (key to null) else patch - key) }) { Text(stringResource(R.string.settings_agent_remove)) }
-                    if (key in existingKeys && patch.containsKey(key)) TextButton(enabled = enabled, onClick = { onChange(patch - key) }) { Text(stringResource(R.string.settings_agent_env_keep)) }
-                }
-            }
+    var editing by remember { mutableStateOf<String?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    SettingsHeading(stringResource(R.string.settings_agent_env))
+    (existingKeys + patch.keys).distinct().sorted().forEach { key ->
+        val value = when {
+            !patch.containsKey(key) -> R.string.settings_agent_env_stored
+            patch[key] == null -> R.string.settings_agent_env_removed
+            key in existingKeys -> R.string.settings_agent_env_will_replace
+            else -> R.string.settings_agent_env_new
         }
-        OutlinedTextField(newKey, { newKey = it }, enabled = enabled, singleLine = true,
-            label = { Text(stringResource(R.string.settings_agent_env_key)) }, modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false))
-        TextButton(enabled = enabled && validEnvironmentKey(newKey) && newKey !in existingKeys && newKey !in patch, onClick = {
-            onChange(patch + (newKey to "")); newKey = ""
-        }) { Text(stringResource(R.string.settings_agent_env_add)) }
+        ProviderValueRow(key, stringResource(value), onClick = { editing = key }, enabled = enabled)
+    }
+    ProviderValueRow(stringResource(R.string.settings_agent_env_add), null, onClick = { adding = true }, enabled = enabled, labelColor = LodyTheme.colors.accentFg)
+    ProviderFootnote(stringResource(R.string.settings_agent_env_hint))
+    editing?.let { key ->
+        EnvironmentValueSheet(key, existing = key in existingKeys, patch = patch, onDismiss = { editing = null }) { onChange(it); editing = null }
+    }
+    if (adding) EnvironmentAddSheet(existingKeys, patch, onDismiss = { adding = false }) { onChange(it); adding = false }
+}
+
+/** Replace, remove or keep one variable. Stored values are never shown; the field starts empty. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EnvironmentValueSheet(key: String, existing: Boolean, patch: Map<String, String?>, onDismiss: () -> Unit, onChange: (Map<String, String?>) -> Unit) {
+    val replacing = patch.containsKey(key) && patch[key] != null
+    var value by remember(key) { mutableStateOf(patch[key].orEmpty()) }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = LodyTheme.colors.bgBase) {
+        Column(Modifier.fillMaxWidth().imePadding().padding(bottom = LodySpacing.xxl), verticalArrangement = Arrangement.spacedBy(LodySpacing.md)) {
+            // An untouched empty field never replaces a stored value by accident.
+            ProviderSheetHeader(key, doneEnabled = value.isNotEmpty() || replacing || !existing, onCancel = onDismiss) { onChange(patch + (key to value)) }
+            OutlinedTextField(value, { value = it }, Modifier.fillMaxWidth().padding(horizontal = LodyLayout.screenPaddingX), singleLine = true,
+                label = { Text(stringResource(R.string.settings_agent_env_value)) },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false))
+            if (existing && patch.containsKey(key)) ProviderValueRow(stringResource(R.string.settings_agent_env_keep), null, onClick = { onChange(patch - key) })
+            if (!patch.containsKey(key) || patch[key] != null) ProviderValueRow(stringResource(R.string.settings_agent_remove), null,
+                onClick = { onChange(if (existing) patch + (key to null) else patch - key) }, labelColor = LodyTheme.colors.dangerDefault)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EnvironmentAddSheet(existingKeys: List<String>, patch: Map<String, String?>, onDismiss: () -> Unit, onChange: (Map<String, String?>) -> Unit) {
+    var key by remember { mutableStateOf("") }
+    var value by remember { mutableStateOf("") }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = LodyTheme.colors.bgBase) {
+        Column(Modifier.fillMaxWidth().imePadding().padding(bottom = LodySpacing.xxl), verticalArrangement = Arrangement.spacedBy(LodySpacing.md)) {
+            ProviderSheetHeader(stringResource(R.string.settings_agent_env_add), doneEnabled = validEnvironmentKey(key) && key !in existingKeys && key !in patch, onCancel = onDismiss) {
+                onChange(patch + (key to value))
+            }
+            OutlinedTextField(key, { key = it }, Modifier.fillMaxWidth().padding(horizontal = LodyLayout.screenPaddingX), singleLine = true,
+                label = { Text(stringResource(R.string.settings_agent_env_key)) }, keyboardOptions = KeyboardOptions(autoCorrectEnabled = false))
+            OutlinedTextField(value, { value = it }, Modifier.fillMaxWidth().padding(horizontal = LodyLayout.screenPaddingX), singleLine = true,
+                label = { Text(stringResource(R.string.settings_agent_env_value)) },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false))
+        }
     }
 }

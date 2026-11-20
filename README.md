@@ -351,10 +351,13 @@ until a fresh read (`GitHubSettingsTest`).
 
 Agent settings select one machine above its provider list (online and own machines
 first); the top bar's "+" adds a provider to it, and the last list shows from process
-memory while refreshing. Deletions leave the list at once and return on failure. Native forms support
-catalog entries and presets, names/prompts/descriptions, custom commands, write-only
-environment changes, endpoints, Codex profiles, runtime paths and capability-derived
-title options. Stored credential values are never returned to forms; omitting an
+memory while refreshing. Deletions leave the list at once and return on failure. The
+editor is a list of tappable label/value rows (header, Basics, Command, Account,
+Conversation defaults, Environment variables, Delete) whose values are edited in bottom
+sheets and persisted by Save. It supports catalog entries and presets, names and prompts,
+custom commands, write-only environment changes, endpoints, Codex profiles and
+capability-derived title options. Descriptions, runtime paths and Pi extension
+selections are not shown but are sent back unchanged. Stored credential values are never returned to forms; omitting an
 environment key preserves it, explicit removal sends null, and an empty replacement
 saves an empty string. Detail revisions fence advanced edits against concurrent changes.
 
@@ -364,8 +367,8 @@ supports methods, browser authorization, codes, form inputs, consent, status and
 Final method menus start a new flow; resumable interactions submit to their existing
 flow. Consent must be acknowledged before opening the authorization URL, and verifying
 remains a nonterminal state.
-Runtime controls expose status/install with progress, Pi extension discovery/selection
-and active quota refresh. Sorbet connection/endpoint-store management remains unavailable
+Runtime status/install and Pi extension discovery are left to the desktop; the quota
+sheet offers active usage refresh. Sorbet connection/endpoint-store management remains unavailable
 because native encrypted feature transport is missing; ordinary ACP sign-in uses its
 public encrypted input protocol.
 
@@ -374,8 +377,9 @@ target machine’s providers/setups while retaining other still-visible machines
 `agentProvidersChanged` queues a target-only refresh behind any pending mutation, so
 setup transitions are reconciled without unrelated machine reads. Unknown outcomes
 disable editing until a successful refresh and never replay a write.
-Catalog `agentUsage` selects eligible, exact provider/config quotas and renders
-shared session usage meters and reset-time controls. Absent usage stays hidden.
+Catalog `agentUsage` selects eligible, exact provider/config quotas. Provider rows and
+the editor header show a compact line of the two tightest windows; tapping it opens a
+quota sheet with every window, its reset time and Refresh usage. Absent usage stays hidden.
 
 The native adapter uses canonical `agentProviders`, `agentProviderDetail`,
 `agentProviderProbe`, `agentProviderAuth` and `agentProviderOperation` with verified

@@ -63,7 +63,7 @@ private fun UsageMeter(label: String, percent: Double) {
 }
 
 @Composable
-private fun ResetTime(epochSeconds: Double) {
+internal fun ResetTime(epochSeconds: Double) {
     var absolute by remember(epochSeconds) { mutableStateOf(false) }
     val millis = (epochSeconds * 1000).toLong()
     val time = if (absolute) DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(millis))
@@ -76,24 +76,30 @@ private fun ResetTime(epochSeconds: Double) {
     }
 }
 
+/** "Weekly", "5 hours" or "3d"; a window without a duration is the plan's usage. */
+@Composable
+internal fun usageWindowName(duration: Double?): String = when (duration) {
+    604800.0 -> stringResource(R.string.usage_weekly)
+    18000.0 -> stringResource(R.string.usage_five_hours)
+    null -> stringResource(R.string.usage_title)
+    else -> usageWindowShortName(duration)
+}
+
+/** "5h", "7d" or "30m", as the compact quota line on Web. */
+@Composable
+internal fun usageWindowShortName(seconds: Double): String {
+    val unit = if (seconds % 86400 == 0.0) 86400 else if (seconds % 3600 == 0.0) 3600 else 60
+    return stringResource(if (unit == 86400) R.string.usage_days else if (unit == 3600) R.string.usage_hours else R.string.usage_minutes, NumberFormat.getNumberInstance().format(seconds / unit))
+}
+
 @Composable
 internal fun UsageQuotaView(quota: app.lody.android.runtime.UsageQuota) {
     Column(verticalArrangement = Arrangement.spacedBy(LodySpacing.sm)) {
-                    Text(quota.name ?: stringResource(R.string.usage_model), style = LodyTheme.typography.subhead)
-                    if (quota.windows.sortedByDescending { it.duration ?: 0.0 }.isEmpty()) Text(stringResource(R.string.usage_unavailable), style = LodyTheme.typography.caption)
-                    quota.windows.sortedByDescending { it.duration ?: 0.0 }.forEach { window ->
-                        val duration = when (window.duration) {
-                            604800.0 -> stringResource(R.string.usage_weekly)
-                            18000.0 -> stringResource(R.string.usage_five_hours)
-                            null -> stringResource(R.string.usage_title)
-                            else -> {
-                                val seconds = window.duration
-                                val unit = if (seconds % 86400 == 0.0) 86400 else if (seconds % 3600 == 0.0) 3600 else 60
-                                stringResource(if (unit == 86400) R.string.usage_days else if (unit == 3600) R.string.usage_hours else R.string.usage_minutes, NumberFormat.getNumberInstance().format(seconds / unit))
-                            }
-                        }
-                        UsageMeter(listOfNotNull(duration, window.label).joinToString(" · "), window.usedPercent)
-                        window.resetsAt?.let { ResetTime(it) }
-                    }
+        Text(quota.name ?: stringResource(R.string.usage_model), style = LodyTheme.typography.subhead)
+        if (quota.windows.isEmpty()) Text(stringResource(R.string.usage_unavailable), style = LodyTheme.typography.caption)
+        quota.windows.sortedByDescending { it.duration ?: 0.0 }.forEach { window ->
+            UsageMeter(listOfNotNull(usageWindowName(window.duration), window.label).joinToString(" · "), window.usedPercent)
+            window.resetsAt?.let { ResetTime(it) }
+        }
     }
 }
