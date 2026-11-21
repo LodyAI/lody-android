@@ -111,7 +111,6 @@ data class SessionInfoBar(
     }
 
     val hasDiff: Boolean get() = hasChanges(added, removed, files)
-    val hasTextDiff: Boolean get() = added + removed > 0
     val hasContext: Boolean get() = group != null || repository.isNotEmpty() || branch.isNotEmpty() || hasDiff || pullRequest != null
 
     val pullRequestUrl: String

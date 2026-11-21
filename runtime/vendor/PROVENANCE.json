@@ -292,5 +292,15 @@
       "src/runtime/project.ts"
     ],
     "note": "Tool call summaries carry the history item's activityKind (context_compaction / codex_retry, web isProcessStatusToolCall), so the transcript can show context compaction as a status row. Dependencies and licenses are unchanged."
+  },
+  "diffScope": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "a4960c96c73eec48da052960a4fe9f9953751c2c",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/files.ts",
+      "src/runtime/files.ts"
+    ],
+    "note": "Workspace and file diffs accept the machine's `branch` / `uncommitted` comparison scope and forward it to `open-all-changes-diff` and `open-current-diff`, omitting it when unset so older machines keep their default. Mirrored from the rebased iOS source commit on top of current main; the native composer quote additions stay out of this snapshot. Dependencies and licenses are unchanged."
   }
 }

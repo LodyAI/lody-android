@@ -222,4 +222,26 @@ class RuntimeProtocolTest {
   assertEquals(JSONObject().put("action", "start").put("udid", "U").toString(), PreviewJson.command(DevicePlatform.IOS, DeviceCommand.Start("U", "clear")).toString())
   assertEquals("saver", PreviewJson.command(DevicePlatform.ANDROID, DeviceCommand.Start("Pixel_8", "saver")).getString("quality"))
  }
+ @Test fun diffKeepsAnOversizedSideDistinctFromBinary() {
+  val oversized = RuntimeProtocol.diff(JSONObject("""{"status":"ok","path":"big.ts","old":{"kind":"text","text":"a"},"new":{"kind":"too_large"}}"""))
+  assertTrue(oversized.tooLarge)
+  assertNull(oversized.unavailable)
+  val binary = RuntimeProtocol.diff(JSONObject("""{"status":"ok","path":"logo.png","old":{"kind":"binary"},"new":{"kind":"binary"}}"""))
+  assertFalse(binary.tooLarge)
+ }
+ @Test fun workspaceChangesKeepOptionalCountsAndKinds() {
+  val ready = RuntimeProtocol.workspaceChanges(JSONObject("""{"status":"ok","base":"abc","files":[
+   {"path":"src/b.kt","add":4,"del":2,"kind":"modified"},{"path":"new.txt","kind":"added"},{"path":""}]}"""))
+  assertEquals(
+   WorkspaceChanges.Ready(listOf(
+    WorkspaceChange("src/b.kt", 4, 2, "modified"),
+    WorkspaceChange("new.txt", null, null, "added"),
+   )),
+   ready,
+  )
+  assertEquals(
+   WorkspaceChanges.Unavailable("offline"),
+   RuntimeProtocol.workspaceChanges(JSONObject("""{"status":"unavailable","reason":"offline"}""")),
+  )
+ }
 }

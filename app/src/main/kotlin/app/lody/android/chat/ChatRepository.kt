@@ -1,5 +1,6 @@
 package app.lody.android.chat
 
+import app.lody.android.BuildConfig
 import app.lody.android.runtime.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -29,6 +30,11 @@ interface PullRequestBranches {
 private object UnavailableBranches : PullRequestBranches {
     override suspend fun exists(scope: RuntimeScope, repository: String, number: Int): Boolean? = null
     override suspend fun delete(scope: RuntimeScope, repository: String, number: Int) = throw GitHubWriteFailure("unavailable")
+}
+
+/** Debug builds leave one line naming the failed diff read; release stays silent. */
+private fun logDiffFailure(sessionId: String, path: String?, reason: String?, error: Throwable? = null) {
+    if (BuildConfig.DEBUG) android.util.Log.w("LodyDiff", diffFailureLog(sessionId, path, reason, error))
 }
 
 /** A screen subscription uses the app's existing workspace lease; it never creates a runtime. */
@@ -64,8 +70,28 @@ class ChatRepository(
         owner.use(scope) { (it.execute(RuntimeCommand.ItemDetail(sessionId, entryId, itemId)) as RuntimeResult.Detail).value }
 
     /** A changed file's diff for one turn, read from the session's computer; safe to retry. */
-    suspend fun turnDiff(scope: RuntimeScope, sessionId: String, entryId: String, path: String): FileDiff =
-        owner.use(scope) { (it.execute(RuntimeCommand.TurnDiff(sessionId, entryId, path)) as RuntimeResult.Diff).value }
+    suspend fun turnDiff(scope: RuntimeScope, sessionId: String, entryId: String, path: String): FileDiff = try {
+        val value = owner.use(scope) { (it.execute(RuntimeCommand.TurnDiff(sessionId, entryId, path)) as RuntimeResult.Diff).value }
+        value.unavailable?.let { logDiffFailure(sessionId, path, it) }
+        value
+    } catch (cancelled: CancellationException) { throw cancelled }
+    catch (error: Exception) { logDiffFailure(sessionId, path, null, error); throw error }
+
+    /** Every file the working tree changed, read from the session's computer; safe to retry. */
+    suspend fun workspaceChanges(scope: RuntimeScope, sessionId: String, diffScope: DiffScope): WorkspaceChanges = try {
+        val value = owner.use(scope) { (it.execute(RuntimeCommand.WorkspaceChanges(sessionId, diffScope)) as RuntimeResult.WorkspaceChanges).value }
+        if (value is WorkspaceChanges.Unavailable) logDiffFailure(sessionId, null, value.reason)
+        value
+    } catch (cancelled: CancellationException) { throw cancelled }
+    catch (error: Exception) { logDiffFailure(sessionId, null, null, error); throw error }
+
+    /** One changed file's current diff against its base, read from the session's computer; safe to retry. */
+    suspend fun fileDiff(scope: RuntimeScope, sessionId: String, path: String, diffScope: DiffScope): FileDiff = try {
+        val value = owner.use(scope) { (it.execute(RuntimeCommand.FileDiff(sessionId, path, diffScope)) as RuntimeResult.Diff).value }
+        value.unavailable?.let { logDiffFailure(sessionId, path, it) }
+        value
+    } catch (cancelled: CancellationException) { throw cancelled }
+    catch (error: Exception) { logDiffFailure(sessionId, path, null, error); throw error }
 
     /** One folder of the session's local project ("" is the project root); a read, safe to retry. */
     suspend fun listDir(scope: RuntimeScope, sessionId: String, relativePath: String): DirectoryListing =

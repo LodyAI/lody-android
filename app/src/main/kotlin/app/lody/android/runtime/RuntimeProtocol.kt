@@ -185,7 +185,25 @@ internal object RuntimeProtocol {
             added = (json.opt("add") as? Number)?.toInt(),
             removed = (json.opt("del") as? Number)?.toInt(),
             unavailable = if (ok) null else json.optString("reason").ifBlank { "unavailable" },
+            tooLarge = ok && listOf("old", "new").any { json.optJSONObject(it)?.optString("kind") == "too_large" },
         )
+    }
+
+    /** Upstream `workspaceChanges`: the working tree's files, or why they are unavailable. */
+    fun workspaceChanges(json: JSONObject): WorkspaceChanges {
+        if (json.optString("status") != "ok") return WorkspaceChanges.Unavailable(json.optString("reason").ifBlank { "unavailable" })
+        val array = json.optJSONArray("files") ?: throw IllegalArgumentException("invalid_workspace_changes")
+        return WorkspaceChanges.Ready((0 until array.length()).mapNotNull { index ->
+            val file = array.optJSONObject(index) ?: return@mapNotNull null
+            val path = file.optString("path")
+            if (path.isEmpty()) return@mapNotNull null
+            WorkspaceChange(
+                path = path,
+                added = (file.opt("add") as? Number)?.toInt(),
+                removed = (file.opt("del") as? Number)?.toInt(),
+                kind = file.optString("kind").ifBlank { null },
+            )
+        })
     }
 
     /** Upstream `listDir`, leniently: malformed entries are dropped, folders first, then by name. */

@@ -97,6 +97,9 @@ export function contractBridge(runtime, emit) {
   projectGroups:args=>invoke('projectGroups',args),
   // A changed file's text before and after one turn, read from the session's computer.
   turnDiff:args=>invoke('turnDiff',args),
+  // The working tree's changed files, and one file's current text against its base.
+  workspaceChanges:args=>invoke('workspaceChanges',args),
+  fileDiff:args=>invoke('fileDiff',args),
   // The browse-files sheet: one folder of the session's local project, and one file's contents.
   listDir:args=>invoke('listDir',args),
   readFile:args=>invoke('readFile',args),

@@ -385,13 +385,26 @@
     <string name="chat_files_back">返回文件列表</string>
     <string name="chat_diff_binary">这个文件不是文本，没有行级 diff。</string>
     <string name="chat_diff_too_large">改动太大，无法在手机上显示。</string>
-    <string name="chat_diff_unavailable">无法获取 diff，电脑可能离线或文件已不存在。</string>
+    <string name="chat_diff_unavailable">无法获取 diff，请检查电脑连接后重试。</string>
+    <string name="chat_diff_not_changed">这个文件没有可显示的改动。</string>
+    <string name="chat_diff_no_base">电脑上没有可比较的基线版本。</string>
+    <string name="chat_diff_read_failed">读取文件失败，请重试。</string>
+    <string name="chat_diff_turn_unavailable">这一轮的 diff 还没准备好，请稍后重试。</string>
+    <string name="chat_diff_not_tracked">这个文件不在仓库里，没有可比较的旧版本。</string>
+    <string name="chat_diff_workspace_unavailable">无法加载工作区变更，请检查电脑连接后重试。</string>
     <string name="chat_diff_same">没有行级改动。</string>
     <plurals name="chat_diff_unchanged">
         <item quantity="one">⋯ %d 行未改动</item>
         <item quantity="other">⋯ %d 行未改动</item>
     </plurals>
     <string name="bar_workspace_changes">所有变更</string>
+    <string name="bar_workspace_changes_uncommitted">仅未提交</string>
+    <string name="workspace_changes_title">工作区变更</string>
+    <string name="workspace_changes_title_uncommitted">未提交的变更</string>
+    <string name="chat_diff_no_uncommitted_changes">没有未提交的修改。</string>
+    <string name="chat_diff_scope_not_git">仅未提交对比需要 Git 工作区。</string>
+    <string name="chat_diff_scope_no_commits">该工作区还没有提交，因此没有可对比的 HEAD。</string>
+    <string name="workspace_changes_refresh">刷新工作区变更</string>
     <string name="create_machine_no_agents">无可用助手</string>
     <string name="mention_files">文件与目录</string>
     <string name="mention_skills">技能</string>

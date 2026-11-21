@@ -78,6 +78,10 @@ test('contract bridge translates requests, events and native grant replies',asyn
  assert.deepEqual(sent.find(e=>e.method==='retryPendingInput').payload,{sessionId:'s',inputId:'i'});
  await bridge.forgetPendingInput({sessionId:'s',inputId:'i'});
  assert.deepEqual(sent.find(e=>e.method==='forgetPendingInput').payload,{sessionId:'s',inputId:'i'});
+ await bridge.workspaceChanges({sessionId:'s'});
+ assert.deepEqual(sent.find(e=>e.method==='workspaceChanges').payload,{sessionId:'s'});
+ await bridge.fileDiff({sessionId:'s',path:'a.ts'});
+ assert.deepEqual(sent.find(e=>e.method==='fileDiff').payload,{sessionId:'s',path:'a.ts'});
  const event={v:1,gen:1,kind:'event',method:'session',payload:{sessionId:'s',session:'{}',synced:true}};
  globalThis.androidRuntimeMessage({type:'envelope',envelope:JSON.stringify(event)});
  assert.equal(events.at(-1).sessionId,'s');

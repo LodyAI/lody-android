@@ -196,7 +196,15 @@ open class WebViewRuntime internal constructor(
             RuntimeResult.Detail(RuntimeProtocol.detail(value as JSONObject))
         }
         is RuntimeCommand.TurnDiff -> {
-            val value = call("turnDiff", JSONArray().put(command.sessionId).put(command.entryId).put(command.path), CommandDeadline.QUERY)
+            val value = call("turnDiff", JSONArray().put(command.sessionId).put(command.entryId).put(command.path), CommandDeadline.FILE_READ)
+            RuntimeResult.Diff(RuntimeProtocol.diff(value as JSONObject))
+        }
+        is RuntimeCommand.WorkspaceChanges -> {
+            val value = call("workspaceChanges", workspaceChangesArgs(command.sessionId, command.scope), CommandDeadline.FILE_READ)
+            RuntimeResult.WorkspaceChanges(RuntimeProtocol.workspaceChanges(value as JSONObject))
+        }
+        is RuntimeCommand.FileDiff -> {
+            val value = call("fileDiff", fileDiffArgs(command.sessionId, command.path, command.scope), CommandDeadline.FILE_READ)
             RuntimeResult.Diff(RuntimeProtocol.diff(value as JSONObject))
         }
         is RuntimeCommand.ListDir -> {
@@ -249,3 +257,11 @@ open class WebViewRuntime internal constructor(
         }
     }
 }
+
+/** `workspaceChanges` arguments; [DiffScope.Branch] sends no `scope` so older machines keep their default. */
+internal fun workspaceChangesArgs(sessionId: String, scope: DiffScope?): JSONArray =
+    JSONArray().put(sessionId).apply { scope?.wire?.let { put(it) } }
+
+/** `fileDiff` arguments; [DiffScope.Branch] sends no `scope` so older machines keep their default. */
+internal fun fileDiffArgs(sessionId: String, path: String, scope: DiffScope?): JSONArray =
+    JSONArray().put(sessionId).put(path).apply { scope?.wire?.let { put(it) } }

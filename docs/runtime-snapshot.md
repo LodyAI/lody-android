@@ -113,6 +113,12 @@ online-only agents), and `schedules` derives `ownedMachineIds` and clocks from w
 metadata as well as synced machine streams. The transcript windowing hunks in `project.ts` and
 `session.ts` remain outside the snapshot.
 
+Workspace and file diff reads accept the machine's `branch` / `uncommitted`
+comparison (`scope`); omitting it keeps the machine default. The vendored
+contract carries `DiffScope` and the optional field on both parameter objects.
+Mirrored from iOS `fa2ab5c5`; the snapshot keeps its existing composer
+context-usage mirror, and that iOS commit's preview contract additions stay out.
+
 ## Catalog read recovery
 
 The full snapshot comes from merged iOS commit

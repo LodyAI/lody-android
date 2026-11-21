@@ -18,7 +18,29 @@ class ChatRepositoryTest {
         override suspend fun start() {}
         override suspend fun stop() {}
         override suspend fun setActive(active: Boolean) {}
-        override suspend fun execute(command: RuntimeCommand): RuntimeResult { commands += command; return RuntimeResult.Accepted }
+        override suspend fun execute(command: RuntimeCommand): RuntimeResult {
+            commands += command
+            return when (command) {
+                is RuntimeCommand.WorkspaceChanges -> RuntimeResult.WorkspaceChanges(WorkspaceChanges.Ready(emptyList()))
+                is RuntimeCommand.FileDiff -> RuntimeResult.Diff(FileDiff(command.path, "", ""))
+                else -> RuntimeResult.Accepted
+            }
+        }
+    }
+
+    @Test fun workspaceReadsCarryTheirComparisonScope() = runTest {
+        val scope = RuntimeScope("account", "workspace")
+        val fake = Fake(scope)
+        val owner = RuntimeOwner({ fake }, StandardTestDispatcher(testScheduler))
+        owner.activate(scope); runCurrent()
+        val repository = ChatRepository(owner)
+        repository.workspaceChanges(scope, "s", DiffScope.Uncommitted)
+        repository.fileDiff(scope, "s", "a.ts", DiffScope.Uncommitted)
+        repository.workspaceChanges(scope, "s", DiffScope.Branch)
+        assertEquals(RuntimeCommand.WorkspaceChanges("s", DiffScope.Uncommitted), fake.commands[0])
+        assertEquals(RuntimeCommand.FileDiff("s", "a.ts", DiffScope.Uncommitted), fake.commands[1])
+        assertEquals(RuntimeCommand.WorkspaceChanges("s", DiffScope.Branch), fake.commands[2])
+        owner.clear()
     }
     @Test fun filtersOtherSessionsAndOldGenerationsReopensAfterRecoveryAndClosesOnExit() = runTest {
         val scope = RuntimeScope("account", "workspace")

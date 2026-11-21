@@ -387,13 +387,26 @@
     <string name="chat_files_back">Back to files</string>
     <string name="chat_diff_binary">This file is not text, so there is no line diff.</string>
     <string name="chat_diff_too_large">This change is too large to show on the phone.</string>
-    <string name="chat_diff_unavailable">The diff is unavailable. The computer may be offline or the file gone.</string>
+    <string name="chat_diff_unavailable">The diff is unavailable. Check the computer connection and try again.</string>
+    <string name="chat_diff_not_changed">This file has no change to show.</string>
+    <string name="chat_diff_no_base">The computer has no baseline to compare this file against.</string>
+    <string name="chat_diff_read_failed">Could not read this file. Try again.</string>
+    <string name="chat_diff_turn_unavailable">This turn\'s diff isn\'t ready yet. Try again in a moment.</string>
+    <string name="chat_diff_not_tracked">This file is outside the repository, so there is no earlier version to compare.</string>
+    <string name="chat_diff_workspace_unavailable">Could not load workspace changes. Check the computer connection and try again.</string>
     <string name="chat_diff_same">No line changes.</string>
     <plurals name="chat_diff_unchanged">
         <item quantity="one">⋯ %d unchanged line</item>
         <item quantity="other">⋯ %d unchanged lines</item>
     </plurals>
     <string name="bar_workspace_changes">All changes</string>
+    <string name="bar_workspace_changes_uncommitted">Uncommitted</string>
+    <string name="workspace_changes_title">Workspace changes</string>
+    <string name="workspace_changes_title_uncommitted">Uncommitted changes</string>
+    <string name="chat_diff_no_uncommitted_changes">No uncommitted changes.</string>
+    <string name="chat_diff_scope_not_git">Uncommitted comparison requires a Git worktree.</string>
+    <string name="chat_diff_scope_no_commits">This worktree has no commits yet, so there is no HEAD to compare against.</string>
+    <string name="workspace_changes_refresh">Refresh workspace changes</string>
     <string name="create_machine_no_agents">No available assistants</string>
     <string name="mention_files">Files and folders</string>
     <string name="mention_skills">Skills</string>
