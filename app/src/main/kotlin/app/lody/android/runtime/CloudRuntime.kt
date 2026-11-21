@@ -300,6 +300,13 @@ sealed interface TurnItem {
         /** The step's permission request, when it has one. */
         val permission: ToolPermission? = null,
     ) : TurnItem
+    /**
+     * Context compaction (a `tool_call` with `activityKind: context_compaction`, web
+     * `isProcessStatusToolCall`): one status line, never a step or part of an activity group.
+     */
+    data class Compaction(override val id: String, val status: String) : TurnItem {
+        val active: Boolean get() = status == "pending" || status == "in_progress"
+    }
     /** A proposed plan (Markdown); never folded. [streaming] while the agent still writes it. */
     data class ProposedPlan(override val id: String, val markdown: String, val streaming: Boolean = false) : TurnItem
     /** The agent's checklist (`plan`); never folded. */

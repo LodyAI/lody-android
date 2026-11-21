@@ -229,7 +229,7 @@ internal object RuntimeProtocol {
         return when (item.optString("type")) {
             "text" -> item.optString("text").takeIf { it.isNotBlank() }?.let { TurnItem.Text(id, it) }
             "thought" -> item.optString("text").takeIf { it.isNotBlank() }?.let { TurnItem.Thought(id, it) }
-            "tool_call" -> TurnItem.Tool(
+            "tool_call" -> if (item.optString("activityKind") == "context_compaction") TurnItem.Compaction(id, item.optString("status")) else TurnItem.Tool(
                 id,
                 kind = item.optString("kind"),
                 title = item.optString("title"),

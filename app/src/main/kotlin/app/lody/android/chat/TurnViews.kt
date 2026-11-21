@@ -117,7 +117,33 @@ private fun LazyListScope.content(
             if (value.kind == "switch_mode" && (value.plan != null || value.permission != null)) planExit(entry, value, block.key, open, toggle, details, respond)
             else step(entry, value, block.key, entry.working && value.status == "in_progress", open, toggle, details, respond)
         is TurnItem.Thought -> prose(block.key, entry.prose[value.id], secondary = true)
+        is TurnItem.Compaction -> item(key = block.key, contentType = "compaction") { Compaction(value, entry.working && value.active, Modifier.animateItem()) }
         is TurnItem.Task -> Unit
+    }
+}
+
+/** Web `ToolCallBlock` compaction status: a spinner and pulse while it runs, then its outcome, no warning tone. */
+@Composable
+private fun Compaction(item: TurnItem.Compaction, live: Boolean, modifier: Modifier = Modifier) {
+    val colors = LodyTheme.colors
+    val label = when {
+        live -> R.string.chat_compacting
+        item.status == "failed" -> R.string.chat_compaction_failed
+        else -> R.string.chat_compacted
+    }
+    Row(
+        modifier.fillMaxWidth().padding(horizontal = TranscriptMargin, vertical = LodySpacing.xxs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(LodySpacing.sm),
+    ) {
+        if (live) androidx.compose.material3.CircularProgressIndicator(Modifier.size(LodyIconSize.xs), color = colors.textSecondary, strokeWidth = 1.5.dp)
+        Text(
+            stringResource(label),
+            style = LodyTheme.typography.footnote,
+            color = colors.textSecondary,
+            maxLines = 1,
+            modifier = if (live) Modifier.shimmer() else Modifier,
+        )
     }
 }
 

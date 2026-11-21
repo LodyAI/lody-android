@@ -485,6 +485,9 @@
     <string name="bar_view_pr">查看 PR</string>
     <string name="home_ci_expected">等待检查</string>
     <string name="usage_compacting">正在压缩上下文</string>
+    <string name="chat_compacting">正在压缩上下文</string>
+    <string name="chat_compacted">上下文已压缩</string>
+    <string name="chat_compaction_failed">上下文压缩失败</string>
     <string name="usage_open">查看用量详情，已用 %1$d%%</string>
     <string name="usage_context">上下文</string>
     <string name="usage_tokens">%1$s / %2$s tokens</string>

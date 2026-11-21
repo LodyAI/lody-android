@@ -493,6 +493,9 @@
     <string name="bar_view_pr">View PR</string>
     <string name="home_ci_expected">Checks expected</string>
     <string name="usage_compacting">Compacting context</string>
+    <string name="chat_compacting">Compacting context</string>
+    <string name="chat_compacted">Context compacted</string>
+    <string name="chat_compaction_failed">Context compaction failed</string>
     <string name="usage_open">Open usage details, %1$d%% used</string>
     <string name="usage_context">Context</string>
     <string name="usage_tokens">%1$s / %2$s tokens</string>
