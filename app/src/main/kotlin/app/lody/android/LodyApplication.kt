@@ -45,7 +45,7 @@ open class LodyApplication : Application() {
         private set
     private var prepared: Pair<RuntimeScope, ShortLivedGrant>? = null
     private val shortcutCloud by lazy { app.lody.android.cloud.PromptShortcutCloud() }
-    private val previewTokens by lazy { app.lody.android.cloud.PreviewTokens() }
+    private val machineRequestTokens by lazy { app.lody.android.cloud.MachineRequestTokens() }
     private val workspaceBilling by lazy { app.lody.android.cloud.WorkspaceBilling() }
     protected open fun createRuntime(scope: RuntimeScope): CloudRuntime {
         val ready = prepared?.takeIf { it.first == scope }
@@ -56,8 +56,8 @@ open class LodyApplication : Application() {
                 catch (error: AuthFailure) { throw app.lody.android.runtime.RuntimeException(RuntimeFault(error.code, if (error.code == "network_unavailable") RuntimeErrorCategory.NETWORK else RuntimeErrorCategory.AUTH)) }
             }, app.lody.android.runtime.ShortcutCloudProvider { key, operation, args ->
                 account.withVerifiedAccount(key) { credential -> shortcutCloud.call(credential, key.workspaceId, operation, args) }
-            }, app.lody.android.runtime.PreviewTokenProvider { key, intent ->
-                account.withVerifiedAccount(key) { credential -> previewTokens.mint(credential, key, intent) }
+            }, app.lody.android.runtime.MachineTokenProvider { key, operation, intent ->
+                account.withVerifiedAccount(key) { credential -> machineRequestTokens.mint(credential, key, operation, intent) }
             }, app.lody.android.runtime.BillingProvider { key ->
                 account.withVerifiedAccount(key) { credential -> workspaceBilling.entitlement(credential, key.workspaceId) }
             })

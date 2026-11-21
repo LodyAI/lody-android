@@ -182,21 +182,35 @@ test('previewToken share requests go to native once, only for this workspace, an
  const intent=workspaceId=>({workspaceId,machineId:'m',sessionId:'s',runtimeNonce:'n',requestId:'r',operation:{action:'revoke'}});
  const ask=(id,workspaceId,operation='previewToken')=>globalThis.androidRuntimeMessage({type:'envelope',envelope:JSON.stringify({v:1,gen:1,kind:'request',id,method:'shareRequest',payload:{workspaceId:'workspace',operation,args:{intent:intent(workspaceId)}}})});
  ask('t1','workspace');
- assert.deepEqual(events.at(-1),{type:'previewToken',requestId:'t1',intent:JSON.stringify(intent('workspace'))});
- assert.equal(bridge.previewToken('t1',{value:'request-token'}),true);
+ assert.deepEqual(events.at(-1),{type:'machineToken',requestId:'t1',operation:'previewToken',intent:JSON.stringify(intent('workspace'))});
+ assert.equal(bridge.machineToken('t1',{value:'request-token'}),true);
  assert.deepEqual([sent.at(-1).id,sent.at(-1).kind,sent.at(-1).payload],['t1','result',{value:'request-token'}]);
- assert.equal(bridge.previewToken('t1',{value:'again'}),false);
+ assert.equal(bridge.machineToken('t1',{value:'again'}),false);
  ask('t2','workspace');
- bridge.previewToken('t2',{value:{status:403,extra:'dropped'}});
+ bridge.machineToken('t2',{value:{status:403,extra:'dropped'}});
  assert.deepEqual(sent.at(-1).payload,{value:{status:403}});
  ask('t3','workspace');
- bridge.previewToken('t3',null);
- assert.deepEqual([sent.at(-1).kind,sent.at(-1).error.code],['error','preview_token_unavailable']);
+ bridge.machineToken('t3',null);
+ assert.deepEqual([sent.at(-1).kind,sent.at(-1).error.code],['error','machine_token_unavailable']);
  const before=events.length;
  ask('t4','other');
  ask('t5','workspace','saveSecret');
  assert.equal(events.length,before);
  assert.deepEqual(sent.slice(-2).map(e=>[e.id,e.kind]),[['t4','error'],['t5','error']]);
+ const historyIntent={workspaceId:'workspace',machineId:'m',sessionId:'s'};
+ const historyRequest={v:1,gen:1,kind:'request',id:'h1',method:'shareRequest',payload:{
+  workspaceId:'workspace',operation:'historyToken',args:{intent:historyIntent}
+ }};
+ globalThis.androidRuntimeMessage({type:'envelope',envelope:historyRequest});
+ assert.deepEqual(events.at(-1),{type:'machineToken',requestId:'h1',operation:'historyToken',intent:JSON.stringify(historyIntent)});
+ bridge.machineToken('h1',{value:'scoped-history-proof'});
+ assert.deepEqual(sent.at(-1).payload,{value:'scoped-history-proof'});
+ const historyEvents=events.length;
+ globalThis.androidRuntimeMessage({type:'envelope',envelope:{...historyRequest,id:'h2',payload:{
+  ...historyRequest.payload,args:{intent:{...historyIntent,workspaceId:'other'}}
+ }}});
+ assert.equal(events.length,historyEvents);
+ assert.equal(sent.at(-1).error.code,'unsupported_method');
  delete globalThis.androidRuntimeMessage;
 });
 test('preview controls forward to the shared runtime with their long deadlines',async()=>{

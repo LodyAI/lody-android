@@ -113,6 +113,8 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     BackHandler(onBack = onBack)
     var retry by remember(id, scope) { mutableIntStateOf(0) }
     var status by remember(id, scope) { mutableStateOf("syncing") }
+    var sendReady by remember(id, scope) { mutableStateOf(false) }
+    var controlReady by remember(id, scope) { mutableStateOf(false) }
     var historyHasMore by remember(id, scope) { mutableStateOf(false) }
     var historyLoading by remember(id, scope) { mutableStateOf(false) }
     // User turns plus queued inputs, as the free-plan quota counts them (runtime `billableTurnCount`).
@@ -223,6 +225,8 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 historyLoading = snapshot.historyLoading
                 billableTurns = snapshot.billableTurnCount
                 status = snapshot.status
+                sendReady = snapshot.sendReady
+                controlReady = snapshot.controlReady
                 if (snapshot.messages.any { it.streaming }) delay(33)
             }
         } finally { repair.close() }
@@ -264,7 +268,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     // Web's free-plan turn quota: from turn 25 the composer says how many remain, and at 30 it
     // closes. The plan is read once the count nears the limit (iOS `watchTier`); an unknown plan
     // shows nothing and the runtime still refuses an over-limit send.
-    val quotaTurns = billableTurns.takeIf { status == "live" }
+    val quotaTurns = billableTurns.takeIf { sendReady }
     val nearQuota = (quotaTurns ?: 0) >= FREE_SESSION_TURN_LIMIT - FREE_SESSION_TURN_WARNING_REMAINING
     var planTier by remember(id, scope) { mutableStateOf<String?>(null) }
     LaunchedEffect(scope, id, nearQuota) {
@@ -280,7 +284,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         quotaLocked -> stringResource(R.string.chat_free_turn_limit, FREE_SESSION_TURN_LIMIT)
         else -> (FREE_SESSION_TURN_LIMIT - (quotaTurns ?: 0)).let { pluralStringResource(R.plurals.chat_free_turns_remaining, it, it) }
     }
-    val canSend = context.session?.isTabClosed != true && !creationUnconfirmed && status == "live" && session?.cliType != null && session.agentType != null && !quotaLocked
+    val canSend = context.session?.isTabClosed != true && !creationUnconfirmed && sendReady && session?.cliType != null && session.agentType != null && !quotaLocked
     // The composer's run config (web's mobile run-config chip): the session's provider choices,
     // read once the conversation is live. Until the reader changes it the chip shows the latest
     // turn's config from the snapshot and sends nothing (upstream keeps it); the first change
@@ -541,7 +545,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     val stopFailed = stringResource(R.string.chat_stop_failed)
     val stopHaptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val stop = {
-        if (runningTurn != null && session != null && status == "live" && !stopping) {
+        if (runningTurn != null && session != null && controlReady && !stopping) {
             stopping = true
             stopHaptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.ContextClick)
             coroutines.launch {
@@ -1081,7 +1085,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 plan = capability?.planOn(optionValues) == true,
                 fast = capability?.fastOn(optionValues, modelId) == true,
                 onRunConfig = if (session != null) ({ runConfig = true }) else null,
-                stoppable = runningTurn != null && status == "live",
+                stoppable = runningTurn != null && controlReady,
                 stopping = stopping,
                 attachments = attachments,
                 onPickPhotos = {

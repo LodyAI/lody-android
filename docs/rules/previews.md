@@ -4,7 +4,13 @@ Read before changing the conversation's web preview, iOS Simulator or Android Em
 
 - Previews use the shared runtime's calls unchanged: `sessionPreview` (`create` / `revoke`), `iosSimulatorControl` and `androidEmulatorControl` (`list` / `start` / `status` / `stop`). The bridge exposes them as `sessionPreview`, `iosSimulatorControl` and `androidEmulatorControl` with the verified identity, and `CloudRuntime` carries them as `RuntimeCommand.SessionPreview` and `RuntimeCommand.DeviceControl`. Native deadlines (340 s and 110 s) stay above the bridge's (335 s and 105 s), which stay above the runtime's own budgets (330 s and 100 s). Failures arrive in band as an error code with the computer's message; start, stop, create and revoke are never retried.
 
-- Every preview proof asks the host for a request token through `shareRequest` with operation `previewToken`. The contract bridge forwards only that operation, only for the current workspace and an intent naming that workspace, to native as a `previewToken` event, and answers each request exactly once through `previewTokenReply` (60-second JS fallback). `ReadOnlyCloudRuntime` mints the token under `AccountController.withVerifiedAccount` with `cloud/PreviewTokens`, a one-shot POST of the intent to `${site}/api/session-preview/request-token` with the account bearer, within 55 seconds. An HTTP refusal returns its status; a reply whose `requesterUserId` is not the scope's account is a failure. Every other share-request operation stays `unsupported_method`.
+- Preview proofs use the `previewToken` operation of `shareRequest`. The
+  bridge forwards the scoped intent through a `machineToken` event and accepts
+  one `machineTokenReply`. The native host posts the intent to
+  `${site}/api/session-preview/request-token` under `AccountController.withVerifiedAccount`
+  and checks the returned account. HTTP refusals return their status.
+  The same bridge also supports scoped `historyToken` requests for Roost.
+
 
 - The session snapshot's `preview` (`label`, `active`) offers "Open preview" in the conversation's More menu, plus "Stop preview" while a link is open. A returned link opens only when it is HTTPS on a `*.trycloudflare.com` tunnel without credentials or port (`PreviewUrls`). The in-app page loads only that origin; a tapped link elsewhere opens in the browser, and no native bridge is exposed to the previewed page.
 

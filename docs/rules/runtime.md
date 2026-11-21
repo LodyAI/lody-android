@@ -4,7 +4,7 @@ Read before changing the WebView runtime, its owner and lifecycle, the `CloudRun
 
 - Host the browser cloud runtime in a native-owned WebView. Business code depends on a platform-neutral Kotlin interface; WebView, JSON bridging and watchdog internals remain inside the implementation. Preserve command/event semantics across Swift and Kotlin so a future native runtime can replace the WebView implementation.
 
-- Keep watchdog deadlines outside JavaScript, fence callbacks by runtime generation, bound automatic restarts, suspend deadlines in background, and never replay writes after recovery. Long-lived credentials stay native; only short-lived grants may enter the runtime. A machine ACK is delivery, not completion.
+- Keep watchdog deadlines outside JavaScript, fence callbacks by runtime generation, bound automatic restarts, suspend deadlines in background, and never replay writes after recovery. Long-lived credentials stay native; only short-lived Streams grants and scoped machine proofs may enter the runtime. A machine ACK is delivery, not completion.
 
 - The vendored cloud-runtime source is an unchanged, provenance-tracked snapshot of `../ios/packages/cloud-runtime` ([snapshot rules](../runtime-snapshot.md)). Keep the Roost authoring source and generator in iOS. Snapshot the verified browser module and licenses for Android. Bridge code lives in `runtime/src`; when Android needs a protocol field, add it to the iOS runtime and re-snapshot instead of patching the snapshot at bundle time. Retain dependency licenses and reproducible asset generation.
 

@@ -19,7 +19,7 @@ const runtime = await import(`data:text/javascript;base64,${Buffer.from(bundle.o
 const ok = (result = {}) => ({ ok: true, result });
 const args = { id: '22222222-2222-4222-8222-222222222222', sessionId: 's', machineId: 'm', userId: 'u', text: 'hello', cliType: 'builtin', agentType: 'codex', modelId: 'model' };
 
-async function fixture({ failAt, target, owner, readControl, observe } = {}) {
+async function fixture({ failAt, target, owner, subscribe, readControl, observe } = {}) {
   const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
   const locks = new Map();
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: { request(name, { signal }, work) {
@@ -39,13 +39,23 @@ async function fixture({ failAt, target, owner, readControl, observe } = {}) {
         calls.push('rpc');
         const request = JSON.parse(part.body);
         if (failAt === 'rpc') throw new Error('lost_ack');
-        replies.set(request.replyTo, request);
+        if (request.method !== 'session/history-unsubscribe') replies.set(request.replyTo, request);
       } else {
         calls.push('history');
         doc.import(part.body.subarray(4));
         if (failAt === 'history') throw new Error('lost_ack');
       }
       return ok();
+    }
+    async *live({ signal, mode }) {
+      assert.equal(mode, 'long-poll');
+      const request = replies.get(this.url.split('/ds/lody/')[1]);
+      assert.equal(request.method, 'session/history-subscribe');
+      for await (const result of subscribe(request, signal)) {
+        yield { type: 'data', mode, payload: {
+          body: new TextEncoder().encode(JSON.stringify({ id: request.id, ...result })),
+        } };
+      }
     }
     async readOnce({ signal } = {}) {
       if (this.url.includes(':rpc:res:')) {
@@ -62,7 +72,13 @@ async function fixture({ failAt, target, owner, readControl, observe } = {}) {
   };
   let ready;
   const opened = new Promise((resolve) => { ready = resolve; });
-  const resolver = target ? () => ({ incremental: true, watch: true, ...target }) : undefined;
+  const resolver = target ? () => ({
+    incremental: true, live: !!subscribe, ...target,
+    getHistoryProof: async (intent) => {
+      assert.deepEqual([intent.workspaceId, intent.machineId, intent.sessionId], ['w', 'm', 's']);
+      return intent.requestId ? 'android-write-proof' : 'android-read-proof';
+    },
+  }) : undefined;
   const getGrant = async () => ({ token: 'fixture', gatewayBaseUrl: 'https://x.invalid' });
   const emit = (event) => {
     if (event.session && JSON.parse(event.session).status === 'live') ready();
@@ -102,7 +118,7 @@ test('Android Roost waits for control-stream recovery even after owner history c
   const blocked = Promise.withResolvers();
   const recovered = Promise.withResolvers();
   const retrying = Promise.withResolvers();
-  const historyWatch = Promise.withResolvers();
+  const nextHistory = Promise.withResolvers();
   const synced = Promise.withResolvers();
   let polls = 0, revision = 1, controlUnavailable = false, latest;
   const earlySync = [];
@@ -123,22 +139,40 @@ test('Android Roost waits for control-stream recovery even after owner history c
         synced.resolve();
       }
     },
-    async owner(request, signal) {
-      const { query } = await runtime.openPayload(request.params);
-      let result, pageTurns;
-      if (query.kind === 'watchChanges') {
-        const reply = Promise.withResolvers();
-        signal.addEventListener('abort', () => reply.reject(signal.reason), { once: true });
-        if (query.checkpoint === 'c1') historyWatch.resolve(reply.resolve);
-        result = await reply.promise;
-      } else {
-        result = {
-          checkpoint: `c${revision}`, startPosition: 0, totalCount: 1,
-          rows: [{ position: 0, state: 'ready', turnId: 'assistant-1' }],
-          hasMoreOlder: false, cursor: null,
-        };
-        pageTurns = [turn()];
-      }
+    async *subscribe(request, signal) {
+      const { sessionId, readProof, subscription } = await runtime.openPayload(request.params);
+      assert.equal(readProof, 'android-read-proof');
+      assert.deepEqual([subscription.action, subscription.checkpoint, subscription.includeBodiesFrom], ['open', 'c1', 0]);
+      const frame = async (publication) => ({ result: await runtime.sealPayload('s', {
+        type: 'session/history-subscription_response', sessionId,
+        subscriptionId: subscription.id, event: 'publication', publication,
+      }) });
+      yield await frame({ checkpoint: 'c1', revision: 1 });
+      await nextHistory.promise;
+      yield await frame({ checkpoint: 'c2', revision: 2, delta: {
+        baseCheckpoint: 'c1', includeBodiesFrom: 0,
+        response: { type: 'session/history-read_response', sessionId, success: true,
+          historyRevision: 2, historyCount: 1, result: {
+            state: 'ready', checkpoint: 'c2', ids: ['assistant-1'],
+            bodies: { changed: [turn()], suffix: [] },
+          },
+        },
+      } });
+      await new Promise((resolve) => {
+        if (signal.aborted) resolve();
+        else signal.addEventListener('abort', resolve, { once: true });
+      });
+    },
+    async owner(request) {
+      const { query, readProof } = await runtime.openPayload(request.params);
+      assert.equal(readProof, 'android-read-proof');
+      assert.notEqual(query.kind, 'readChanges');
+      const result = {
+        checkpoint: `c${revision}`, startPosition: 0, totalCount: 1,
+        rows: [{ position: 0, state: 'ready', turnId: 'assistant-1' }],
+        hasMoreOlder: false, cursor: null,
+      };
+      const pageTurns = [turn()];
       return { result: await runtime.sealPayload('s', {
         type: 'session/history-read_response', sessionId: 's', success: true,
         historyRevision: revision, historyCount: 1, result, pageTurns,
@@ -154,10 +188,7 @@ test('Android Roost waits for control-stream recovery even after owner history c
   blocked.resolve({ ok: false, result: { code: 'network_error' } });
   await retrying.promise;
   revision = 2;
-  (await historyWatch.promise)({
-    state: 'ready', checkpoint: 'c2', ids: ['assistant-1'],
-    bodies: { changed: [turn()], suffix: [] },
-  });
+  nextHistory.resolve();
   // Reopening the retained session exposes its snapshot while the retry is held.
   do {
     t.signal.throwIfAborted();
@@ -165,11 +196,15 @@ test('Android Roost waits for control-stream recovery even after owner history c
     await f.reopen();
   } while (!latest.entries[0]?.finished);
   assert.equal(latest.status, 'syncing');
+  assert.equal(latest.sendReady, false);
+  assert.equal(latest.controlReady, false);
   assert.deepEqual(earlySync, []);
   controlUnavailable = false;
   recovered.resolve(ok({ nextOffset: '2', upToDate: true, closed: false }));
   await synced.promise;
   assert.equal(latest.status, 'live');
+  assert.equal(latest.sendReady, true);
+  assert.equal(latest.controlReady, true);
 });
 
 test('Android snapshot opens a Roost session and writes input through the owner', async () => {
@@ -178,11 +213,10 @@ test('Android snapshot opens a Roost session and writes input through the owner'
   const handoff = new Promise((resolve) => { accepted = resolve; });
   const f = await fixture({
     target: { backend: 'roost', machineId: 'm', acceptsInput: true, dispatchesInput: true },
-    async owner(request, signal) {
+    async owner(request) {
       const params = await runtime.openPayload(request.params);
       operations.push({ method: request.method, params });
       if (request.method === 'session/history-write') accepted();
-      if (request.method === 'session/history-watch') return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }));
       const response = request.method === 'session/history-read'
         ? { type: 'session/history-read_response', sessionId: 's', success: true, historyRevision: 1, historyCount: 0,
             result: { checkpoint: 'c1', startPosition: 0, totalCount: 0, rows: [], hasMoreOlder: false, cursor: null }, pageTurns: [] }
@@ -194,7 +228,7 @@ test('Android snapshot opens a Roost session and writes input through the owner'
   try {
     assert.equal((await runtime.sendTurn(args)).state, 'uploaded');
     await handoff;
-    assert.equal(operations.find((item) => item.method === 'session/history-write').params.operation, 'accept_input_and_dispatch');
+    assert.deepEqual(operations.filter((item) => item.method === 'session/history-write').map(({ params }) => [params.operation, params.writeProof]), [['accept_input_and_dispatch', 'android-write-proof']]);
     assert.deepEqual(f.doc.toJSON().history ?? [], []);
   } finally { f.close(); }
 });
@@ -206,11 +240,9 @@ test('Android snapshot checks the owner receipt after a lost Roost acknowledgeme
   const recovery = new Promise((resolve) => { recoveredWrite = resolve; });
   const f = await fixture({
     target: { backend: 'roost', machineId: 'm', acceptsInput: true, dispatchesInput: true },
-    async owner(request, signal) {
+    async owner(request) {
       const params = await runtime.openPayload(request.params);
       operations.push({ method: request.method, params });
-      if (request.method === 'session/history-watch') return new Promise((_resolve, reject) =>
-        signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }));
       if (request.method === 'session/history-write') {
         if (operations.filter((item) => item.method === 'session/history-write').length === 1) firstWrite(); else recoveredWrite();
         throw new Error('lost_ack');

@@ -396,6 +396,8 @@ data class SessionSnapshot(
     val historyLoading: Boolean = false,
     /** User turns plus queued inputs, as the free-plan turn quota counts them; null when unknown. */
     val billableTurnCount: Int? = null,
+    val sendReady: Boolean = status == "live",
+    val controlReady: Boolean = status == "live",
 )
 sealed interface RuntimeEvent {
     data class ProvidersChanged(val machineId: String) : RuntimeEvent
@@ -411,7 +413,7 @@ sealed interface RuntimeEvent {
     /** The runtime asks the native host to make one prompt-shortcut Convex call (iOS `shortcutCloud`). */
     data class ShortcutCloudRequested(val requestId: String, val operation: String, val args: String) : RuntimeEvent
     /** The runtime asks the native host to mint a preview proof's request token for [intent] (JSON). */
-    data class PreviewTokenRequested(val requestId: String, val intent: String) : RuntimeEvent
+    data class MachineTokenRequested(val requestId: String, val operation: String, val intent: String) : RuntimeEvent
 }
 /** Stamped at source receipt, before any coroutine buffering. */
 data class RuntimeEmission(val generation: Long, val event: RuntimeEvent)
@@ -428,7 +430,7 @@ fun interface ShortcutCloudProvider { suspend fun call(scope: RuntimeScope, oper
  * Mints one preview-control request token for [scope] with the verified account: the token string,
  * or the HTTP status (Int) the backend refused with; throws on any other failure.
  */
-fun interface PreviewTokenProvider { suspend fun mint(scope: RuntimeScope, intent: org.json.JSONObject): Any }
+fun interface MachineTokenProvider { suspend fun mint(scope: RuntimeScope, operation: String, intent: org.json.JSONObject): Any }
 class ShortLivedGrant(val token: String, val gatewayBaseUrl: String, val expiresIn: Int, private val receivedAtNanos: Long = System.nanoTime()) {
     init { require(token.isNotBlank()); require(expiresIn in 1..3600) }
     fun remainingSeconds(nowNanos: Long = System.nanoTime()): Int =

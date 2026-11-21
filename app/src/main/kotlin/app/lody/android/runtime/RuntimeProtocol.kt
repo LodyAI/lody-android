@@ -114,9 +114,10 @@ internal object RuntimeProtocol {
                     agentRoleId = field("agentRoleId"), roleKnown = value.has("agentRoleId"),
                 )
             }
+            val status = envelope.text("status")
             RuntimeEvent.SessionUpdated(SessionSnapshot(
                 id = message.text("sessionId"),
-                status = envelope.text("status"),
+                status = status,
                 messages = entries + pending,
                 composer = composer,
                 usage = SessionUsageJson.parse(envelope.optJSONObject("usage")),
@@ -124,6 +125,8 @@ internal object RuntimeProtocol {
                 historyHasMore = envelope.optBoolean("historyHasMore"),
                 historyLoading = envelope.optBoolean("historyLoading"),
                 billableTurnCount = (envelope.opt("billableTurnCount") as? Number)?.toInt()?.takeIf { it >= 0 },
+                sendReady = (envelope.opt("sendReady") as? Boolean) ?: (status == "live"),
+                controlReady = (envelope.opt("controlReady") as? Boolean) ?: (status == "live"),
             ))
         }
         "catalog" -> {
@@ -147,7 +150,7 @@ internal object RuntimeProtocol {
         "networkStatus" -> RuntimeEvent.SyncFailed(if (message.optString("status") == "authorization_required") "grant_expired" else "network_unavailable")
         "grant" -> RuntimeEvent.GrantRequested
         "shortcutCloud" -> RuntimeEvent.ShortcutCloudRequested(message.getString("requestId"), message.getString("operation"), message.getString("args"))
-        "previewToken" -> RuntimeEvent.PreviewTokenRequested(message.getString("requestId"), message.getString("intent"))
+        "machineToken" -> RuntimeEvent.MachineTokenRequested(message.getString("requestId"), message.getString("operation"), message.getString("intent"))
         else -> null
     }
     fun schema(message: JSONObject): RuntimeResult.Schema {

@@ -14,7 +14,7 @@ internal class ReadOnlyCloudRuntime(
     initialGrant: ShortLivedGrant,
     private val provider: GrantProvider,
     private val shortcutCloud: ShortcutCloudProvider? = null,
-    private val previewTokens: PreviewTokenProvider? = null,
+    private val machineRequestTokens: MachineTokenProvider? = null,
     private val billing: BillingProvider? = null,
 ) : CloudRuntime {
     private val access = StreamAccess(scope.workspaceId, initialGrant.gatewayBaseUrl)
@@ -37,7 +37,7 @@ internal class ReadOnlyCloudRuntime(
                 val requested = event.event
                 if (requested == RuntimeEvent.GrantRequested) refresh()
                 else if (requested is RuntimeEvent.ShortcutCloudRequested) answer(requested, event.generation)
-                else if (requested is RuntimeEvent.PreviewTokenRequested) mint(requested, event.generation)
+                else if (requested is RuntimeEvent.MachineTokenRequested) mint(requested, event.generation)
                 else mutableEvents.emit(event)
             }
         }
@@ -97,17 +97,17 @@ internal class ReadOnlyCloudRuntime(
         }
     }
     /**
-     * Answers a previewToken request exactly once: `{value: token}`, `{value: {status}}` for an HTTP
+     * Answers a machine proof request exactly once: `{value: token}`, `{value: {status}}` for an HTTP
      * refusal, or null on any failure, a foreign workspace or the deadline (under JS's 60 s).
      */
-    private fun mint(request: RuntimeEvent.PreviewTokenRequested, generation: Long) {
-        val tokens = previewTokens
+    private fun mint(request: RuntimeEvent.MachineTokenRequested, generation: Long) {
+        val tokens = machineRequestTokens
         lifetime?.launch {
-            val value: JSONObject? = if (tokens == null) null else withTimeoutOrNull(55_000) {
+            val value: JSONObject? = if (tokens == null) null else withTimeoutOrNull(if (request.operation == "historyToken") 10_000 else 55_000) {
                 try {
                     val intent = JSONObject(request.intent)
                     if (intent.optString("workspaceId") != scope.workspaceId) return@withTimeoutOrNull null
-                    when (val minted = tokens.mint(scope, intent)) {
+                    when (val minted = tokens.mint(scope, request.operation, intent)) {
                         is String -> JSONObject().put("value", minted)
                         is Int -> JSONObject().put("value", JSONObject().put("status", minted))
                         else -> null
@@ -116,7 +116,7 @@ internal class ReadOnlyCloudRuntime(
                 catch (_: Exception) { null }
             }
             if (state.value.generation != generation) return@launch
-            runCatching { runtime.call("previewTokenReply", JSONArray().put(request.requestId).put(value ?: JSONObject.NULL)) }
+            runCatching { runtime.call("machineTokenReply", JSONArray().put(request.requestId).put(value ?: JSONObject.NULL)) }
         }
     }
     override suspend fun setActive(active: Boolean) = withContext(Dispatchers.Main.immediate) {

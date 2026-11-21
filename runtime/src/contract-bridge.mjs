@@ -3,6 +3,7 @@ export function contractBridge(runtime, emit) {
  const pending=new Map(), grants=new Map(), clouds=new Map(), tokens=new Map(); let serial=0, workspace='';
  // Prompt shortcut Convex calls the runtime asks the native host to make (iOS `shortcutCloud`).
  const cloudOperations=new Set(['listAccessibleDocuments','getStreamToken','stageDocument','activateDocument']);
+ const tokenOperations=new Set(['previewToken','historyToken']);
  const receive=envelope=>runtime.receive(JSON.stringify(envelope));
  function call(method,payload={}) {
   const id=`android-${++serial}`;
@@ -28,11 +29,10 @@ export function contractBridge(runtime, emit) {
     clouds.set(e.id,{e,timer:setTimeout(()=>shortcutCloud(e.id,null),75000)});
     emit({type:'shortcutCloud',requestId:e.id,operation:e.payload.operation,args:JSON.stringify(e.payload.args??{})});
    }
-   else if(e.method==='shareRequest' && e.payload?.operation==='previewToken' && workspace && e.payload.workspaceId===workspace && e.payload.args?.intent?.workspaceId===workspace && tokens.size<4) {
-    // A preview proof's request token (iOS `SessionSharing.previewToken`): native mints it with the
-    // verified account. Always answered: native replies within its own deadline, or this fails it.
-    tokens.set(e.id,{e,timer:setTimeout(()=>previewToken(e.id,null),60000)});
-    emit({type:'previewToken',requestId:e.id,intent:JSON.stringify(e.payload.args.intent)});
+   else if(e.method==='shareRequest' && tokenOperations.has(e.payload?.operation) && workspace && e.payload.workspaceId===workspace && e.payload.args?.intent?.workspaceId===workspace && tokens.size<4) {
+    // Native returns only the short-lived proof for the verified account and workspace.
+    tokens.set(e.id,{e,timer:setTimeout(()=>machineToken(e.id,null),60000)});
+    emit({type:'machineToken',requestId:e.id,operation:e.payload.operation,intent:JSON.stringify(e.payload.args.intent)});
    }
    else receive({...e,kind:'error',payload:undefined,error:{code:'unsupported_method',retryable:false}});
   }
@@ -46,13 +46,13 @@ export function contractBridge(runtime, emit) {
   else receive({...e,kind:'error',payload:undefined,error:{code:'shortcut_unavailable',retryable:false}});
   return true;
  }
- // The native reply to one previewToken request: {value} (the token, or {status} for an HTTP refusal), null on any failure.
- function previewToken(requestId,reply){
+ // The native reply to one machine token request: {value} (the token, or {status} for an HTTP refusal), null on any failure.
+ function machineToken(requestId,reply){
   const item=tokens.get(requestId);if(!item)return false;tokens.delete(requestId);clearTimeout(item.timer);
   const e=item.e, value=reply && typeof reply==='object' ? reply.value : undefined;
-  const valid=(typeof value==='string' && value.length>0 && value.length<=8192) || (value && typeof value==='object' && Number.isInteger(value.status));
+  const valid=(typeof value==='string' && value.length>0 && value.length<=8192) || (e.payload.operation==='previewToken' && value && typeof value==='object' && Number.isInteger(value.status));
   if(valid)receive({...e,kind:'result',payload:{value:typeof value==='string'?value:{status:value.status}}});
-  else receive({...e,kind:'error',payload:undefined,error:{code:'preview_token_unavailable',retryable:false}});
+  else receive({...e,kind:'error',payload:undefined,error:{code:'machine_token_unavailable',retryable:false}});
   return true;
  }
  globalThis.androidRuntimeMessage=message;
@@ -111,7 +111,7 @@ export function contractBridge(runtime, emit) {
   // An Agent's Role or schedule proposal: save / create or dismiss it and record the outcome.
   decideProposal:args=>invoke('decideProposal',args),
   shortcutCloud,
-  previewToken,
+  machineToken,
   grant(value){for(const e of grants.values())receive(value?{...e,kind:'result',payload:value}:{...e,kind:'error',payload:undefined,error:{code:'grant_unavailable',retryable:true}});grants.clear();return true;},
  };
 }
