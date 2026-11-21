@@ -9,7 +9,7 @@ enum class ProjectSource(val key: String) { All("all"), GitHub("github"), Local(
 
 /**
  * One Projects card (iOS `ProjectCard`): the project, where it runs, when it last moved, and its
- * open (non-archived) chats counted by Home's status groups.
+ * open (non-archived) chats counted by their most pressing state ([ProjectCards.pressing]).
  */
 data class ProjectCard(
     val id: String,
@@ -43,6 +43,24 @@ data class ProjectCard(
 }
 
 object ProjectCards {
+    /**
+     * The card's count for one chat (web `lib/home-now.ts` order): a decision the person owes, work
+     * in progress, an unread finish, then an open PR. Card summary only; Home lists never use it.
+     */
+    fun pressing(session: app.lody.android.runtime.CatalogSession): ProjectCard.Summary {
+        val status = ChatListModel.attention(session)
+        val pr = session.pullRequests.lastOrNull()?.takeIf { it.status == "open" || it.status == "draft" }
+        return when {
+            status == ChatAttention.Waiting || status == ChatAttention.Failed -> ProjectCard.Summary.Attention
+            status == ChatAttention.Running -> ProjectCard.Summary.Running
+            pr != null && ChatListModel.ci(pr.ci) == "fail" -> ProjectCard.Summary.Attention
+            status == ChatAttention.Unread -> ProjectCard.Summary.Finished
+            pr?.status == "draft" -> ProjectCard.Summary.Attention
+            pr != null -> ProjectCard.Summary.PullRequests
+            else -> ProjectCard.Summary.Open
+        }
+    }
+
     fun isGithub(project: CatalogProject) = project.id.startsWith("github:")
 
     fun ownerAvatar(repo: String): String? =
@@ -71,7 +89,7 @@ object ProjectCards {
             }
             .map { project ->
                 val sessions = byProject[project.id].orEmpty()
-                val groups = sessions.groupingBy { ChatListModel.statusGroup(it) }.eachCount()
+                val groups = sessions.groupingBy(::pressing).eachCount()
                 val github = isGithub(project)
                 val repo = project.repoFullName?.takeIf { it.isNotBlank() }
                 ProjectCard(
@@ -83,10 +101,10 @@ object ProjectCards {
                     machineId = project.machineId.takeIf { !github && it.isNotBlank() },
                     updatedAt = sessions.mapNotNull { ChatListModel.activityAt(it) }.maxOrNull(),
                     open = sessions.size,
-                    attention = groups[StatusGroup.Attention] ?: 0,
-                    running = groups[StatusGroup.Running] ?: 0,
-                    finished = groups[StatusGroup.Finished] ?: 0,
-                    pullRequests = groups[StatusGroup.PullRequest] ?: 0,
+                    attention = groups[ProjectCard.Summary.Attention] ?: 0,
+                    running = groups[ProjectCard.Summary.Running] ?: 0,
+                    finished = groups[ProjectCard.Summary.Finished] ?: 0,
+                    pullRequests = groups[ProjectCard.Summary.PullRequests] ?: 0,
                 ) to project
             }
             .filter { (card, _) -> !hideEmpty || card.open > 0 }

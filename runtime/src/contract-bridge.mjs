@@ -78,6 +78,10 @@ export function contractBridge(runtime, emit) {
   checkTurnQuota:args=>invoke('checkTurnQuota',{sessionId:args.sessionId,billingEntitlement:args.billingEntitlement??null}),
   setTabClosed:args=>invoke('setTabClosed',args),
   archiveSession:args=>invoke('archiveSession',args),
+  // Status view: one planned command (Later, Settle, Move to Focus, pin, move, sections) and the Later presets.
+  statusViewCommand:args=>invoke('statusViewCommand',args),
+  snoozePresets:args=>invoke('snoozePresets',args),
+  markSessionRead:args=>invoke('markSessionRead',args),
   // A Tab is a session: the contract requires the entitlement (null fails open), as on createSession.
   createTab:args=>invoke('createTab',{...args,billingEntitlement:args.billingEntitlement??null}),
   // Agent Roles readable by this user, listed for the new-chat Role row.

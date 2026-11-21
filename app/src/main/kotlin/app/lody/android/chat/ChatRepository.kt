@@ -52,6 +52,20 @@ class ChatRepository(
         owner.use(scope) { it.execute(RuntimeCommand.ArchiveSession(id, archived)) }
     }
 
+    /** One Status view / pin-section change, planned and written by the runtime; never retried. */
+    suspend fun statusView(scope: RuntimeScope, command: StatusViewCommand) {
+        owner.use(scope) { it.execute(RuntimeCommand.StatusView(command)) }
+    }
+
+    /** The Later presets on the runtime's synced clock; a read. */
+    suspend fun snoozePresets(scope: RuntimeScope): List<SnoozePreset> =
+        owner.use(scope) { (it.execute(RuntimeCommand.SnoozePresets) as RuntimeResult.SnoozePresets).value }
+
+    /** Read receipt up to [lastReadAt]; the runtime ignores one that does not advance. */
+    suspend fun markRead(scope: RuntimeScope, id: String, lastReadAt: Long) {
+        owner.use(scope) { it.execute(RuntimeCommand.MarkRead(id, lastReadAt)) }
+    }
+
     suspend fun setTabClosed(scope: RuntimeScope, id: String, closed: Boolean) {
         owner.use(scope) { it.execute(RuntimeCommand.SetTabClosed(id, closed)) }
     }

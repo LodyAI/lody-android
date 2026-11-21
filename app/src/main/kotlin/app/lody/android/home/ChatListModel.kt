@@ -2,6 +2,9 @@ package app.lody.android.home
 
 import app.lody.android.runtime.CatalogSession
 import app.lody.android.runtime.CatalogSnapshot
+import app.lody.android.runtime.StatusTier
+import app.lody.android.runtime.StatusViewLayout
+import app.lody.android.runtime.StatusViewRow
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -28,8 +31,17 @@ data class ChatItem(
     /** CI on the latest PR's head: pass / fail / pending, empty when unknown. */
     val prCi: String = "",
     val projectId: String = "",
-    /** The "by status" group, decided from the catalog session (see [StatusGroup]). */
-    val statusGroup: StatusGroup = StatusGroup.Idle,
+    val pinned: Boolean = false,
+    val pinSectionId: String? = null,
+    /** From the runtime's Status view layout; null when the list has no layout row for it. */
+    val tier: StatusTier? = null,
+    /** While in Later: when it wakes (the row's countdown). */
+    val snoozedUntil: Long? = null,
+    val woken: Boolean = false,
+    /** Later / Settle / Move to Focus / reorder in Focus. */
+    val canManage: Boolean = false,
+    /** Pin, unpin and pin placement. */
+    val canPrefer: Boolean = false,
     /** The chat that opened this one (resolved like iOS `SessionRows.tree`), if any. */
     val openerId: String? = null,
     /** Set by [ChatListModel.nest]: shown nested under this row id. */
@@ -54,26 +66,11 @@ data class TimeSection(val bucket: TimeBucket, val chats: List<ChatItem>)
 /** Whose chats Home lists: only the signed-in user's, or the workspace's. iOS: `HomeScope`. */
 enum class HomeScope(val key: String) { Mine("mine"), Team("team") }
 
-/** How Home groups chats; within a group chats are always newest activity first. iOS: `HomeGrouping`. */
-enum class HomeGrouping(val key: String) { Time("time"), Project("project"), Status("status") }
-
 /**
- * "By status" groups in display order (iOS `HomeStatusGroup`). Classification mirrors web
- * `lib/home-now.ts`: every chat lands in exactly one group, under the first reason that applies
- * (see [ChatListModel.statusGroup]). Running chats are listed just above idle ones.
+ * How Home groups chats. Time and project groups are newest activity first; the Status view
+ * (Focus / Later / Settled) is listed exactly as the runtime's layout orders it. iOS: `HomeGrouping`.
  */
-enum class StatusGroup {
-    /** Failed, waiting on the person, CI failed on an idle chat's open PR, or a draft PR. */
-    Attention,
-    /** Finished since the person last looked. */
-    Finished,
-    /** An open pull request with passing or pending CI. */
-    PullRequest,
-    /** Working, even when unread or its CI is red: it may be fixing exactly that. */
-    Running,
-    /** Everything else, including chats whose PR is merged or closed. */
-    Idle,
-}
+enum class HomeGrouping(val key: String) { Time("time"), Project("project"), Status("status") }
 
 /**
  * One Home group; the screen localizes [header]. A [collapsed] group shows only its label; its
@@ -85,22 +82,27 @@ data class HomeSection(
     val chats: List<ChatItem>,
     val repository: String? = null,
     val collapsed: Boolean = false,
+    /** A pin section's rows that the view scope hid (named under its rows while expanded). */
+    val hiddenCount: Int = 0,
 ) {
     val rootCount: Int get() = chats.count { it.nestedUnder == null }
-    val folds: Boolean get() = !collapsed && (header as? Header.Status)?.group == StatusGroup.Idle && rootCount > ChatListModel.IDLE_LIMIT
-    fun visibleChats(idleExpanded: Boolean): List<ChatItem> {
+    /** Settled folds behind "Show all" past [ChatListModel.SETTLED_LIMIT] conversations. */
+    val folds: Boolean get() = !collapsed && (header as? Header.Tier)?.tier == StatusTier.Settled && rootCount > ChatListModel.SETTLED_LIMIT
+    fun visibleChats(settledExpanded: Boolean): List<ChatItem> {
         if (collapsed) return emptyList()
-        if (!folds || idleExpanded) return chats
-        val roots = chats.filter { it.nestedUnder == null }.take(ChatListModel.IDLE_LIMIT).mapTo(mutableSetOf()) { it.id }
+        if (!folds || settledExpanded) return chats
+        val roots = chats.filter { it.nestedUnder == null }.take(ChatListModel.SETTLED_LIMIT).mapTo(mutableSetOf()) { it.id }
         return chats.filter { it.id in roots || it.nestedUnder in roots }
     }
 
     sealed interface Header {
         data class Bucket(val bucket: TimeBucket) : Header
         data class Project(val name: String) : Header
-        data object Pinned : Header
+        /** A pin section: [sectionId] null is the default section (titled "Pinned"). */
+        data class Pinned(val sectionId: String? = null, val name: String? = null) : Header
         data object Chats : Header
-        data class Status(val group: StatusGroup) : Header
+        /** A Status view tier (never [StatusTier.Pinned]; pinned rows sit under [Pinned]). */
+        data class Tier(val tier: StatusTier) : Header
     }
 }
 
@@ -166,21 +168,6 @@ object ChatListModel {
         else -> ""
     }
 
-    fun statusGroup(session: CatalogSession, status: ChatAttention? = attention(session)): StatusGroup {
-        val waiting = status == ChatAttention.Waiting || status == ChatAttention.Failed ||
-            (session.awaitingUserSince != null && status != ChatAttention.Running)
-        val pr = session.pullRequests.lastOrNull()?.takeIf { it.status == "open" || it.status == "draft" }
-        return when {
-            waiting -> StatusGroup.Attention
-            status == ChatAttention.Running -> StatusGroup.Running
-            pr != null && ci(pr.ci) == "fail" -> StatusGroup.Attention
-            status == ChatAttention.Unread -> StatusGroup.Finished
-            pr?.status == "draft" -> StatusGroup.Attention
-            pr != null -> StatusGroup.PullRequest
-            else -> StatusGroup.Idle
-        }
-    }
-
     /**
      * Home in the view menu's grouping; archived chats are hidden. With [owner] ("My tasks"),
      * only chats whose session meta `userId` is that user are listed.
@@ -204,19 +191,106 @@ object ChatListModel {
         // Archived chats: no Pinned group and no project or status grouping.
         if (archived) return timeline(scoped, today, zone, archived = true)
             .map { HomeSection("bucket-${it.bucket}", HomeSection.Header.Bucket(it.bucket), it.chats) }
+        // The runtime's layout owns the Pinned area in every grouping and the whole Status view.
+        val layout = snapshot.statusView?.let { if (owner != null) it.mine else it.team }
+        if (layout != null) {
+            val items = homeItems(snapshot).associateBy { it.id }
+            val pinned = layout.pinned.map { group ->
+                HomeSection(pinSectionKey(group.sectionId), HomeSection.Header.Pinned(group.sectionId, group.name), rows(group.rows, items), hiddenCount = group.hiddenCount)
+            }
+            val rest = if (grouping == HomeGrouping.Status) tiers(layout, items) else {
+                val lifted = layout.pinned.flatMap { group -> group.rows.flatMap { listOf(it) + it.children } }.mapTo(mutableSetOf()) { it.id }
+                val listed = scoped.sessions.filterNot { it.id in lifted || conversation(it.id, all(scoped)) in lifted }
+                // Time and project groups keep their native order; each row still carries its layout facts.
+                val laidOut = flatten(layout.focus + layout.later + layout.settled).associateBy { it.id }
+                grouped(scoped.copy(sessions = listed), grouping, today, zone).map { section ->
+                    section.copy(chats = section.chats.map { chat -> laidOut[chat.id]?.let { laid(chat, it).copy(activityAt = chat.activityAt) } ?: chat })
+                }
+            }
+            return pinned + rest
+        }
         val pinnedIds = scoped.sessions.filter { it.pinned }.mapTo(mutableSetOf()) { it.id }
         val pinned = families(scoped).filter { family -> family.any { it.id in pinnedIds } }.flatten()
         val lifted = pinned.mapTo(mutableSetOf()) { it.id }
         val rest = grouped(scoped.copy(sessions = scoped.sessions.filterNot { it.id in lifted }), grouping, today, zone)
-        return if (pinned.isEmpty()) rest else listOf(HomeSection(PINNED_ID, HomeSection.Header.Pinned, pinned)) + rest
+        return if (pinned.isEmpty()) rest else listOf(HomeSection(PINNED_ID, HomeSection.Header.Pinned(), pinned)) + rest
     }
 
+    /**
+     * Without a runtime layout (an older runtime or cache) the Status view cannot be shown, and the
+     * native client never classifies tiers itself: it lists by time until a layout arrives.
+     */
     private fun grouped(snapshot: CatalogSnapshot, grouping: HomeGrouping, today: LocalDate, zone: ZoneId): List<HomeSection> =
         when (grouping) {
-            HomeGrouping.Time -> timeline(snapshot, today, zone).map { HomeSection("bucket-${it.bucket}", HomeSection.Header.Bucket(it.bucket), it.chats) }
+            HomeGrouping.Time, HomeGrouping.Status -> timeline(snapshot, today, zone).map { HomeSection("bucket-${it.bucket}", HomeSection.Header.Bucket(it.bucket), it.chats) }
             HomeGrouping.Project -> byProject(snapshot)
-            HomeGrouping.Status -> byStatus(snapshot)
         }
+
+    /** Stable section ids: the default pin section keeps the former Pinned group's id (and its collapse). */
+    fun pinSectionKey(sectionId: String?) = if (sectionId == null) PINNED_ID else "pin-$sectionId"
+
+    fun tierKey(tier: StatusTier) = "status-${tier.key}"
+
+    /** Later and Settled start collapsed (device-local; the stored set records changes from this default). */
+    fun collapsedByDefault(sectionId: String) = sectionId == tierKey(StatusTier.Later) || sectionId == tierKey(StatusTier.Settled)
+
+    /** Focus always lists (it is where rows are dropped back); Later and Settled only when nonempty. */
+    private fun tiers(layout: StatusViewLayout, items: Map<String, ChatItem>): List<HomeSection> =
+        listOf(StatusTier.Focus to layout.focus, StatusTier.Later to layout.later, StatusTier.Settled to layout.settled)
+            .filter { (tier, rows) -> tier == StatusTier.Focus || rows.isNotEmpty() }
+            .map { (tier, rows) -> HomeSection(tierKey(tier), HomeSection.Header.Tier(tier), rows(rows, items)) }
+
+    /**
+     * Layout rows in layout order, each root followed by its opened children one level down (as
+     * [nest] shapes families). Rows the catalog no longer carries are skipped; unread and the
+     * activity time come from the layout (a woken conversation stays unread until read).
+     */
+    private fun rows(rows: List<StatusViewRow>, items: Map<String, ChatItem>): List<ChatItem> = rows.flatMap { row ->
+        val root = items[row.id] ?: return@flatMap emptyList()
+        val kids = row.children.flatMap { listOf(it) + flatten(it.children) }.mapNotNull { kid -> items[kid.id]?.let { kid to it } }
+        listOf(laid(root, row).copy(nestedUnder = null, lastChild = false, treeParent = kids.isNotEmpty(), childCount = kids.size)) +
+            kids.mapIndexed { index, (kid, item) ->
+                laid(item, kid).copy(nestedUnder = root.id, lastChild = index == kids.lastIndex, treeParent = false, childCount = 0,
+                    place = item.place.takeUnless { it == root.place }.orEmpty())
+            }
+    }
+
+    private fun flatten(rows: List<StatusViewRow>): List<StatusViewRow> = rows.flatMap { listOf(it) + flatten(it.children) }
+
+    private fun laid(item: ChatItem, row: StatusViewRow): ChatItem = item.copy(
+        attention = when {
+            item.attention == null && row.unread -> ChatAttention.Unread
+            item.attention == ChatAttention.Unread && !row.unread -> null
+            else -> item.attention
+        },
+        activityAt = row.activityAt.takeIf { it > 0 } ?: item.activityAt,
+        tier = row.tier,
+        snoozedUntil = row.snoozedUntil,
+        woken = row.woken,
+        canManage = row.canManage,
+        canPrefer = row.canPrefer,
+    )
+
+    private fun all(snapshot: CatalogSnapshot) = snapshot.sessions.associateBy { it.id }
+
+    /** The workspace-scope layout row for a conversation (a Tab resolves to its conversation), if listed. */
+    fun layoutRow(snapshot: CatalogSnapshot, id: String): StatusViewRow? {
+        val layout = snapshot.statusView?.team ?: return null
+        val conversation = conversation(id, all(snapshot))
+        return flatten(layout.pinned.flatMap { it.rows } + layout.focus + layout.later + layout.settled).firstOrNull { it.id == conversation }
+    }
+
+    /**
+     * The read receipt opening [id] owes: up to its last message, or its wake-up time when a snooze
+     * expired later (a woken conversation stays unread until read). Null once already read.
+     */
+    fun readReceipt(snapshot: CatalogSnapshot, id: String?): Pair<String, Long>? {
+        val session = snapshot.sessions.firstOrNull { it.id == id } ?: return null
+        val woken = layoutRow(snapshot, session.id)?.takeIf { it.id == session.id }?.activityAt
+        val at = listOfNotNull(session.lastMessageAt, woken).maxOrNull() ?: return null
+        if ((session.lastReadAt ?: Long.MIN_VALUE) >= at) return null
+        return session.id to at
+    }
 
     /** One group per project, most recently active first; unassigned chats form the "Chats" group. */
     fun byProject(snapshot: CatalogSnapshot): List<HomeSection> {
@@ -233,16 +307,8 @@ object ChatListModel {
             }
     }
 
-    /** [StatusGroup] order; the screen folds a long idle group behind "Show all". */
-    fun byStatus(snapshot: CatalogSnapshot): List<HomeSection> {
-        val groups = families(snapshot).groupBy { it.first().statusGroup }
-        return StatusGroup.entries.mapNotNull { group ->
-            groups[group]?.let { HomeSection("status-$group", HomeSection.Header.Status(group), it.flatten()) }
-        }
-    }
-
-    /** Quiet chats beyond this many fold behind "Show all" in the status view (iOS shows the same 20). */
-    const val IDLE_LIMIT = 20
+    /** Settled conversations beyond this many fold behind "Show all" (the shared default, as iOS). */
+    const val SETTLED_LIMIT = 20
 
     /** Non-archived (or, with [archived], only archived) rows, newest activity first, carrying their project for the detail line. */
     private fun homeItems(snapshot: CatalogSnapshot, archived: Boolean = false): List<ChatItem> {
@@ -469,6 +535,7 @@ object ChatListModel {
         activityAt = activityAt(session),
         prCi = ci(session.pullRequests.lastOrNull()?.ci),
         projectId = session.projectId,
-        statusGroup = statusGroup(session, displayAttention),
+        pinned = session.pinned,
+        pinSectionId = session.pinSectionId,
     )
 }

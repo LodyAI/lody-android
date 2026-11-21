@@ -245,7 +245,7 @@ internal fun ProjectIndexList(
                                     contentAlignment = Alignment.Center) {
                                     val repository = section.repository
                                     when (section.header) {
-                                        HomeSection.Header.Pinned -> Icon(LodyIcons.Pin, null, Modifier.size(LodyIconSize.lg), colors.iconSecondary)
+                                        is HomeSection.Header.Pinned -> Icon(LodyIcons.Pin, null, Modifier.size(LodyIconSize.lg), colors.iconSecondary)
                                         HomeSection.Header.Chats -> Icon(LodyIcons.Session, null, Modifier.size(LodyIconSize.lg), colors.iconSecondary)
                                         else -> if (repository != null) RepositoryIcon(repository, LodyIconSize.lg, opacity = 1f)
                                             else if (title.isNotBlank()) Text(title.take(1).uppercase(), style = LodyTheme.typography.caption, color = colors.textSecondary)

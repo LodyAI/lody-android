@@ -68,11 +68,6 @@
     <string name="home_grouping_project">按项目</string>
     <string name="home_grouping_status">按状态</string>
     <string name="home_group_chats">对话</string>
-    <string name="home_group_attention">需要你处理</string>
-    <string name="home_group_finished">刚完成</string>
-    <string name="home_group_running">运行中</string>
-    <string name="home_group_pull_request">PR 进行中</string>
-    <string name="home_group_idle">空闲</string>
     <string name="home_group_expand">展开分组</string>
     <string name="home_group_collapse">收起分组</string>
     <string name="home_group_show_less">收起</string>
@@ -1007,4 +1002,67 @@
     <string name="quote_snapshot">引用内容</string>
     <string name="quote_too_long">最多选择 50,000 个字符进行引用。</string>
     <string name="quote_upgrade">该电脑上的 Lody 需要升级后才能使用消息引用。</string>
+
+    <!-- Status view (Focus / Later / Settled) and pin sections -->
+    <string name="status_focus">进行中</string>
+    <string name="status_later">稍后</string>
+    <string name="status_settled">已完成</string>
+    <string name="status_focus_drop">将对话拖到这里以移回进行中</string>
+    <string name="status_action_settle">标记为已完成</string>
+    <string name="status_action_focus">移回进行中</string>
+    <string name="status_action_pin">置顶</string>
+    <string name="status_action_unpin">取消置顶</string>
+    <string name="status_action_move_section">移动到分组</string>
+    <string name="status_action_move_top">移到顶部</string>
+    <string name="status_action_move_up">上移</string>
+    <string name="status_action_move_down">下移</string>
+    <string name="status_preset_one_hour">1 小时后</string>
+    <string name="status_preset_later_today">今天稍后</string>
+    <string name="status_preset_tomorrow">明天上午</string>
+    <string name="status_preset_next_week">下周</string>
+    <string name="status_preset_custom">自定义时间…</string>
+    <string name="status_later_pick">回到进行中的时间</string>
+    <string name="status_later_future">请选择将来的时间。</string>
+    <string name="status_later_confirm">确认稍后</string>
+    <string name="status_later_presets_unavailable">无法读取预设时间，请自定义时间。</string>
+    <string name="status_snoozed_done">已移到稍后</string>
+    <string name="status_settled_done">已标记为已完成</string>
+    <string name="status_focused_done">已移回进行中</string>
+    <string name="status_undo">撤销</string>
+    <string name="status_write_failed">未能更新，请重试。</string>
+    <string name="status_returns_in">将在 %1$s 后回到进行中</string>
+    <string name="status_countdown_days">%1$d天</string>
+    <string name="status_countdown_hours">%1$d小时</string>
+    <string name="status_countdown_minutes">%1$d分</string>
+    <string name="status_countdown_soon">&lt;1分</string>
+    <string name="status_sub_snooze_title">同时暂缓子对话？</string>
+    <string name="status_sub_snooze_only">仅暂缓此对话</string>
+    <string name="status_sub_snooze_all">全部暂缓</string>
+    <string name="status_sub_settle_title">同时将子对话标记为已完成？</string>
+    <string name="status_sub_settle_only">仅标记此对话</string>
+    <string name="status_sub_settle_all">全部标记为已完成</string>
+    <string name="status_sub_focus_title">同时将子对话移回进行中？</string>
+    <string name="status_sub_focus_only">仅移回此对话</string>
+    <string name="status_sub_focus_all">全部移回进行中</string>
+    <string name="status_sub_idle">它们目前都没有在工作。</string>
+    <string name="status_section_new">新建分组</string>
+    <string name="status_section_rename">重命名分组</string>
+    <string name="status_section_delete">删除分组</string>
+    <string name="status_section_delete_message">其中的对话仍保持置顶，回到「已置顶」。</string>
+    <string name="status_section_name">分组名称</string>
+    <string name="status_section_actions">分组操作</string>
+    <string name="status_section_save">保存</string>
+    <string name="status_cancel">取消</string>
+    <plurals name="status_sub_description">
+        <item quantity="other">该对话开启了 %d 个活跃的子对话。</item>
+    </plurals>
+    <plurals name="status_sub_working">
+        <item quantity="other">其中 %d 个仍在工作。</item>
+    </plurals>
+    <plurals name="status_section_hidden">
+        <item quantity="other">%d 个对话被当前视图隐藏</item>
+    </plurals>
+    <plurals name="status_tier_count">
+        <item quantity="other">%d 个对话</item>
+    </plurals>
 </resources>

@@ -94,6 +94,8 @@ data class ChatContext(
     val machineEmulator: Boolean = false,
     /** Numeric protocol capability versions advertised by the session's computer. */
     val machineCapabilities: Map<String, Int> = emptyMap(),
+    /** The conversation's Status view layout row (tier, permissions, opened children), if listed. */
+    val statusRow: app.lody.android.runtime.StatusViewRow? = null,
 )
 
 /** The More menu's preview entries; null labels hide an entry. */
@@ -109,7 +111,7 @@ internal data class PreviewMenu(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, context: ChatContext, onBack: () -> Unit, onSelectTab: (String) -> Unit = {}, creation: app.lody.android.create.CreationSubmissions.Submission? = null, persistDraft: Boolean = false) {
+fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, context: ChatContext, onBack: () -> Unit, onSelectTab: (String) -> Unit = {}, creation: app.lody.android.create.CreationSubmissions.Submission? = null, persistDraft: Boolean = false, statusView: app.lody.android.home.StatusViewService? = null) {
     BackHandler(onBack = onBack)
     var retry by remember(id, scope) { mutableIntStateOf(0) }
     var status by remember(id, scope) { mutableStateOf("syncing") }
@@ -369,6 +371,15 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     val attachLimit = stringResource(R.string.chat_attach_limit)
     val uploadFailed = stringResource(R.string.chat_attach_failed)
     val snackbar = remember { SnackbarHostState() }
+    // Later / Settle / Move to Focus for the conversation, with the Later sheet, the opened
+    // sub-conversation question and Undo (shared with Home).
+    val statusActions = app.lody.android.home.rememberStatusActions(statusView, snackbar)
+    val statusRow = context.statusRow
+    val statusMenu = statusRow?.takeIf { statusActions != null && it.canManage && it.tier != app.lody.android.runtime.StatusTier.Pinned }?.let { row ->
+        val target = app.lody.android.home.StatusTarget(row.id, row.tier, row.snoozedUntil, row.children.size,
+            row.children.count { child -> context.relatedSessions.firstOrNull { it.id == child.id }?.status in RunningStatuses })
+        StatusMenu(row.tier, { statusActions!!.later(target) }, { statusActions!!.settle(target) }, { statusActions!!.focus(target) })
+    }
     val forgetFailure = stringResource(R.string.chat_forget_failed)
     val retryablePendingIds = remember(messages) { messages.filter { it.inputRetryable }.map { it.id }.toSet() }
     forgetId?.let { inputId ->
@@ -1042,7 +1053,8 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 }
                 ChatHeader(context.title, context.tabs, context.closedTabs, id, creatingTab, changingTab, onBack, onSelectTab, createTab, changeTab, context.machineName, machineOnline, loadMachine,
                     onBrowseFiles = if (ProjectFiles.browsable(context.session, creationUnconfirmed)) ({ browsingFiles = true }) else null,
-                    previews = previewMenu.takeIf { context.session?.isTabClosed != true && !creationUnconfirmed })
+                    previews = previewMenu.takeIf { context.session?.isTabClosed != true && !creationUnconfirmed },
+                    status = statusMenu)
                 if (creationNotice != null) {
                     Text(creationNotice,
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = top).padding(horizontal = TranscriptMargin),
@@ -1239,9 +1251,12 @@ private val RunningStatuses = setOf("running", "initializing", "processing", "in
 
 private val HeaderFade = 24.dp
 
+/** The conversation page's Status view actions; [tier] decides which apply. */
+internal class StatusMenu(val tier: app.lody.android.runtime.StatusTier, val onLater: () -> Unit, val onSettle: () -> Unit, val onFocus: () -> Unit)
+
 /** Floating header: title over the tappable machine subtitle, with conditional Tabs and More. */
 @Composable
-internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, closedTabs: List<CatalogSession>, currentId: String, creating: Boolean, busy: String?, onBack: () -> Unit, onSelectTab: (String) -> Unit, onNewTab: () -> Unit, onChangeTab: (String, Boolean) -> Unit, machine: String = "", machineOnline: Boolean? = null, loadMachine: suspend () -> MachinePanelData = { MachinePanelData() }, onBrowseFiles: (() -> Unit)? = null, previews: PreviewMenu? = null) {
+internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, closedTabs: List<CatalogSession>, currentId: String, creating: Boolean, busy: String?, onBack: () -> Unit, onSelectTab: (String) -> Unit, onNewTab: () -> Unit, onChangeTab: (String, Boolean) -> Unit, machine: String = "", machineOnline: Boolean? = null, loadMachine: suspend () -> MachinePanelData = { MachinePanelData() }, onBrowseFiles: (() -> Unit)? = null, previews: PreviewMenu? = null, status: StatusMenu? = null) {
     var expanded by remember(currentId) { mutableStateOf(false) }
     var history by remember(currentId) { mutableStateOf(false) }
     var restoringId by remember(currentId) { mutableStateOf<String?>(null) }
@@ -1302,6 +1317,16 @@ internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, clos
                     Icon(LodyIcons.More, stringResource(R.string.bar_more), tint = colors.iconPrimary, modifier = Modifier.size(LodyIconSize.md))
                 }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                    // The conversation's Status view actions, as on the list rows.
+                    if (status != null) {
+                        val tier = status.tier
+                        DropdownMenuItem(text = { Text(stringResource(R.string.status_later)) },
+                            leadingIcon = { Icon(LodyIcons.Clock, null) }, onClick = { more = false; status.onLater() })
+                        if (tier != app.lody.android.runtime.StatusTier.Settled) DropdownMenuItem(text = { Text(stringResource(R.string.status_action_settle)) },
+                            leadingIcon = { Icon(LodyIcons.Check, null) }, onClick = { more = false; status.onSettle() })
+                        if (tier == app.lody.android.runtime.StatusTier.Later || tier == app.lody.android.runtime.StatusTier.Settled) DropdownMenuItem(text = { Text(stringResource(R.string.status_action_focus)) },
+                            leadingIcon = { Icon(LodyIcons.Undo, null) }, onClick = { more = false; status.onFocus() })
+                    }
                     if (onBrowseFiles != null) DropdownMenuItem(text = { Text(stringResource(R.string.files_title)) },
                         leadingIcon = { Icon(LodyIcons.Folder, null) }, onClick = { more = false; onBrowseFiles() })
                     if (previews != null) {

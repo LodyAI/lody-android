@@ -230,3 +230,35 @@ test('session writes satisfy the shared runtime contract, which rejects a missin
  assert.equal((await bridge.forkSession({action:'send',sourceSessionId:'s',sourceTurnId:'t',targetSessionId:'11111111-1111-4111-8111-111111111112',workspaceId:'workspace',userId:'user'})).state,'created');
  delete globalThis.androidRuntimeMessage;
 });
+
+test('status view commands and read receipts reach the shared runtime in its contract shape',async()=>{
+ const {build}=await import('esbuild');
+ const compiled=await build({entryPoints:[new URL('../vendor/cloud-runtime/src/contract/methods.ts',import.meta.url).pathname],bundle:true,platform:'node',format:'esm',write:false});
+ const {runtimeCalls}=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+ const sent=[];
+ // Answer as the shared channel does: params failing a method's schema are `invalid_params`,
+ // and a method the vendored contract does not know yet is `unsupported_method`.
+ const runtime={receive(text){const e=JSON.parse(text);if(e.kind!=='request')return;sent.push(e);
+  const spec=runtimeCalls[e.method];
+  const reply=['hello','start'].includes(e.method)?{...e,kind:'result',payload:{}}
+   :!spec?{...e,kind:'error',payload:undefined,error:{code:'unsupported_method',retryable:false}}
+   :spec.params.safeParse(e.payload).success?{...e,kind:'result',payload:e.method==='snoozePresets'?{presets:[{id:'inOneHour',at:1}]}:{}}
+   :{...e,kind:'error',payload:undefined,error:{code:'invalid_params',retryable:false}};
+  globalThis.androidRuntimeMessage({type:'envelope',envelope:JSON.stringify(reply)});}};
+ const bridge=contractBridge(runtime,()=>{});
+ await bridge.start('workspace','user',true);
+ // The read receipt the conversation page sends satisfies the vendored contract today.
+ assert.deepEqual(await bridge.markSessionRead({workspaceId:'workspace',sessionId:'s',lastReadAt:5}),{});
+ await assert.rejects(bridge.markSessionRead({workspaceId:'workspace',sessionId:'s'}),/invalid_params/);
+ // The planner command travels whole; the shared runtime owns planning and writing it.
+ const command={type:'move',sessionId:'s',to:{area:'pinned',sectionId:null},beforeId:'t'};
+ const moved=bridge.statusViewCommand({workspaceId:'workspace',command}).then(()=>'applied',error=>error.message);
+ const presets=bridge.snoozePresets({workspaceId:'workspace'}).then(value=>value,error=>error.message);
+ const results=[await moved,await presets];
+ assert.deepEqual(sent.find(e=>e.method==='statusViewCommand').payload,{workspaceId:'workspace',command});
+ assert.deepEqual(sent.find(e=>e.method==='snoozePresets').payload,{workspaceId:'workspace'});
+ // Until the snapshot carries the Status view methods the runtime refuses them, never silently drops them.
+ if(!runtimeCalls.statusViewCommand)assert.deepEqual(results,['unsupported_method','unsupported_method']);
+ else assert.deepEqual(results,['applied',{presets:[{id:'inOneHour',at:1}]}]);
+ delete globalThis.androidRuntimeMessage;
+});

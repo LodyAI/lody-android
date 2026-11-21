@@ -6,7 +6,7 @@ Read before any change under `apps/mobile/android`. These rules bind every calle
 
 - The iOS repository is a reference for behavior and public cloud protocol only. Do not import its build, private packages, credentials, or absolute source paths.
 
-- UI decision: use Jetpack Compose + Foundation, with Material 3 components where appropriate. Keep product components and design tokens separate from screens. iOS and Android share design semantics and component responsibilities, but keep platform-native navigation, keyboard, accessibility and lifecycle behavior. No extra UI component library by default.
+- UI decision: use Jetpack Compose + Foundation, with Material 3 components where appropriate. Keep product components and design tokens separate from screens. iOS and Android share design semantics and component responsibilities, but keep platform-native navigation, keyboard, accessibility and lifecycle behavior. No extra UI component library by default; Home's drag reordering uses the pinned Calvin-LL Reorderable gesture library.
 
 - Use stable dependency versions, pinned in `gradle/libs.versions.toml`; AGP owns built-in Kotlin support. AGP 9 ships Kotlin 2.2, so the root `buildscript` puts the catalog's newer Kotlin Gradle plugin (2.4) on the classpath; the Compose compiler plugin follows the same `kotlin` version.
 

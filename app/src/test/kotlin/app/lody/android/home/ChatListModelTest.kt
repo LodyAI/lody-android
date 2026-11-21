@@ -5,6 +5,7 @@ import app.lody.android.runtime.CatalogProject
 import app.lody.android.runtime.CatalogPullRequest
 import app.lody.android.runtime.CatalogSession
 import app.lody.android.runtime.CatalogSnapshot
+import app.lody.android.runtime.StatusTier
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -143,12 +144,11 @@ class ChatListModelTest {
         ).flatMap { it.chats }
         assertEquals(listOf("parent"), rows(tab).map { it.id })
         assertEquals(ChatAttention.Running, rows(tab).single().attention)
-        assertEquals(StatusGroup.Running, rows(tab, owner = "me").single().statusGroup)
+        assertEquals(ChatAttention.Running, rows(tab, owner = "me").single().attention)
         assertNull(rows(tab.copy(status = "idle")).single().attention)
         assertEquals(ChatAttention.Failed, rows(tab.copy(status = "error")).single().attention)
         val waiting = tab.copy(id = "nested", parentSessionId = "tab", status = "requestPermission")
         assertEquals(ChatAttention.Waiting, rows(tab, waiting).single().attention)
-        assertEquals(StatusGroup.Attention, rows(tab, waiting).single().statusGroup)
         assertEquals(ChatAttention.Running, rows(tab.copy(isTabClosed = true)).single().attention)
         assertNull(rows(tab.copy(archived = true)).single().attention)
         assertNull(rows(tab.copy(childSessionPlacement = "side-panel")).single().attention)
@@ -188,19 +188,16 @@ class ChatListModelTest {
         assertEquals(1, time.size)
         assertEquals(TimeBucket.Week, time.single().bucket)
         assertEquals(expected, time.single().chats.map { it.id })
-        val status = ChatListModel.byStatus(data)
-        assertEquals(1, status.size)
-        assertEquals(HomeSection.Header.Status(StatusGroup.Attention), status.single().header)
-        assertEquals(expected, status.single().chats.map { it.id })
         val projects = ChatListModel.byProject(data)
         assertEquals(1, projects.size)
         assertEquals(expected, projects.single().chats.map { it.id })
         assertEquals(listOf(null, "parent"), projects.single().chats.map { it.nestedUnder })
     }
 
-    @Test fun idleLimitNeverCutsThroughFamily() {
+    @Test fun settledLimitNeverCutsThroughFamily() {
         val chats = (1..21).flatMap { index -> listOf(ChatItem("p$index", "Parent", null), ChatItem("c$index", "Child", null, nestedUnder = "p$index")) }
-        val section = HomeSection("idle", HomeSection.Header.Status(StatusGroup.Idle), chats)
+        assertFalse(HomeSection("focus", HomeSection.Header.Tier(StatusTier.Focus), chats).folds)
+        val section = HomeSection("settled", HomeSection.Header.Tier(StatusTier.Settled), chats)
         assertEquals(21, section.rootCount)
         assertEquals(40, section.visibleChats(false).size)
         assertEquals("c20", section.visibleChats(false).last().id)
@@ -340,22 +337,22 @@ class ChatListModelTest {
     }
 
     @Test
-    fun statusGroupsFollowWebHomeNowOrder() {
+    fun projectCardsCountEachChatUnderItsMostPressingState() {
         val base = session("a", "p-zed", at = "2026-10-01T00:00:00Z")
         fun pr(status: String, ci: String? = null) = listOf(CatalogPullRequest("lody/zed", 1, status, ci))
-        fun group(session: CatalogSession) = ChatListModel.statusGroup(session)
-        assertEquals(StatusGroup.Idle, group(base))
-        assertEquals(StatusGroup.Attention, group(base.copy(status = "error")))
-        assertEquals(StatusGroup.Attention, group(base.copy(awaitingUserSince = 1)))
+        fun card(session: CatalogSession) = ProjectCards.pressing(session)
+        assertEquals(ProjectCard.Summary.Open, card(base))
+        assertEquals(ProjectCard.Summary.Attention, card(base.copy(status = "error")))
+        assertEquals(ProjectCard.Summary.Attention, card(base.copy(awaitingUserSince = 1)))
         // Running wins over unread and over red CI: it may be fixing exactly that.
-        assertEquals(StatusGroup.Running, group(base.copy(status = "running", lastMessageAt = 5, pullRequests = pr("open", "f"))))
+        assertEquals(ProjectCard.Summary.Running, card(base.copy(status = "running", lastMessageAt = 5, pullRequests = pr("open", "f"))))
         // Red CI outranks unread; a draft only after unread.
-        assertEquals(StatusGroup.Attention, group(base.copy(lastMessageAt = 5, pullRequests = pr("open", "e"))))
-        assertEquals(StatusGroup.Finished, group(base.copy(lastMessageAt = 5, pullRequests = pr("draft"))))
-        assertEquals(StatusGroup.Attention, group(base.copy(pullRequests = pr("draft"))))
-        assertEquals(StatusGroup.PullRequest, group(base.copy(pullRequests = pr("open", "p"))))
-        // A merged or closed PR is done, so the chat is idle.
-        assertEquals(StatusGroup.Idle, group(base.copy(pullRequests = pr("merged", "f"))))
+        assertEquals(ProjectCard.Summary.Attention, card(base.copy(lastMessageAt = 5, pullRequests = pr("open", "e"))))
+        assertEquals(ProjectCard.Summary.Finished, card(base.copy(lastMessageAt = 5, pullRequests = pr("draft"))))
+        assertEquals(ProjectCard.Summary.Attention, card(base.copy(pullRequests = pr("draft"))))
+        assertEquals(ProjectCard.Summary.PullRequests, card(base.copy(pullRequests = pr("open", "p"))))
+        // A merged or closed PR is done.
+        assertEquals(ProjectCard.Summary.Open, card(base.copy(pullRequests = pr("merged", "f"))))
     }
 
     @Test
@@ -363,29 +360,18 @@ class ChatListModelTest {
         val base = session("a", "p-zed", at = "2026-10-01T00:00:00Z")
         val failed = base.copy(lastHandledUserMsgId = "turn-2", lastFailedUserMsgId = "turn-2")
         assertEquals(ChatAttention.Failed, ChatListModel.attention(failed))
-        assertEquals(StatusGroup.Attention, ChatListModel.statusGroup(failed))
+        assertEquals(ProjectCard.Summary.Attention, ProjectCards.pressing(failed))
         // Working again after the failure: the agent may be fixing it.
         val retrying = failed.copy(status = "running")
         assertEquals(ChatAttention.Running, ChatListModel.attention(retrying))
-        assertEquals(StatusGroup.Running, ChatListModel.statusGroup(retrying))
+        assertEquals(ProjectCard.Summary.Running, ProjectCards.pressing(retrying))
         // A later handled or canceled turn moves the handled pointer and retires the marker.
         val recovered = failed.copy(lastHandledUserMsgId = "turn-3")
         assertNull(ChatListModel.attention(recovered))
-        assertEquals(StatusGroup.Idle, ChatListModel.statusGroup(recovered))
+        assertEquals(ProjectCard.Summary.Open, ProjectCards.pressing(recovered))
         // The cached catalog keeps the failure across a restart.
         val restored = CatalogJson.session(base, JSONObject(CatalogJson.putSession(JSONObject(), failed).toString()))
         assertEquals(ChatAttention.Failed, ChatListModel.attention(restored))
-    }
-
-    @Test
-    fun byStatusOrdersGroupsByUrgency() {
-        val sections = ChatListModel.byStatus(snapshot)
-        assertEquals(
-            listOf(HomeSection.Header.Status(StatusGroup.Attention), HomeSection.Header.Status(StatusGroup.Running), HomeSection.Header.Status(StatusGroup.Idle)),
-            sections.map { it.header },
-        )
-        assertEquals(listOf("6", "3"), sections[0].chats.map { it.id })
-        assertEquals(listOf("5", "1"), sections[2].chats.map { it.id })
     }
 
     @Test

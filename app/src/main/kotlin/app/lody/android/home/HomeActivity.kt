@@ -148,6 +148,19 @@ class HomeActivity : ComponentActivity() {
                         browsing.visit(activeScope, selectedSession, catalog.snapshot?.sessions.orEmpty())
                     }
                 }
+                // Read receipts: an opened conversation in the foreground is marked read through the
+                // runtime (`markSessionRead`), so its unread state, a woken one's included, clears everywhere.
+                // Read from the remote catalog: local Tab watermarks are not receipts.
+                val receipt = remoteCatalog.snapshot?.let { ChatListModel.readReceipt(it, selectedId) }
+                LaunchedEffect(receipt, activeScope, resumed) {
+                    val (sessionId, at) = receipt ?: return@LaunchedEffect
+                    val scope = activeScope ?: return@LaunchedEffect
+                    if (!resumed) return@LaunchedEffect
+                    try { repository.markRead(scope, sessionId, at) }
+                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (_: Exception) { /* The next open or new message retries; reads never block the page. */ }
+                }
+                val statusView = remember(repository, activeScope) { activeScope?.let { scope -> RuntimeStatusViewService(repository, scope) } }
                 val creator = app.creation
                 val screens = rememberSaveableStateHolder()
                 // The repository restores the cached workspace; a first sign-in picks the first one.
@@ -175,7 +188,7 @@ class HomeActivity : ComponentActivity() {
                     ) { destination ->
                         val id = destination.takeUnless { it == "create" || it == "home" }
                         if (id != null && workspace != null) {
-                            ChatScreen(repository, RuntimeScope(user.id, workspace.id), id, chatContext(catalog, id, selectedTitle, user), onBack = { selectedId = null }, onSelectTab = { selectedId = it; selectedTitle = "" }, creation = submissions[id]?.takeIf { it.scope == activeScope }, persistDraft = workspace.contentMode == WorkspaceContentMode.PLAINTEXT)
+                            ChatScreen(repository, RuntimeScope(user.id, workspace.id), id, chatContext(catalog, id, selectedTitle, user), onBack = { selectedId = null }, onSelectTab = { selectedId = it; selectedTitle = "" }, creation = submissions[id]?.takeIf { it.scope == activeScope }, persistDraft = workspace.contentMode == WorkspaceContentMode.PLAINTEXT, statusView = statusView)
                         } else if (destination == "create" && workspace != null) {
                             // Like web, new session is its own full screen over Home; back returns.
                             BackHandler { creating = false }
@@ -204,6 +217,7 @@ class HomeActivity : ComponentActivity() {
                                 projectVisibility = remember { LiveProjectVisibilityService(app.account) },
                                 scope = workspace?.let { RuntimeScope(user.id, it.id) },
                                 onOpenSession = { id -> selectedId = id; selectedTitle = "" },
+                                statusView = statusView,
                                 onSetArchived = workspace?.let { selected ->
                                     val write: suspend (String, Boolean) -> Unit = { id, archived -> repository.setArchived(RuntimeScope(user.id, selected.id), id, archived) }
                                     write
@@ -276,5 +290,12 @@ private fun chatContext(catalog: CatalogState, id: String, title: String, user: 
         machineCapabilities = session?.let { snapshot?.machineCapabilities?.get(it.machineId) }.orEmpty(),
         machineKind = snapshot?.let { app.lody.android.create.CreateSessionModel.machineKind(it, session?.machineId) }
             ?: app.lody.android.create.CreateSessionModel.MachineKind.Laptop,
+        statusRow = snapshot?.let { ChatListModel.layoutRow(it, id) },
     )
+}
+
+/** Status view writes through the selected workspace's runtime lease. */
+private class RuntimeStatusViewService(private val repository: ChatRepository, private val scope: RuntimeScope) : StatusViewService {
+    override suspend fun run(command: app.lody.android.runtime.StatusViewCommand) = repository.statusView(scope, command)
+    override suspend fun presets() = repository.snoozePresets(scope)
 }

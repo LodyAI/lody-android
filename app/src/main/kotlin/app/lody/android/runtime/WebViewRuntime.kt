@@ -62,6 +62,15 @@ open class WebViewRuntime internal constructor(
             call("archiveSession", JSONArray().put(command.id).put(command.archived), CommandDeadline.WRITE)
             RuntimeResult.Accepted
         }
+        is RuntimeCommand.StatusView -> {
+            call("statusViewCommand", JSONArray().put(StatusViewJson.command(command.command)), CommandDeadline.WRITE)
+            RuntimeResult.Accepted
+        }
+        RuntimeCommand.SnoozePresets -> RuntimeResult.SnoozePresets(StatusViewJson.presets(call("snoozePresets", deadline = CommandDeadline.QUERY) as JSONObject))
+        is RuntimeCommand.MarkRead -> {
+            call("markSessionRead", JSONArray().put(command.id).put(command.lastReadAt), CommandDeadline.WRITE)
+            RuntimeResult.Accepted
+        }
         is RuntimeCommand.CreateTab -> {
             val value = call("createTab", JSONArray().put(command.parentId).put(command.id).put(command.title).put(backend.preferRoost).put(command.billing ?: JSONObject.NULL), CommandDeadline.WRITE) as JSONObject
             RuntimeResult.Created(CreationReceipt(command.id, value.getString("state"), value.optString("reason").ifBlank { null }))

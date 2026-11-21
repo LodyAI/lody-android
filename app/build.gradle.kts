@@ -97,6 +97,7 @@ dependencies {
     implementation(libs.activity.compose)
     implementation(libs.compose.material3)
     implementation(libs.compose.foundation)
+    implementation(libs.reorderable)
     // Chat transcript: QuickJS runs the shared remend repair; Markdown renders per block.
     implementation(libs.quickjs)
     testImplementation(libs.quickjs.jvm)

@@ -32,6 +32,11 @@ object CatalogJson {
         lastMessageAt = json.optMillis("lastMessageAt"),
         lastReadAt = json.optMillis("lastReadAt"),
         awaitingUserSince = json.optMillis("awaitingUserSince"),
+        orderKey = json.optText("orderKey"),
+        pinSectionId = json.optText("pinSectionId"),
+        snoozedUntil = json.optMillis("snoozedUntil"),
+        settledAt = json.optMillis("settledAt"),
+        focusRestoredAt = json.optMillis("focusRestoredAt"),
         lastHandledUserMsgId = json.optText("lastHandledUserMsgId"),
         lastFailedUserMsgId = json.optText("lastFailedUserMsgId"),
         pullRequests = json.optJSONArray("pullRequests")?.let { array ->
@@ -142,6 +147,11 @@ object CatalogJson {
         session.lastMessageAt?.let { put("lastMessageAt", it) }
         session.lastReadAt?.let { put("lastReadAt", it) }
         session.awaitingUserSince?.let { put("awaitingUserSince", it) }
+        session.orderKey?.let { put("orderKey", it) }
+        session.pinSectionId?.let { put("pinSectionId", it) }
+        session.snoozedUntil?.let { put("snoozedUntil", it) }
+        session.settledAt?.let { put("settledAt", it) }
+        session.focusRestoredAt?.let { put("focusRestoredAt", it) }
         session.lastHandledUserMsgId?.let { put("lastHandledUserMsgId", it) }
         session.lastFailedUserMsgId?.let { put("lastFailedUserMsgId", it) }
         if (session.pullRequests.isNotEmpty()) {

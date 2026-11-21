@@ -31,6 +31,15 @@ sealed interface RuntimeCommand {
     data class SetTabClosed(val id: String, val closed: Boolean) : RuntimeCommand
     /** Archives or unarchives a conversation (upstream `archiveSession`); a write, never replayed. */
     data class ArchiveSession(val id: String, val archived: Boolean) : RuntimeCommand
+    /**
+     * One Status view or pin-section change (runtime `statusViewCommand`): the runtime plans it
+     * against its replica with the shared planner and writes. A write, never replayed.
+     */
+    data class StatusView(val command: StatusViewCommand) : RuntimeCommand
+    /** The four Later presets resolved on the runtime's synced clock (`snoozePresets`). Read only. */
+    data object SnoozePresets : RuntimeCommand
+    /** Records that the conversation was read up to [lastReadAt] (upstream `markSessionRead`; monotonic). */
+    data class MarkRead(val id: String, val lastReadAt: Long) : RuntimeCommand
     /** [billing]: a Tab is a session, so the free-plan session quota applies (null fails open). */
     data class CreateTab(val parentId: String, val id: String, val title: String, val billing: org.json.JSONObject? = null) : RuntimeCommand
     /** [includeOffline]: schedule targets, every readable computer's agents; new chats keep online agents. */
@@ -136,6 +145,7 @@ sealed interface RuntimeResult {
     /** Upstream send state (`sent` / `queued` / `not_sent` / `unknown`); a machine ACK is delivery only. */
     data class Sent(val state: String, val reason: String? = null) : RuntimeResult
     data object Accepted : RuntimeResult
+    data class SnoozePresets(val value: List<SnoozePreset>) : RuntimeResult
     data class Detail(val value: StepDetail) : RuntimeResult
     data class Diff(val value: FileDiff) : RuntimeResult
     data class Directory(val value: DirectoryListing) : RuntimeResult
@@ -160,6 +170,8 @@ data class CatalogPullRequest(
 data class CatalogSession(
     val id: String, val machineId: String, val projectId: String, val title: String, val status: String, val archived: Boolean, val pinned: Boolean, val createdAt: String,
     val branchName: String? = null, val lastMessageAt: Long? = null, val lastReadAt: Long? = null, val awaitingUserSince: Long? = null,
+    /** Status view metadata (display only; the runtime's layout decides tiers and order). */
+    val orderKey: String? = null, val pinSectionId: String? = null, val snoozedUntil: Long? = null, val settledAt: Long? = null, val focusRestoredAt: Long? = null,
     val pullRequests: List<CatalogPullRequest> = emptyList(),
     /** The owning Lody user (session meta `userId`); null from caches written before the field. */
     val userId: String? = null,
@@ -234,6 +246,10 @@ data class CatalogSnapshot(
     val machineEmulators: Map<String, String> = emptyMap(),
     /** Computer id to numeric protocol capability versions advertised by its CLI. */
     val machineCapabilities: Map<String, Map<String, Int>> = emptyMap(),
+    /** The shared runtime's Status view layout for both scopes; null from older runtimes and caches. */
+    val statusView: StatusView? = null,
+    /** Workspace pin sections, in order. */
+    val pinSections: List<PinSection> = emptyList(),
 )
 /**
  * One transcript turn. [timestamp] is ISO-8601; [status] is upstream's (`seen` once the agent
