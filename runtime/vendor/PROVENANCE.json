@@ -1,9 +1,9 @@
 {
   "source": "LodyAI/lody-ios packages/cloud-runtime",
-  "commit": "859f5ac504d3ef025f51828b7454a6d6c5ea9f79",
+  "commit": "7272a54c2061d63c5fbeb50f7c7f5edca59a4996",
   "license": "AGPL-3.0-only",
   "path": "packages/cloud-runtime",
-  "export": "git -C apps/mobile/ios archive 859f5ac504d3ef025f51828b7454a6d6c5ea9f79 packages/cloud-runtime",
+  "export": "git -C apps/mobile/ios archive 7272a54c2061d63c5fbeb50f7c7f5edca59a4996 packages/cloud-runtime",
   "note": "Complete snapshot of the pinned iOS cloud-runtime package, excluding Roost authoring source and its generator. SHA256.json records every mirrored file. Earlier entries retain the source-update history.",
   "roostHistory": {
     "files": [
@@ -295,10 +295,10 @@
   },
   "statusView": {
     "repository": "LodyAI/lody-ios",
-    "commit": "859f5ac504d3ef025f51828b7454a6d6c5ea9f79",
+    "commit": "7272a54c2061d63c5fbeb50f7c7f5edca59a4996",
     "branch": "status-view-runtime",
     "pullRequest": "https://github.com/LodyAI/lody-ios/pull/130",
-    "previousCommit": "ddce4386dc5894f270137e892cc0f7588b7d696d",
-    "note": "Whole-package refresh. Brings the Status view runtime (catalog statusView and pinSections, the five session fields, the live workspace Flock read, the server clock, statusViewCommand / snoozePresets, touchOnSend on dispatch, newSessionOrder on creation, start workspaceReadOnly) with the shared Lody status-view modules and golden vectors vendored under src/protocol/lody-shared at Lody status-view-core 9f879b40 (still moving; another refresh follows), plus lody-ios be444c8a message quotes in the shared runtime. Android keeps its own quote adapter in runtime/src; the runtime ignores the quotes it strips. Dependencies and licenses are unchanged."
+    "previousCommit": "859f5ac504d3ef025f51828b7454a6d6c5ea9f79",
+    "note": "Whole-package refresh. Brings the Status view runtime (catalog statusView and pinSections, the five session fields, the live workspace Flock read, the server clock, statusViewCommand / snoozePresets, touchOnSend on dispatch, newSessionOrder on creation, start workspaceReadOnly) with the shared Lody status-view modules and golden vectors vendored under src/protocol/lody-shared at Lody status-view-core e542b8729 (LodyAI/Lody#3063, settled); the 859f5ac5 to 7272a54c step changed only those modules' comments, their provenance and the command vectors (28 cases), plus lody-ios be444c8a message quotes in the shared runtime. Android keeps its own quote adapter in runtime/src; the runtime ignores the quotes it strips. Dependencies and licenses are unchanged."
   }
 }
