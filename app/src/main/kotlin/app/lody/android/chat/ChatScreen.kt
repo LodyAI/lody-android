@@ -1706,7 +1706,7 @@ internal fun ChatActionBar(
     val stages: List<@Composable (Boolean) -> Unit> = listOf<@Composable (Boolean) -> Unit>({ fill -> Line(fill, diffDot = false, caps.first()) }) +
         caps.map { cap -> @Composable { fill: Boolean -> Line(fill, diffDot = true, cap) } }
     FirstThatFits(
-        Modifier.padding(horizontal = LodySpacing.md).padding(top = LodySpacing.xs).fillMaxWidth(),
+        Modifier.padding(horizontal = LodyLayout.screenPaddingX).padding(top = LodySpacing.xs).fillMaxWidth(),
         stages = stages,
     ) { Line(fill = true, diffDot = true, caps.last(), last = true) }
 }
