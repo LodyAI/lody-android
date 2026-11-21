@@ -309,5 +309,15 @@
       "src/runtime/handlers/schedules.ts"
     ],
     "note": "Arrives with the main pin: scheduleMachine no longer double-prefixes `machine-` before machineMeta, so schedules read the computer's name, owner, clock and protocol support again. Dependencies and licenses are unchanged."
+  },
+  "sessionRouteWait": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "c04277df05ad1636f5f6269afc70cc4625f3e46a",
+    "files": [
+      "README.md",
+      "src/runtime/session-read.ts",
+      "src/runtime/session.ts"
+    ],
+    "note": "Session readers check in-memory routing metadata every 250 ms and emit waiting updates when the reason changes. Network read failures use exponential backoff."
   }
 }
