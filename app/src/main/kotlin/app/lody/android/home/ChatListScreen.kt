@@ -1156,7 +1156,8 @@ private fun FamilyRows(
     }
     val leading = pin?.let { SwipeAction(if (root.pinned) labels.unpin else labels.pin, LodyIcons.Pin, onClick = it) }
     Column(Modifier.graphicsLayer { if (dragging) { shadowElevation = 12f; alpha = 0.96f } }.background(if (dragging) LodyTheme.colors.bgRaised else Color.Transparent)) {
-        SwipeActions(leading.takeIf { !dragging }, trailing.takeIf { !dragging }.orEmpty()) {
+        // Keep the active long-press handle composed when a drag starts.
+        SwipeActions(leading, trailing) {
             ChatRow(
                 root, rowDetails(root), now, owner(root),
                 expanded = if (root.treeParent) root.id !in folded else null,
