@@ -104,7 +104,7 @@
   "src/runtime/handlers/mentions.ts": "29be79277219df8e5c83caa0ce494459eae278a92920c67efc76890f04076623",
   "src/runtime/handlers/projects.ts": "e473cd10a85297ec8fc4faef0f9792cf96d006b9288d5e8074ce3d12545197e1",
   "src/runtime/handlers/proposals.ts": "1d614c746a667852a1f84c2b789e2c12d6cc868eec577cd82e96ed4a54210349",
-  "src/runtime/handlers/schedules.ts": "38641c7c34fd9b1f204f7d201f9e83b8a0cf2a15ba39305815c54701ab823671",
+  "src/runtime/handlers/schedules.ts": "c45db80ede1e4af41fb100a47a6f638dd838ef0a2da70a4abb5f7488fa045c29",
   "src/runtime/handlers/sessions.ts": "0f1bc2ffe24d08e7a867369515822502d1c1102c868853975a1f5442f9657714",
   "src/runtime/handlers/settings.ts": "766934dc3bcc29443b97af14796fe8abd06d89e98fe7271108052f93ccd40cc1",
   "src/runtime/handlers/sharing.ts": "12888e515f7baafa84fca95136fd789db43a5ee01401a0aa0fea3a6bc1ae482e",

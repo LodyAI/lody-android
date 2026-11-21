@@ -1,9 +1,9 @@
 {
   "source": "LodyAI/lody-ios packages/cloud-runtime",
-  "commit": "467127b459c97a12022040b0467c7d3115cc02a7",
+  "commit": "74e635c71367ef99018fee06c36dbc75c365a9db",
   "license": "AGPL-3.0-only",
   "path": "packages/cloud-runtime",
-  "export": "git -C apps/mobile/ios archive 467127b459c97a12022040b0467c7d3115cc02a7 packages/cloud-runtime",
+  "export": "git -C apps/mobile/ios archive 74e635c71367ef99018fee06c36dbc75c365a9db packages/cloud-runtime",
   "note": "Complete snapshot of the pinned iOS cloud-runtime package, excluding Roost authoring source and its generator. SHA256.json records every mirrored file. Earlier entries retain the source-update history.",
   "roostHistory": {
     "files": [
@@ -295,10 +295,19 @@
   },
   "statusView": {
     "repository": "LodyAI/lody-ios",
-    "commit": "467127b459c97a12022040b0467c7d3115cc02a7",
-    "branch": "status-view-runtime",
+    "commit": "74e635c71367ef99018fee06c36dbc75c365a9db",
+    "branch": "main",
     "pullRequest": "https://github.com/LodyAI/lody-ios/pull/130",
-    "previousCommit": "7272a54c2061d63c5fbeb50f7c7f5edca59a4996",
-    "note": "Whole-package refresh. Brings the Status view runtime (catalog statusView and pinSections, the five session fields, the live workspace Flock read, the server clock, statusViewCommand / snoozePresets, touchOnSend on dispatch, newSessionOrder on creation, start workspaceReadOnly) with the shared Lody status-view modules and golden vectors vendored under src/protocol/lody-shared at Lody main bffe27262 (LodyAI/Lody#3063 squash-merged; same bytes as status-view-core e542b8729). Since 859f5ac5 only those modules' comments, their provenance and README, and the command vectors (28 cases) changed, plus lody-ios be444c8a message quotes in the shared runtime. Android keeps its own quote adapter in runtime/src; the runtime ignores the quotes it strips. Dependencies and licenses are unchanged."
+    "previousCommit": "467127b459c97a12022040b0467c7d3115cc02a7",
+    "note": "Whole-package refresh at the lody-ios main squash of #130 (same Status view tree as status-view-runtime 467127b4, which main does not contain). Brings the Status view runtime (catalog statusView and pinSections, the five session fields, the live workspace Flock read, the server clock, statusViewCommand / snoozePresets, touchOnSend on dispatch, newSessionOrder on creation, start workspaceReadOnly) with the shared Lody status-view modules and golden vectors vendored under src/protocol/lody-shared at Lody main bffe27262 (LodyAI/Lody#3063 squash-merged; same bytes as status-view-core e542b8729). Since 859f5ac5 only those modules' comments, their provenance and README, and the command vectors (28 cases) changed, plus lody-ios be444c8a message quotes in the shared runtime. Android keeps its own quote adapter in runtime/src; the runtime ignores the quotes it strips. Dependencies and licenses are unchanged."
+  },
+  "scheduleMachineKey": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "180c84b4",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/133",
+    "files": [
+      "src/runtime/handlers/schedules.ts"
+    ],
+    "note": "Arrives with the main pin: scheduleMachine no longer double-prefixes `machine-` before machineMeta, so schedules read the computer's name, owner, clock and protocol support again. Dependencies and licenses are unchanged."
   }
 }
