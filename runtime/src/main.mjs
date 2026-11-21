@@ -1,3 +1,7 @@
+// First: read-access and the vendored runtime call AbortSignal.any (Chrome 116+) and
+// AbortSignal.timeout (Chrome 103+); the bundles target Chrome 100.
+import '../vendor/cloud-runtime/src/runtime/abort-signal-any.ts';
+import './abort-signal-timeout.mjs';
 import {contractBridge} from './contract-bridge.mjs';
 import '../vendor/cloud-runtime/src/runtime/index.ts';
 import { createDispatcher, HOST_PROTOCOL, CORE_CAPABILITIES } from './dispatch.mjs';
