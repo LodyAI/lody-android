@@ -999,4 +999,13 @@
     <string name="workspace_e2ee_unsupported">移动端暂不支持端到端加密工作区，请使用 Lody 桌面端打开。</string>
     <string name="workspace_mode_unconfirmed">无法确认工作区加密状态，请重试。</string>
     <string name="workspace_mode_retry">重试</string>
+    <string name="quote_action">引用</string>
+    <string name="quote_add">添加</string>
+    <string name="quote_save">保存</string>
+    <string name="quote_remove">删除引用</string>
+    <string name="quote_comment_placeholder">添加评论</string>
+    <string name="quote_snapshot">引用内容</string>
+    <string name="quote_too_long">最多选择 50,000 个字符进行引用。</string>
+    <string name="quote_upgrade">该电脑上的 Lody 需要升级后才能使用消息引用。</string>
+    <string name="message_select_text">选择文本</string>
 </resources>

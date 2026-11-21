@@ -263,6 +263,15 @@ object LodyIcons {
         )
     }
 
+    /** Lucide `quote`: a quoted message passage. */
+    val Quote: ImageVector by lazy {
+        lodyIcon(
+            "Quote",
+            "M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z",
+            "M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z",
+        )
+    }
+
     val Edit: ImageVector by lazy {
         lodyIcon(
             "Edit",
@@ -747,6 +756,7 @@ object LodyIcons {
             "atSign" to AtSign,
             "copy" to Copy,
             "edit" to Edit,
+            "quote" to Quote,
             "trash" to Trash,
             "share" to Share,
             "link" to Link,

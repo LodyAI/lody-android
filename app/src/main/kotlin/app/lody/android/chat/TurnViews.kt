@@ -106,7 +106,7 @@ private fun LazyListScope.content(
     respond: PermissionResponder?,
 ) {
     when (val value = block.item) {
-        is TurnItem.Text -> prose(block.key, entry.prose[value.id], secondary = false)
+        is TurnItem.Text -> prose(block.key, entry.prose[value.id], secondary = false, quotable = true)
         is TurnItem.ProposedPlan -> proposedPlan(entry, value, block.key, open, toggle)
         is TurnItem.Checklist -> item(key = block.key, contentType = "checklist") { Checklist(value, Modifier.animateItem()) }
         is TurnItem.Notice -> item(key = block.key, contentType = "notice") { Notice(value, Modifier.animateItem()) }
@@ -178,19 +178,20 @@ private fun LazyListScope.step(
     stepPermission(entry, tool, key, details, respond)
 }
 
-/** Each top-level Markdown block is its own lazy row, so streaming re-renders only the tail. */
-private fun LazyListScope.prose(key: String, markdown: MarkdownBlocks?, secondary: Boolean) {
+/**
+ * Each top-level Markdown block is its own lazy row, so streaming re-renders only the tail. An
+ * answer's text ([quotable]) is selectable within its block, with Quote in the selection menu.
+ */
+private fun LazyListScope.prose(key: String, markdown: MarkdownBlocks?, secondary: Boolean, quotable: Boolean = false) {
     val blocks = markdown?.blocks ?: return
     blocks.forEachIndexed { index, text ->
         item(key = "$key#$index", contentType = "markdown") {
-            MarkdownBlock(
-                text,
-                Modifier
-                    .animateItem()
-                    .padding(horizontal = TranscriptMargin)
-                    .padding(bottom = LodySpacing.md),
-                secondary = secondary,
-            )
+            val modifier = Modifier
+                .animateItem()
+                .padding(horizontal = TranscriptMargin)
+                .padding(bottom = LodySpacing.md)
+            if (quotable) QuotableSelection(modifier) { MarkdownBlock(text, secondary = secondary) }
+            else MarkdownBlock(text, modifier, secondary = secondary)
         }
     }
 }

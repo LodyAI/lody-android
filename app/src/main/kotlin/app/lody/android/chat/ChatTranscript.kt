@@ -7,6 +7,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -101,6 +102,8 @@ sealed interface ChatEntry {
         override val id: String, val text: String, val who: TurnIdentity, val delivery: Delivery = Delivery.Sent,
         val attachments: List<app.lody.android.runtime.MessageAttachment> = emptyList(),
         val references: List<app.lody.android.runtime.MessageReference> = emptyList(),
+        /** Quote blocks in [text], each shown as its snapshot. */
+        val quotes: List<app.lody.android.runtime.MessageQuoteBlock> = emptyList(),
     ) : ChatEntry
     /**
      * An agent turn laid out like web's: prose, thought / tool groups, and for a finished turn
@@ -406,9 +409,12 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
     val colors = LodyTheme.colors
     var expanded by androidx.compose.runtime.saveable.rememberSaveable(entry.id) { mutableStateOf(false) }
     var overflowing by remember(entry.text) { mutableStateOf(false) }
-    var bubbleLayout by remember(entry.text) { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
     var menu by remember(entry.id) { mutableStateOf(false) }
+    // The message's text (or one quote's full snapshot) in a sheet, selectable and quotable.
+    var selecting by remember(entry.id) { mutableStateOf<Pair<String, Boolean>?>(null) }
+    val segments = remember(entry.text, entry.references, entry.quotes) { MessageQuotes.segments(entry.text, entry.references, entry.quotes) }
     val clipboard = LocalClipboardManager.current
+    selecting?.let { (text, quoted) -> SelectableTextSheet(text, quoted) { selecting = null } }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -449,27 +455,26 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
                     entry.attachments.forEach { AttachmentChip(it.name, it.image) }
                 }
             }
-            if (entry.text.isNotBlank()) Text(
-                androidx.compose.ui.text.buildAnnotatedString {
-                    append(entry.text)
-                    // References read as the composer's chips (MentionPresentation): accent text
-                    // on a rounded accent-subtle capsule drawn behind each line's run.
-                    entry.references.forEach { reference ->
-                        if (reference.start >= 0 && reference.end <= length && reference.end > reference.start)
-                            addStyle(androidx.compose.ui.text.SpanStyle(color = colors.accentOnSubtle, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium), reference.start, reference.end)
+            val bubble = Modifier
+                .widthIn(max = LodyLayout.readableMaxWidth)
+                .background(colors.fillSecondary, RoundedCornerShape(UserBubbleRadius))
+                .padding(horizontal = LodySpacing.lg, vertical = LodySpacing.lg)
+            val lines = if (expanded) Int.MAX_VALUE else 6
+            if (entry.quotes.isEmpty()) {
+                if (entry.text.isNotBlank()) ReferenceText(entry.text, entry.references, lines, { if (!expanded) overflowing = it }, bubble)
+            } else Column(bubble, verticalArrangement = Arrangement.spacedBy(LodySpacing.md)) {
+                // Quote blocks read as their snapshot (bar, secondary ink, three lines); a tap opens it whole.
+                segments.forEach { segment ->
+                    when (segment) {
+                        is MessageQuotes.Segment.Plain -> ReferenceText(segment.text, segment.references, lines, { if (!expanded && it) overflowing = true })
+                        is MessageQuotes.Segment.Quote -> QuoteSnapshot(
+                            segment.snapshot,
+                            Modifier.clip(RoundedCornerShape(LodyRadius.sm)).combinedClickable(onClick = { selecting = segment.snapshot to true }, onLongClick = { menu = true }),
+                            maxLines = 3,
+                        )
                     }
-                },
-                style = LodyTheme.typography.reading,
-                color = colors.textPrimary,
-                maxLines = if (expanded) Int.MAX_VALUE else 6,
-                overflow = TextOverflow.Ellipsis,
-                onTextLayout = { bubbleLayout = it; if (!expanded) overflowing = it.hasVisualOverflow },
-                modifier = Modifier
-                    .widthIn(max = LodyLayout.readableMaxWidth)
-                    .background(colors.fillSecondary, RoundedCornerShape(UserBubbleRadius))
-                    .padding(horizontal = LodySpacing.lg, vertical = LodySpacing.lg)
-                    .drawBehind { bubbleLayout?.let { drawReferenceChips(it, entry.references, colors.accentSubtle) } },
-            )
+                }
+            }
             if (overflowing || expanded) app.lody.android.designsystem.LodyTextButton(onClick = { expanded = !expanded }) {
                 Text(stringResource(if (expanded) R.string.message_show_less else R.string.message_show_more), color = colors.textSecondary)
             }
@@ -480,7 +485,22 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
                     enabled = entry.text.isNotBlank(),
                     onClick = { clipboard.setText(AnnotatedString(entry.text)); menu = false },
                 )
-                if (entry.id == actions.editable) DropdownMenuItem(
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.message_select_text)) },
+                    leadingIcon = { Icon(LodyIcons.Quote, contentDescription = null) },
+                    enabled = entry.text.isNotBlank(),
+                    onClick = {
+                        menu = false
+                        selecting = segments.joinToString("\n\n") { segment ->
+                            when (segment) {
+                                is MessageQuotes.Segment.Plain -> segment.text
+                                is MessageQuotes.Segment.Quote -> segment.snapshot.lines().joinToString("\n") { "> $it" }
+                            }
+                        } to false
+                    },
+                )
+                // Editing resends text alone, so a turn with quotes is not offered for it.
+                if (entry.id == actions.editable && entry.quotes.isEmpty()) DropdownMenuItem(
                     text = { Text(stringResource(R.string.message_edit)) },
                     leadingIcon = { Icon(LodyIcons.Edit, contentDescription = null) },
                     onClick = { menu = false; actions.edit(entry.id) },
@@ -490,6 +510,28 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
         // Beside the bubble's top: past the header line and the gap under it.
         Avatar(entry.who.image, entry.who.name, UserAvatarSize, Modifier.padding(top = UserHeaderHeight + LodySpacing.xs))
     }
+}
+
+/** User text with its references read as the composer's chips: accent text on a rounded capsule behind each line's run. */
+@Composable
+private fun ReferenceText(text: String, references: List<app.lody.android.runtime.MessageReference>, maxLines: Int, onOverflow: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val colors = LodyTheme.colors
+    var layout by remember(text) { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+    Text(
+        androidx.compose.ui.text.buildAnnotatedString {
+            append(text)
+            references.forEach { reference ->
+                if (reference.start >= 0 && reference.end <= length && reference.end > reference.start)
+                    addStyle(androidx.compose.ui.text.SpanStyle(color = colors.accentOnSubtle, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium), reference.start, reference.end)
+            }
+        },
+        style = LodyTheme.typography.reading,
+        color = colors.textPrimary,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { layout = it; onOverflow(it.hasVisualOverflow) },
+        modifier = modifier.drawBehind { layout?.let { drawReferenceChips(it, references, colors.accentSubtle) } },
+    )
 }
 
 /** A rounded chip behind each line's run of every reference, as the composer shows them. */

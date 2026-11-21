@@ -166,6 +166,7 @@ open class WebViewRuntime internal constructor(
             }
             if (request.configOptionValues.isNotEmpty()) payload.put("configOptionValues", JSONObject(request.configOptionValues))
             if (request.attachments.isNotEmpty()) payload.put("attachments", JSONArray(request.attachments))
+            if (request.quotes.isNotEmpty()) payload.put("quotes", JSONArray(request.quotes.map { JSONObject().put("id", it.id).put("snapshot", it.snapshot).put("comment", it.comment) }))
             command.billing?.let { payload.put("billingEntitlement", it) }
             val value = call("sendText", JSONArray().put(payload), CommandDeadline.WRITE) as JSONObject
             RuntimeResult.Sent(value.optString("state", "unknown"), value.optString("reason").ifBlank { null })

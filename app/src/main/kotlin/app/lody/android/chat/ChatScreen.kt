@@ -178,6 +178,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                                 delivery(message.status),
                                 message.attachments,
                                 message.references,
+                                message.quotes,
                             )
                             else -> {
                                 val items = message.items.ifEmpty { listOf(TurnItem.Text(message.id, message.text)) }
@@ -252,8 +253,10 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         } + pending.map {
             // The composer's own labels and chips (the new chat's first turn carries them, as this
             // conversation's catalog may not list its references yet); else this composer's.
-            val (text, references) = it.shown ?: mentions.shown(it.text)
-            ChatEntry.User(it.turnId, text, senderIdentity(null, context.me, members[context.me?.id], memberLabel, turnTime(it.at)), it.delivery, it.attachments, references)
+            val (shown, references) = it.shown ?: mentions.shown(it.text)
+            // Quote cards follow the main text as the runtime composes the turn.
+            val (text, blocks) = MessageQuotes.compose(shown, it.quotes)
+            ChatEntry.User(it.turnId, text, senderIdentity(null, context.me, members[context.me?.id], memberLabel, turnTime(it.at)), it.delivery, it.attachments, references, blocks)
         }
     }
     val creationUnconfirmed = creation != null && creation.request.turnId !in forgotten && creation.state !in setOf("accepted", "queued") && creation.request.turnId !in authorsByMessage
@@ -358,6 +361,11 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     val failedText = stringResource(R.string.chat_send_failed)
     // Picked attachments wait in the composer and upload when the turn is sent.
     var attachments by remember(id) { mutableStateOf(emptyList<PendingAttachment>()) }
+    // Quote cards wait beside them in insertion order, kept on the device with the text draft.
+    var quotes by remember(id, scope) { mutableStateOf(if (persistDraft) ComposerDrafts.readQuotes(draftContext, scope, ComposerDrafts.session(id)) else emptyList()) }
+    LaunchedEffect(scope, id, quotes) { if (persistDraft) ComposerDrafts.writeQuotes(draftContext, scope, ComposerDrafts.session(id), quotes) }
+    // The comment sheet: a new quote's snapshot, or the card being edited.
+    var quoteEditor by remember(id) { mutableStateOf<QuoteEditing?>(null) }
     val attachLimit = stringResource(R.string.chat_attach_limit)
     val uploadFailed = stringResource(R.string.chat_attach_failed)
     val snackbar = remember { SnackbarHostState() }
@@ -438,11 +446,17 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     // One send path for typed turns and the action bar's prompts: optimistic bubble, never resent.
     // Attachments upload first; a failed upload fails the turn before anything is written and
     // hands the text and attachments back to an empty composer.
-    val sendText: (String, List<PendingAttachment>) -> Unit = sendText@{ text, files ->
-        if (!canSend || (text.isEmpty() && files.isEmpty()) || session == null) return@sendText
+    val sendText: (String, List<PendingAttachment>, List<MessageQuoteCard>) -> Unit = sendText@{ text, files, cards ->
+        if (!canSend || (text.isEmpty() && files.isEmpty() && cards.isEmpty()) || session == null) return@sendText
         val turnId = UUID.randomUUID().toString()
         val shown = files.map { MessageAttachment(it.name, it.image) }
-        outgoing = outgoing + Outgoing(turnId, text, Instant.now().toString(), Delivery.Sending, shown)
+        outgoing = outgoing + Outgoing(turnId, text, Instant.now().toString(), Delivery.Sending, shown, quotes = cards)
+        // Nothing was written: the draft returns to an empty composer, quote cards exactly as they were.
+        fun handBack() {
+            if (prompt.isEmpty() && attachments.isEmpty() && quotes.isEmpty()) {
+                prompt = text; field = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length)); attachments = files; quotes = cards
+            }
+        }
         val explicit = chosen
         val choice = Triple(modelId, modeId, effort)
         val role = SessionRoles.send(roles != null, activeRole, pickedRole, durableRole)
@@ -459,7 +473,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             catch (_: Exception) { null }
             quotaFailure(early)?.let { copy ->
                 outgoing = outgoing.map { if (it.turnId == turnId) it.copy(delivery = Delivery.Failed) else it }
-                if (prompt.isEmpty() && attachments.isEmpty()) { prompt = text; field = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length)); attachments = files }
+                handBack()
                 snackbar.showSnackbar(appContext.getString(copy))
                 return@launch
             }
@@ -468,7 +482,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             catch (_: Exception) { null }
             if (blocks == null) {
                 outgoing = outgoing.map { if (it.turnId == turnId) it.copy(delivery = Delivery.Failed) else it }
-                if (prompt.isEmpty() && attachments.isEmpty()) { prompt = text; attachments = files }
+                handBack()
                 snackbar.showSnackbar(uploadFailed)
                 return@launch
             }
@@ -476,6 +490,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 id, turnId, text, session.machineId, session.cliType!!, session.agentType!!, session.resume, queue = queue,
                 modelId = choice.first, modeId = choice.second, effort = choice.third, explicitChoice = explicit, attachments = blocks,
                 role = role, agentConfigId = session.agentConfigId, configOptionValues = switches, guide = guide,
+                quotes = cards,
             )
             var reason: String? = null
             val result = try {
@@ -496,23 +511,45 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             }
             outgoing = outgoing.map { if (it.turnId == turnId) it.copy(delivery = delivery) else it }
             if (result == "not_sent") {
-                // A quota refusal wrote nothing: hand the text back, as Web keeps the draft.
+                // A quota refusal wrote nothing: hand the text back, as Web keeps the draft. A
+                // refused turn with quotes always comes back, so its cards are never lost.
                 val quota = quotaFailure(reason)
-                if (quota != null && prompt.isEmpty() && attachments.isEmpty()) { prompt = text; field = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length)); attachments = files }
+                if (quota != null || cards.isNotEmpty()) handBack()
                 snackbar.showSnackbar(quota?.let { appContext.getString(it) } ?: failedText)
             }
         }
         Unit
     }
+    val quoteTooLong = stringResource(R.string.quote_too_long)
+    val quoteUpgrade = stringResource(R.string.quote_upgrade)
+    val quotesSupported = MessageQuotes.supported(context.machineCapabilities)
     val send = {
         // Role labels ("🧪 Reviewer") go out as their tokens (`@role:<id>`), which expand at send.
         val text = mentions.resolve(prompt.trim())
-        if (canSend && (text.isNotEmpty() || attachments.isNotEmpty())) {
-            sendText(text, attachments)
+        // Quotes are never sent as plain text to a computer that cannot read them: the draft stays.
+        if (quotes.isNotEmpty() && !quotesSupported) coroutines.launch { snackbar.showSnackbar(quoteUpgrade) }
+        else if (canSend && (text.isNotEmpty() || attachments.isNotEmpty() || quotes.isNotEmpty())) {
+            sendText(text, attachments, quotes)
             prompt = ""
             attachments = emptyList()
+            quotes = emptyList()
         }
+        Unit
     }
+    // Quote (the transcript's selection menu): a non-empty passage of at most 50,000 characters
+    // opens the comment sheet, on a computer that reads quotes.
+    val quotePassage: (String) -> Unit = { passage ->
+        val snapshot = passage.trim()
+        when {
+            snapshot.isEmpty() -> Unit
+            snapshot.length > MessageQuotes.MAX_CHARS -> { coroutines.launch { snackbar.showSnackbar(quoteTooLong) } }
+            !quotesSupported -> { coroutines.launch { snackbar.showSnackbar(quoteUpgrade) } }
+            else -> { quoteEditor = QuoteEditing(null, snapshot, "") }
+        }
+        Unit
+    }
+    val currentQuotePassage by rememberUpdatedState(quotePassage)
+    val quoter = remember { { passage: String -> currentQuotePassage(passage) } }
     // Web's limits: at most 8 images and 8 files per turn; extra picks are dropped with a notice.
     val addAttachments: (List<PendingAttachment>) -> Unit = { picked ->
         val oversized = picked.filter(SessionAttachmentUploads::oversized)
@@ -977,7 +1014,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                     }
                 } else {
                     // The transcript scrolls under the floating header.
-                    CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides transcriptLinks, LocalSessionImages provides sessionImages) { ChatTranscript(
+                    CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides transcriptLinks, LocalSessionImages provides sessionImages, LocalMessageQuoter provides quoter.takeIf { context.session?.isTabClosed != true }) { ChatTranscript(
                         all, Modifier.fillMaxSize(), contentPadding = PaddingValues(top = top + if (creationNotice != null) LodySize.controlLg else LodySpacing.none, bottom = LodySpacing.md), state = listState, scrollToLatest = scrollToLatest,
                         historyHasMore = historyHasMore, historyLoading = historyLoading,
                         loadEarlier = { repository.loadOlder(scope, id) },
@@ -1049,7 +1086,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                             writing != null || action !in bar.actions -> Unit
                             action == SessionInfoBar.Action.Merge -> mergeTarget = bar.pullRequest
                             action == SessionInfoBar.Action.ReadyForReview -> bar.pullRequest?.let { writePullRequest(it, null) }
-                            else -> sendText(bar.prompt(action, prompts), emptyList())
+                            else -> sendText(bar.prompt(action, prompts), emptyList(), emptyList())
                         }
                     },
                     onCopied = { coroutines.launch { snackbar.showSnackbar(it) } },
@@ -1089,11 +1126,28 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 },
                 onPickFiles = { filePicker.launch(arrayOf("*/*")) },
                 onRemoveAttachment = { removed -> attachments = attachments.filterNot { it.id == removed } },
+                quotes = quotes,
+                onOpenQuote = { card -> quoteEditor = QuoteEditing(card.id, card.snapshot, card.comment) },
+                onRemoveQuote = { removed -> quotes = quotes.filterNot { it.id == removed } },
                 onSend = send,
                 onStop = stop,
             )
             // Docked between the prompt and the keyboard; rows never take focus, so the keyboard stays.
             MentionDock(mentions, field, active = composerFocused && canSend, loadShortcut = { shortcutId -> repository.shortcut(scope, shortcutId) }) { next -> field = next; prompt = next.text }
+        }
+    }
+    quoteEditor?.let { editing ->
+        key(editing) {
+            QuoteSheet(
+                editing.snapshot, editing.comment, editing.cardId != null,
+                onDismiss = { quoteEditor = null },
+                onSave = { comment ->
+                    quotes = if (editing.cardId == null) quotes + MessageQuoteCard(UUID.randomUUID().toString(), editing.snapshot, comment)
+                        else quotes.map { if (it.id == editing.cardId) it.copy(comment = comment) else it }
+                    quoteEditor = null
+                },
+                onRemove = { quotes = quotes.filterNot { it.id == editing.cardId }; quoteEditor = null },
+            )
         }
     }
     if (runConfig && session != null) {
@@ -1343,7 +1397,12 @@ private data class Outgoing(
     val turnId: String, val text: String, val at: String, val delivery: Delivery, val attachments: List<MessageAttachment> = emptyList(),
     /** Text and chip ranges as the sending composer showed them, when it recorded them. */
     val shown: Pair<String, List<app.lody.android.runtime.MessageReference>>? = null,
+    /** The turn's quote cards, shown after its text as the runtime appends them. */
+    val quotes: List<MessageQuoteCard> = emptyList(),
 )
+
+/** The quote comment sheet's subject: a new passage ([cardId] null) or a card being edited. */
+private data class QuoteEditing(val cardId: String?, val snapshot: String, val comment: String)
 
 internal fun delivery(status: String) = when (status) {
     // Execution failure/cancellation still acknowledges receipt, as on desktop.
@@ -1418,6 +1477,10 @@ internal fun ChatComposer(
     onRemoveAttachment: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
+    /** Quote cards waiting with the attachments; a tap reopens the comment sheet. */
+    quotes: List<MessageQuoteCard> = emptyList(),
+    onOpenQuote: (MessageQuoteCard) -> Unit = {},
+    onRemoveQuote: (String) -> Unit = {},
     usage: app.lody.android.runtime.SessionUsage? = null,
     /** The Free session reached its turn limit, so the closed composer says so instead of "connecting". */
     quotaLocked: Boolean = false,
@@ -1433,7 +1496,7 @@ internal fun ChatComposer(
         else -> stringResource(R.string.create_composer_placeholder_agent, workWith)
     }
     var focused by remember { mutableStateOf(false) }
-    val expanded = focused || attachments.isNotEmpty()
+    val expanded = focused || attachments.isNotEmpty() || quotes.isNotEmpty()
     // Dismissing the keyboard (Back, swipe) also ends editing.
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     @OptIn(ExperimentalLayoutApi::class)
@@ -1445,8 +1508,9 @@ internal fun ChatComposer(
     )
     val shape = RoundedCornerShape(radius)
     val runConfigLabel = stringResource(R.string.chat_run_config)
-    val showStop = stoppable && prompt.text.isBlank() && attachments.isEmpty()
-    val ready = if (showStop) !stopping else enabled && (prompt.text.isNotBlank() || attachments.isNotEmpty())
+    val showStop = stoppable && prompt.text.isBlank() && attachments.isEmpty() && quotes.isEmpty()
+    // A quote card alone is a message.
+    val ready = if (showStop) !stopping else enabled && (prompt.text.isNotBlank() || attachments.isNotEmpty() || quotes.isNotEmpty())
 
     @Composable
     fun Plus() {
@@ -1507,9 +1571,9 @@ internal fun ChatComposer(
                 .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
                 .padding(LodySpacing.xs),
         ) {
-            // Picked attachments, one removable chip each, above the prompt (web / iOS attachment stack).
+            // Picked attachments, one removable chip each, then quote cards, above the prompt (web / iOS attachment stack).
             androidx.compose.animation.AnimatedVisibility(
-                attachments.isNotEmpty(),
+                attachments.isNotEmpty() || quotes.isNotEmpty(),
                 enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
                 exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
             ) {
@@ -1531,6 +1595,9 @@ internal fun ChatComposer(
                                 Icon(LodyIcons.Close, contentDescription = null, tint = colors.iconTertiary, modifier = Modifier.size(LodyIconSize.xs))
                             }
                         }
+                    }
+                    items(quotes, key = { "quote:${it.id}" }) { card ->
+                        QuoteCardChip(card, onOpen = { onOpenQuote(card) }, onRemove = { onRemoveQuote(card.id) }, modifier = Modifier.animateItem())
                     }
                 }
             }

@@ -241,6 +241,13 @@ data class CatalogSnapshot(
  * [startedAt] / [endedAt] (epoch ms) time an agent turn; [model] names its model.
  */
 data class MessageReference(val start: Int, val end: Int)
+/**
+ * A quote block in a user turn's shown text (`message_quote` span, quoteVersion 1, read by the
+ * runtime as Web `readMessageQuote`): its range and the decoded, read-only snapshot.
+ */
+data class MessageQuoteBlock(val start: Int, val end: Int, val snapshot: String)
+/** A composer quote card: the read-only snapshot of a quoted passage and the reader's comment on it. */
+data class MessageQuoteCard(val id: String, val snapshot: String, val comment: String)
 
 data class SessionMessage(
     val id: String,
@@ -248,6 +255,8 @@ data class SessionMessage(
     val text: String,
     val streaming: Boolean,
     val references: List<MessageReference> = emptyList(),
+    /** A user turn's quote blocks in [text], in order. */
+    val quotes: List<MessageQuoteBlock> = emptyList(),
     val timestamp: String? = null,
     val status: String = "",
     val userId: String? = null,
@@ -373,6 +382,8 @@ data class SendTextRequest(
     val configOptionValues: Map<String, Any> = emptyMap(),
     /** Steer the running reply instead of queueing (the "Guide" preference, when the agent can steer). */
     val guide: Boolean = false,
+    /** Quote cards, in order; the runtime appends them after [text] in the Web wire format. */
+    val quotes: List<MessageQuoteCard> = emptyList(),
 )
 /** What a turn says about its Agent Role: inherit the latest turn's, an explicit None, or a Role. */
 sealed interface RoleSend {

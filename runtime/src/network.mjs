@@ -5,7 +5,8 @@ import '../vendor/cloud-runtime/src/runtime/index.ts';
 import {createDispatcher,HOST_PROTOCOL,CORE_CAPABILITIES} from './dispatch.mjs';
 import {createReadAccess} from './read-access.mjs';
 import {createCommands,billingEntitlement} from './create-commands.mjs';
-import {controlTurn,itemDetail,respondPermission,sendTurn,stopSessions} from '../vendor/cloud-runtime/src/runtime/session.ts';
+import {controlTurn,itemDetail,respondPermission,sendTurn,sessionDoc,sessionHistory,stopSessions} from '../vendor/cloud-runtime/src/runtime/session.ts';
+import {appendMessageQuotes,quoteSessionEnvelopes} from './message-quotes.mjs';
 import {cloudCommands} from './cloud-commands.mjs';
 import {providerCommands} from './provider-commands.mjs';
 import {roleCommands} from './role-commands.mjs';
@@ -17,7 +18,9 @@ const access=createReadAccess(globalThis.fetch.bind(globalThis),emit);
 globalThis.fetch=access.fetch;
 // Bundled Streams uses fetch. Other outbound APIs have no permission in this host.
 globalThis.XMLHttpRequest=undefined;globalThis.WebSocket=undefined;globalThis.EventSource=undefined;
-const runtime=contractBridge(globalThis.dataRuntime,emit);
+// The watched session's user turns carry their quote blocks (spans the shared projection drops).
+const quoted=quoteSessionEnvelopes(sessionHistory,sessionDoc);
+const runtime=contractBridge(globalThis.dataRuntime,message=>emit(quoted(message)));
 const core={ping:()=>runtime.ping(),probeSchema:()=>runtime.probeSchema(),setActive:active=>{access.setActive(active);if(!active)stopSessions();return runtime.setActive(active);}};
 const cloud=cloudCommands(runtime,access,stopSessions);
 // Native answers a shortcutCloud request it received as an event.
@@ -58,14 +61,19 @@ const detail={
   try{const result=await respondPermission({sessionId,entryId,itemId,requestId,optionId,...(answers&&typeof answers==='object'&&!Array.isArray(answers)?{answers}:{})});return {state:result.state};}
   catch(error){const code=String(error?.message??'');return {error:['session_not_ready','workspace_changed','invalid_option','invalid_answers','upload_failed'].includes(code)?code:'permission_write_failed'};}
  }};
-const sendWithReferences = args => sendTurn(args, async text => {
+// A quoted turn expands mentions in its main text only, then appends the quote blocks and comments
+// (Web order), so a quote's snapshot is never rewritten.
+const sendWithReferences = ({quotes,quoteMain,...args}) => sendTurn(args, async text => {
  const items = [];
- const expanded = await expandMentions(text, async category => {
+ const source = quotes?.length ? quoteMain : text;
+ if (!source && quotes?.length) return appendMessageQuotes('', [], quotes);
+ const expanded = await expandMentions(source, async category => {
   const catalog = await runtime.mentionCatalog({workspaceId:identity.workspaceId,sessionId:args.sessionId,machineId:args.machineId,userId:args.userId,cliType:args.cliType,agentType:args.agentType,category});
   items.push(...catalog.items);
   return catalog;
  });
- return {text:expanded,spans:referenceSpans(expanded,items)};
+ const spans = referenceSpans(expanded,items);
+ return quotes?.length ? appendMessageQuotes(expanded,spans,quotes) : {text:expanded,spans};
 });
 globalThis.androidDispatch=createDispatcher(core,emit,{...cloud,...createCommands(runtime,sendWithReferences,()=>identity),...scheduleCommands(runtime,()=>identity),...proposalCommands(runtime,()=>identity),...providerCommands(runtime,()=>identity),...roleCommands(runtime,()=>identity),...shortcutCommands(runtime,()=>identity),...detail});
 emit({type:'hostReady',protocol:HOST_PROTOCOL,capabilities:[...CORE_CAPABILITIES,'connect','grant','watchSession','closeSession','loadOlderSession','forgetPendingInput','retryPendingInput','creationOptions','createAndSend','sendText','turnQuota','itemDetail','createTab','turnDiff','listDir','readFile','controlTurn','respondPermission','agentRoles','mentionCatalog','localProjects','shortcutBody','projectGroups','messageAction','setTabClosed','archiveSession','schedules','scheduleDetail','scheduleCommand','decideProposal','agentProviders','agentProviderDetail','agentProviderProbe','agentProviderAuth','agentProviderOperation','agentRoleSettings','shortcutCloudReply','shortcutSettings','sessionPreview','iosSimulatorControl','androidEmulatorControl','previewTokenReply']});

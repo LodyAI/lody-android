@@ -1012,4 +1012,13 @@
     <string name="workspace_e2ee_unsupported">Mobile does not yet support end-to-end encrypted workspaces. Please open this workspace in Lody Desktop.</string>
     <string name="workspace_mode_unconfirmed">Unable to confirm workspace encryption. Please retry.</string>
     <string name="workspace_mode_retry">Retry</string>
+    <string name="quote_action">Quote</string>
+    <string name="quote_add">Add</string>
+    <string name="quote_save">Save</string>
+    <string name="quote_remove">Remove quote</string>
+    <string name="quote_comment_placeholder">Add comment</string>
+    <string name="quote_snapshot">Quoted text</string>
+    <string name="quote_too_long">Select up to 50,000 characters to quote.</string>
+    <string name="quote_upgrade">Update Lody on this computer to use message quotes.</string>
+    <string name="message_select_text">Select text</string>
 </resources>

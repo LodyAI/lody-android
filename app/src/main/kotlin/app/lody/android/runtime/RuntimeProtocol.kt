@@ -50,6 +50,17 @@ internal object RuntimeProtocol {
                     referenceOffset += value.length + 2
                     ranges
                 }
+                var quoteOffset = 0
+                val quotes = if (role != "user") emptyList() else rawItems.filter { it.optString("type") == "text" }.flatMap { item ->
+                    val value = item.optString("text")
+                    val blocks = item.optJSONArray("quotes")?.objects().orEmpty().mapNotNull { quote ->
+                        val start = quote.optInt("start", -1); val end = quote.optInt("end", -1)
+                        val snapshot = quote.opt("snapshot") as? String
+                        if (start < 0 || end <= start || end > value.length || snapshot == null) null else MessageQuoteBlock(start + quoteOffset, end + quoteOffset, snapshot)
+                    }
+                    quoteOffset += value.length + 2
+                    blocks
+                }
                 val items = rawItems.mapNotNull(::turnItem)
                 val files = entry.optJSONArray("fileDiffs")?.objects()?.mapNotNull { file ->
                     val path = file.optString("path").takeIf { it.isNotBlank() } ?: return@mapNotNull null
@@ -62,6 +73,7 @@ internal object RuntimeProtocol {
                     role = role,
                     text = text,
                     references = references,
+                    quotes = quotes,
                     streaming = role == "assistant" && !entry.optBoolean("finished", true),
                     timestamp = (entry.opt("timestamp") as? String)?.takeIf { it.isNotBlank() },
                     status = entry.optString("status"),

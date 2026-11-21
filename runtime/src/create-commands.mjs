@@ -1,4 +1,5 @@
 import { effortsFor } from '../vendor/cloud-runtime/src/protocol/capability.ts';
+import { appendMessageQuotes, quoteCards } from './message-quotes.mjs';
 // Android-only text creation adapter. Shared CRDT persistence and dispatch remain upstream.
 // The native host's workspace plan read (iOS `WorkspaceBilling`), or null when unavailable: the
 // shared runtime then fails open, as the other clients do.
@@ -84,7 +85,11 @@ export function createCommands(runtime, sendTurn, identity) {
    // Attachments are server references uploaded natively; upstream validates each block.
    const attachments=input.attachments??[];
    if(!Array.isArray(attachments) || attachments.length>16 || attachments.some(block=>!block || typeof block!=='object' || !['image','file'].includes(block.type)) || JSON.stringify(attachments).length>64000)throw Error('invalid_send');
-   if(!input.text.trim() && !attachments.length)throw Error('invalid_send');
+   // Quote cards (`{id, snapshot, comment}`) follow the main text in the Web wire format; the
+   // send hook expands mentions in the main text before it appends them.
+   const quotes=quoteCards(input.quotes);
+   if(!input.text.trim() && !attachments.length && !quotes.length)throw Error('invalid_send');
+   const text=quotes.length ? appendMessageQuotes(input.text.trim(),[],quotes).text : input.text;
    for(const key of ['machineId','cliType','agentType'])if(typeof input[key]!=='string' || !input[key])throw Error('invalid_send');
    // The composer's run-config choice: an omitted field keeps the session's previous one; a null
    // model or effort clears it to the agent default (upstream `sendTurn`).
@@ -111,7 +116,7 @@ export function createCommands(runtime, sendTurn, identity) {
    try {
     await runtime.ensureSession({sessionId:input.sessionId});
     signal?.throwIfAborted();
-    const sent=await sendTurn({billingEntitlement:billingEntitlement(input.billingEntitlement),id:input.turnId,sessionId:input.sessionId,machineId:input.machineId,userId:scope.userId,text:input.text,cliType:input.cliType,agentType:input.agentType,...choice,...(attachments.length?{attachmentBlocks:attachments}:{}),...(input.resume?{resume:input.resume}:{}),...(input.guide===true?{guide:true}:input.queue?{queue:true}:{})});
+    const sent=await sendTurn({billingEntitlement:billingEntitlement(input.billingEntitlement),id:input.turnId,sessionId:input.sessionId,machineId:input.machineId,userId:scope.userId,text,...(quotes.length?{quotes,quoteMain:input.text.trim()}:{}),cliType:input.cliType,agentType:input.agentType,...choice,...(attachments.length?{attachmentBlocks:attachments}:{}),...(input.resume?{resume:input.resume}:{}),...(input.guide===true?{guide:true}:input.queue?{queue:true}:{})});
     return {state:sent.state,reason:sent.reason};
    } catch {return {state:'unknown'};}
   },
