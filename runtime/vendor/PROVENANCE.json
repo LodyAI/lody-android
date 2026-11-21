@@ -1,9 +1,9 @@
 {
   "source": "LodyAI/lody-ios packages/cloud-runtime",
-  "commit": "9b74201368a47f9ace793412b89c228eeb8072c2",
+  "commit": "58f898c7c9253f4cdc88239ec0ec604dfde4bd8d",
   "license": "AGPL-3.0-only",
   "path": "packages/cloud-runtime",
-  "export": "git -C apps/mobile/ios archive 9b74201368a47f9ace793412b89c228eeb8072c2 packages/cloud-runtime",
+  "export": "git -C apps/mobile/ios archive 58f898c7c9253f4cdc88239ec0ec604dfde4bd8d packages/cloud-runtime",
   "note": "Complete snapshot of the pinned iOS cloud-runtime package, excluding Roost authoring source and its generator. SHA256.json records every mirrored file. Earlier entries retain the source-update history.",
   "roostHistory": {
     "files": [
@@ -319,7 +319,7 @@
       "src/runtime/index.ts",
       "scripts/build.mjs"
     ],
-    "note": "AbortSignal.any fallback for WebKit before 17.4 and Android System WebView before 116, imported first by the runtime entry; Android also imports it first in every WebView document (runtime/src/{main,debug,network}.mjs). Android adds its own AbortSignal.timeout fallback (runtime/src/abort-signal-timeout.mjs) for WebView 100-102. Dependencies and licenses are unchanged."
+    "note": "AbortSignal.any fallback for WebKit before 17.4 and Android System WebView before 116, imported first by the runtime entry. Since platformFallbacks (#136) it only exports and platform-fallbacks.ts installs it; Android documents import that module first. Android adds its own AbortSignal.timeout fallback (runtime/src/abort-signal-timeout.mjs) for WebView 100-102. Dependencies and licenses are unchanged."
   },
   "statusViewWokenStaysUnread": {
     "repository": "LodyAI/lody-ios",
@@ -345,5 +345,17 @@
       "src/runtime/session.ts"
     ],
     "note": "Session readers check in-memory routing metadata every 250 ms and emit waiting updates when the reason changes; network read failures keep exponential backoff. First mirrored by hand in lody-android #30 from the PR head c04277df (same content); recorded at the lody-ios main squash c29b2d66 and reached by the full 9b742013 export."
+  },
+  "platformFallbacks": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "58f898c7c9253f4cdc88239ec0ec604dfde4bd8d",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/136",
+    "files": [
+      "src/runtime/platform-fallbacks.ts",
+      "src/runtime/url-can-parse.ts",
+      "src/runtime/abort-signal-any.ts",
+      "src/runtime/index.ts"
+    ],
+    "note": "One entry, platform-fallbacks.ts, installs the AbortSignal.any and URL.canParse (Chrome 120) fallbacks where missing; the runtime entry imports it first, and abort-signal-any.ts / url-can-parse.ts now only export. Every Android WebView document (runtime/src/{main,debug,network}.mjs) imports platform-fallbacks.ts first, then Android's own AbortSignal.timeout fallback. Dependencies and licenses are unchanged."
   }
 }

@@ -17,11 +17,13 @@ async function bundle(entry) {
  return result.outputFiles[0].text;
 }
 
-// A WebView without AbortSignal.any or AbortSignal.timeout (Android System WebView 100-102): the
-// document installs both fallbacks before its guarded fetch, the only network path, combines signals.
+// A WebView without AbortSignal.any, AbortSignal.timeout or URL.canParse (Android System WebView
+// 100-102): the document installs every fallback before its guarded fetch, the only network path,
+// combines signals.
 const HARNESS = `
 delete AbortSignal.any;
 delete AbortSignal.timeout;
+delete URL.canParse;
 const posted = [], requests = [];
 // As prelude.mjs: the bridge consumes runtime envelopes; the rest goes to native.
 globalThis.webkit = {messageHandlers:{dataRuntime:{postMessage:message=>{if(!globalThis.androidRuntimeMessage?.(message))posted.push(message);}}}};
@@ -30,7 +32,8 @@ await import(process.argv[1]);
 // connect configures read access synchronously; its runtime start then waits on a native grant.
 void globalThis.androidDispatch({id:'connect',method:'connect',args:['fixture','https://gateway.example.org','user',false]});
 const response = await fetch('https://gateway.example.org/ds/lody/fixture%3Ameta');
-console.log(JSON.stringify({installed:typeof AbortSignal.any, timeout:typeof AbortSignal.timeout, body:await response.text(), requests}));
+const canParse = [URL.canParse('https://gateway.example.org/ds/lody/x'), URL.canParse('not a url'), URL.canParse('/ds/lody/x','https://gateway.example.org'), URL.canParse('/ds/lody/x')];
+console.log(JSON.stringify({installed:typeof AbortSignal.any, timeout:typeof AbortSignal.timeout, canParse, body:await response.text(), requests}));
 process.exit(0);
 `;
 
@@ -40,7 +43,7 @@ function run(file) {
  }));
 }
 
-test('the network document reads through its guarded fetch on a WebView without AbortSignal.any',async t=>{
+test('the network document reads through its guarded fetch on a WebView without AbortSignal.any or URL.canParse',async t=>{
  const dir = await mkdtemp(path.join(os.tmpdir(),'lody-network-document-'));
  t.after(()=>rm(dir,{recursive:true,force:true}));
  const file = path.join(dir,'network.mjs');
@@ -48,6 +51,8 @@ test('the network document reads through its guarded fetch on a WebView without 
  const result = await run(file);
  assert.equal(result.installed, 'function');
  assert.equal(result.timeout, 'function');
+ // URL.canParse answers as the URL standard: absolute, invalid, relative with and without a base.
+ assert.deepEqual(result.canParse, [true, false, true, false]);
  assert.equal(result.body, 'ok');
  assert.deepEqual(result.requests, [{url:'https://gateway.example.org/ds/lody/fixture%3Ameta',aborted:false}]);
 });

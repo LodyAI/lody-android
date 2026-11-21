@@ -85,7 +85,7 @@
   "src/protocol/session-workspace-path.ts": "e227edb94fc8a68387b50461f101887e06447ebed6be420a5a56a7a6f9fdcf08",
   "src/protocol/subscription-quota.ts": "72ee9b64fd6f965f8b1b62130cc39993d63da76836e00029b9fe2af8ca48cf13",
   "src/protocol/turnMetadata.ts": "4b10f831fbafd4efb67fc80f1c3b3f0b9ccf71ea62c53dddc711fa620c479f68",
-  "src/runtime/abort-signal-any.ts": "fcb5aca8405fcf13bfaf9a3b6cbe2abf8e9a9dd3277bee8acdd290b8ce59cdd8",
+  "src/runtime/abort-signal-any.ts": "7f43fd94cc493d0c485c6131620600bd4ddf6634dc770389f3a214db7bb257cd",
   "src/runtime/agent-roles.ts": "fc6bed1f13968fae8aea3ed8d922a10c685d7a0e895dc80187dcf96735adb0b3",
   "src/runtime/archive-session.ts": "57015f7fb909c729c0ef48c02daa25518a883bae6cc26820067d713d715ce401",
   "src/runtime/billing.ts": "ff5be1b77b0bfff615a8d8be3774c8ec605ef7ea98eb7925e56e151936ab78a7",
@@ -110,7 +110,7 @@
   "src/runtime/handlers/settings.ts": "766934dc3bcc29443b97af14796fe8abd06d89e98fe7271108052f93ccd40cc1",
   "src/runtime/handlers/sharing.ts": "12888e515f7baafa84fca95136fd789db43a5ee01401a0aa0fea3a6bc1ae482e",
   "src/runtime/handlers/status-view.ts": "6cbcb5758b3f12ce56dc3a93c5c231b8f2bf77f2f1d4f9578924881eee1963d5",
-  "src/runtime/index.ts": "0215117ec1456a159d91aed88fd6290bd497011a54f22d6e03e60cdff6a90e91",
+  "src/runtime/index.ts": "e9fd21f4a740000b7cc27af5568d4f3682aff4a1d5f35ec69962664d2ae0a4be",
   "src/runtime/local-projects.ts": "592265c4ac9b0e078c4f66530d1223be22af49e111b48384bdc15a70c8e8300a",
   "src/runtime/machine-presence.ts": "69cad588be7ef5da3ab67994dfdf3e5a7490cc5ef3e99ced2e43bded40929b7c",
   "src/runtime/machine-rpc.ts": "e330f78a6c8e3ab257cd9addfce4cae46d1ade308b1416cf29943a09474b2d49",
@@ -118,6 +118,7 @@
   "src/runtime/mention-expansion.ts": "8ded140c1739f5e05938a2162ac3dad5879ced84ae34b0d0d0d0abd5efa00145",
   "src/runtime/mentions.ts": "0554d25c556d48db87753ea07c74b7d8956064ccb115acf254838f9c19e139f6",
   "src/runtime/operation-presentation.ts": "c29318aa2c0cbc896449e5935c002e6ec3ee1a85990e027f3574354f0f23003a",
+  "src/runtime/platform-fallbacks.ts": "60dd14ff4429979f8d1ad76c6b317752b5929109af1b4ec66d8b6e5b79e54936",
   "src/runtime/preview.ts": "47654a390890e6877df3ac8d756b6706197f7972ea149de42d645b0b41520ad8",
   "src/runtime/project-groups.ts": "4ebc501cc7d7f03376840973705c32d0efb63de552fa830b2af65544daa14434",
   "src/runtime/project.ts": "d76cd8c70fa1c7f8035326f077c719198d9684a43c9c479e37c59a3cf1e1adf3",
@@ -143,5 +144,6 @@
   "src/runtime/upstream-roost-history.ts": "07dd13d39249bb4963935ffb47869231f9730ebc4cdecd270b8b02abcd9f256e",
   "src/runtime/upstream-roost.d.ts": "0a74e6636e6e77d8b5aaa1368907489ba6223a5f92e36051d5b95f8c8adca956",
   "src/runtime/upstream-roost.js": "b5abf767053c9484618f1e809c49caea1514225aac555017af49cd38572587de",
+  "src/runtime/url-can-parse.ts": "1279dcaed2adc8812caae5359ad77995bbb98e1856a3c43ada6be95b55a6d1f1",
   "tsconfig.json": "b3cdc3632cd4c48e21040f29bb967ddda7a02e40aa50b71d47c82dfa7c2d3e09"
 }
