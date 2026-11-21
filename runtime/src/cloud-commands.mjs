@@ -1,13 +1,14 @@
 export function cloudCommands(runtime, access, stopSessions) {
  let connected=false, selected;
  return {
-  connect(workspaceId,gatewayBaseUrl,userId) {
+  connect(workspaceId,gatewayBaseUrl,userId,workspaceReadOnly) {
    if(connected)throw Error('already_connected');
    if(userId!==undefined && (typeof userId!=='string' || !userId.trim() || userId.length>128))throw Error('invalid_identity');
    access.configure({workspaceId,gatewayBaseUrl});
    connected=true;
    // The verified native identity enables presence for creation; offline probes omit it.
-   return runtime.start(workspaceId,userId,Boolean(userId));
+   // A read-only member (viewer) is offered no Status view, pin or section writes by the runtime.
+   return runtime.start(workspaceId,userId,Boolean(userId),workspaceReadOnly===true);
   },
   watchSession(id) {
    if(!connected)throw Error('not_connected');

@@ -150,7 +150,7 @@ internal class CloudAuthHttp(private val pins: WorkspaceModePins, private val tr
                     val user = row.getJSONObject("user")
                     val id = row.text("userId")
                     require(user.text("id") == id)
-                    WorkspaceMember(id, user.optString("name").takeUnless { it == "null" }.orEmpty(), httpsImage(user.optString("image")))
+                    WorkspaceMember(id, user.optString("name").takeUnless { it == "null" }.orEmpty(), httpsImage(user.optString("image")), (row.opt("role") as? String)?.takeIf { it.isNotBlank() && it.length <= 200 })
                 }
                 members to total
             }

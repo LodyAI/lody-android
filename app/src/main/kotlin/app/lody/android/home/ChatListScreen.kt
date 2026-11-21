@@ -291,18 +291,19 @@ fun ChatListScreen(
         Unit
     } }
     // Status view actions: the Later sheet, the sub-conversation question and Undo live in one host.
-    val statusActions = rememberStatusActions(statusView, snackbar)
+    val statusList = if (homeScope == HomeScope.Mine) app.lody.android.runtime.StatusViewScope.Mine else app.lody.android.runtime.StatusViewScope.Team
+    val statusActions = rememberStatusActions(statusView, snackbar, statusList)
     val statusFailed = stringResource(R.string.status_write_failed)
     var sectionDialog by remember { mutableStateOf<Pair<String?, String>?>(null) }
     var deleting by remember { mutableStateOf<Pair<String, String>?>(null) }
     // Section management follows the layout's grant, and waits until the section rows were read.
     val manageSections = state.snapshot?.statusView?.let { it.sectionsLoaded && it.team.canManageSections } == true
-    val statusControls = remember(statusActions, statusView, manageSections) {
+    val statusControls = remember(statusActions, statusView, manageSections, statusList) {
         if (statusActions == null || statusView == null) null else StatusListControls(
             actions = statusActions,
             run = { command, done ->
                 notices.launch {
-                    val ok = try { statusView.run(command); true }
+                    val ok = try { statusView.run(command, statusList) > 0 }
                     catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                     catch (_: Exception) { false }
                     done(ok)

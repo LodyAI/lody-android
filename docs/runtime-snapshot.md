@@ -17,13 +17,16 @@ For an intentional update:
 3. Replace the snapshot only after reviewing the diff; update PROVENANCE and SHA256 together. Generate hashes with the exported `hashes()` function in `runtime/snapshot.mjs`, directed at the reviewed source directory. No build regenerates the manifest automatically.
 4. Run snapshot verification, `npm ci`, JS tests, asset build, JVM and Android bridge tests. Update `runtime/contract/fixtures.json` only for an intentional contract change. Capture actual WebView/WASM results and verify release assets contain no diagnostics.
 
-The Android bridge already advertises the Status view methods (`statusViewCommand`,
-`snoozePresets`) and the read receipt (`markSessionRead`, present in the current snapshot).
-The current snapshot predates lody-ios's Status view runtime: it refuses the two Status
-view methods with `unsupported_method` and its catalog carries no `statusView` or
-`pinSections`, so Home lists the Status choice by time. `runtime/contract/fixtures.json`
-`catalogStatusView` mirrors that runtime's synthetic `catalog-status-view.json` fixture
-and is the Kotlin golden vector; refresh it together with the snapshot.
+The Status view runtime (lody-ios `status-view-runtime`, see PROVENANCE `statusView`)
+vendors the shared Lody layout, planner and golden vectors under
+`src/protocol/lody-shared`; `runtime/test/status-view.test.mjs` runs every vector against
+those copies. `runtime/contract/fixtures.json` `catalogStatusView` is the snapshot's
+synthetic `catalog-status-view.json`, the Kotlin golden catalog; a test keeps them equal.
+Since that refresh the snapshot also presents `message_quote` spans in history and accepts
+`quotes` on sends; Android keeps its own quote adapter in `runtime/src` and strips `quotes`
+before the shared send, so quotes are written once. The catalog-budget harness extracts
+`watch` / `publish` from `src/runtime/index.ts`, so it supplies their module constants and
+Status view inputs explicitly.
 
 The current runtime pins Flock 0.5.0, Streams Client 0.13.1, Streams CRDT
 0.21.1 and Loro 1.17.0, matching the root workspace and iOS decoder.

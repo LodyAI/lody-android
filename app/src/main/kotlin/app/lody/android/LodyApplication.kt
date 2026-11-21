@@ -44,6 +44,7 @@ open class LodyApplication : Application() {
     lateinit var schedules: app.lody.android.schedules.ScheduleService
         private set
     private var prepared: Pair<RuntimeScope, ShortLivedGrant>? = null
+    private lateinit var memberCache: app.lody.android.auth.WorkspaceMemberStore
     private val shortcutCloud by lazy { app.lody.android.cloud.PromptShortcutCloud() }
     private val previewTokens by lazy { app.lody.android.cloud.PreviewTokens() }
     private val workspaceBilling by lazy { app.lody.android.cloud.WorkspaceBilling() }
@@ -60,6 +61,9 @@ open class LodyApplication : Application() {
                 account.withVerifiedAccount(key) { credential -> previewTokens.mint(credential, key, intent) }
             }, app.lody.android.runtime.BillingProvider { key ->
                 account.withVerifiedAccount(key) { credential -> workspaceBilling.entitlement(credential, key.workspaceId) }
+            }, workspaceReadOnly = { key ->
+                // The cached member list's own role; a role change applies from the next runtime start.
+                memberCache.readMembers(key)?.firstOrNull { it.id == key.accountId }?.readOnly == true
             })
         }
         return createOfflineRuntime(scope)
@@ -71,6 +75,7 @@ open class LodyApplication : Application() {
         app.lody.android.home.AvatarImages.initialize(this)
         runtimeOwner = RuntimeOwner(::createRuntime, Dispatchers.Main.immediate, ::admitRuntime)
         val cache = AtomicCatalogStore(this)
+        memberCache = cache
         settingsCache = cache
         val scheduleCache = app.lody.android.schedules.ScheduleDisplayCache(cache)
         val branches = app.lody.android.create.GitHubBranches()

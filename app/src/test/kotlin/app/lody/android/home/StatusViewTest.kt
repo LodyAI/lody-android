@@ -162,6 +162,18 @@ class StatusViewTest {
         assertTrue(catalog.statusView!!.sectionsLoaded && catalog.statusView!!.team.canManageSections)
     }
 
+    @Test fun onlyAKnownRoleWithoutWriteAccessMakesTheWorkspaceReadOnly() {
+        fun readOnly(role: String?) = app.lody.android.auth.WorkspaceMember("u", "U", role = role).readOnly
+        assertTrue(readOnly("viewer"))
+        assertTrue(readOnly("guest, viewer"))
+        assertFalse(readOnly("member"))
+        assertFalse(readOnly("viewer,admin"))
+        assertFalse(readOnly("Owner"))
+        // Unknown or unread roles keep writes offered; the server still enforces them.
+        assertFalse(readOnly(null))
+        assertFalse(readOnly(" "))
+    }
+
     private fun slots() = StatusMoves.slots(home(HomeGrouping.Status).map { it.copy(collapsed = false) })
 
     private fun moved(id: String, before: String): List<ListSlot> = StatusMoves.swap(slots(), ListSlot.rowKey(id), before)

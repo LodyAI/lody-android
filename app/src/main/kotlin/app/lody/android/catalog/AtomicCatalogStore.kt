@@ -163,12 +163,12 @@ internal class AtomicCatalogStore(context: Context, name: String = "catalog") : 
         if (!owns(scope)) return@io null
         val data = load(membersFile(scope), 1024 * 1024) ?: return@io null
         if (data.optString("account") != scope.accountId || data.optString("workspace") != scope.workspaceId) return@io null
-        data.getJSONArray("members").objects().map { WorkspaceMember(it.getString("id"), it.getString("name"), httpsImage(it.optString("image"))) }
+        data.getJSONArray("members").objects().map { WorkspaceMember(it.getString("id"), it.getString("name"), httpsImage(it.optString("image")), (it.opt("role") as? String)?.takeIf(String::isNotBlank)) }
     }
     override suspend fun writeMembers(scope: RuntimeScope, members: List<WorkspaceMember>) = io {
         require(owns(scope)) { "cache_scope_changed" }
         save(membersFile(scope), JSONObject().put("account", scope.accountId).put("workspace", scope.workspaceId)
-            .put("members", JSONArray(members.map { JSONObject().put("id", it.id).put("name", it.name).put("image", it.image) })), 1024 * 1024)
+            .put("members", JSONArray(members.map { JSONObject().put("id", it.id).put("name", it.name).put("image", it.image).put("role", it.role) })), 1024 * 1024)
         directory.listFiles()?.filter { it.name.startsWith("members-") && it.name.endsWith(".json") }
             ?.sortedByDescending { it.lastModified() }?.drop(16)?.forEach { AtomicFile(it).delete() }
         Unit

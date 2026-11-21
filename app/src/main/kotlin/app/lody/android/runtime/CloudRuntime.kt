@@ -33,9 +33,10 @@ sealed interface RuntimeCommand {
     data class ArchiveSession(val id: String, val archived: Boolean) : RuntimeCommand
     /**
      * One Status view or pin-section change (runtime `statusViewCommand`): the runtime plans it
-     * against its replica with the shared planner and writes. A write, never replayed.
+     * against its replica with the shared planner and writes. [scope] is the list the gesture
+     * happened in (`move.beforeId` resolves against it). A write, never replayed.
      */
-    data class StatusView(val command: StatusViewCommand) : RuntimeCommand
+    data class StatusView(val command: StatusViewCommand, val scope: StatusViewScope? = null) : RuntimeCommand
     /** The four Later presets resolved on the runtime's synced clock (`snoozePresets`). Read only. */
     data object SnoozePresets : RuntimeCommand
     /** Records that the conversation was read up to [lastReadAt] (upstream `markSessionRead`; monotonic). */
@@ -146,6 +147,8 @@ sealed interface RuntimeResult {
     data class Sent(val state: String, val reason: String? = null) : RuntimeResult
     data object Accepted : RuntimeResult
     data class SnoozePresets(val value: List<SnoozePreset>) : RuntimeResult
+    /** Session metadata patches and pin-section rows a Status view command wrote; 0 is refused or a no-op. */
+    data class StatusViewWrites(val writes: Int) : RuntimeResult
     data class Detail(val value: StepDetail) : RuntimeResult
     data class Diff(val value: FileDiff) : RuntimeResult
     data class Directory(val value: DirectoryListing) : RuntimeResult

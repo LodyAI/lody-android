@@ -17,6 +17,7 @@ import app.lody.android.designsystem.*
 import app.lody.android.runtime.SnoozePreset
 import app.lody.android.runtime.StatusTier
 import app.lody.android.runtime.StatusViewCommand
+import app.lody.android.runtime.StatusViewScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -28,7 +29,8 @@ import java.time.format.FormatStyle
 
 /** Status view writes for Home and the conversation page; the runtime plans and writes each one. */
 interface StatusViewService {
-    suspend fun run(command: StatusViewCommand)
+    /** Returns the writes made; 0 means the runtime refused it or nothing changed. */
+    suspend fun run(command: StatusViewCommand, list: StatusViewScope?): Int
     suspend fun presets(): List<SnoozePreset>
 }
 
@@ -63,7 +65,7 @@ class StatusActions internal constructor(private val start: (Pending) -> Unit, v
  * retried.
  */
 @Composable
-fun rememberStatusActions(service: StatusViewService?, snackbar: SnackbarHostState): StatusActions? {
+fun rememberStatusActions(service: StatusViewService?, snackbar: SnackbarHostState, list: StatusViewScope?): StatusActions? {
     if (service == null) return null
     val scope = rememberCoroutineScope()
     var sheet by remember { mutableStateOf<StatusActions.Pending?>(null) }
@@ -77,7 +79,7 @@ fun rememberStatusActions(service: StatusViewService?, snackbar: SnackbarHostSta
     )
     val run: (StatusViewCommand, String?) -> Unit = { command, notice ->
         scope.launch {
-            val ok = try { service.run(command); true }
+            val ok = try { service.run(command, list) > 0 }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { false }
             if (!ok) snackbar.showSnackbar(failed) else if (notice != null) snackbar.showSnackbar(notice)
@@ -97,7 +99,8 @@ fun rememberStatusActions(service: StatusViewService?, snackbar: SnackbarHostSta
             else -> StatusViewCommand.MoveToFocus(target.id, includeOpened)
         }.takeIf { pending.kind != StatusActions.Kind.Focus }
         scope.launch {
-            val ok = try { service.run(command); true }
+            // Zero writes is a refusal (or nothing to change): the row stays where it was.
+            val ok = try { service.run(command, list) > 0 }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { false }
             if (!ok) { snackbar.showSnackbar(failed); return@launch }
@@ -106,7 +109,7 @@ fun rememberStatusActions(service: StatusViewService?, snackbar: SnackbarHostSta
         }
     }
     val proceed = { pending: StatusActions.Pending -> if (pending.target.children > 0) asking = pending else execute(pending, false) }
-    val actions = remember(service) {
+    val actions = remember(service, list) {
         StatusActions(start = { pending -> if (pending.kind == StatusActions.Kind.Later) sheet = pending else proceed(pending) }, run = run)
     }
     sheet?.let { pending ->

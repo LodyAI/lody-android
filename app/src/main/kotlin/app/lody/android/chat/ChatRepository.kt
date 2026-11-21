@@ -53,9 +53,8 @@ class ChatRepository(
     }
 
     /** One Status view / pin-section change, planned and written by the runtime; never retried. */
-    suspend fun statusView(scope: RuntimeScope, command: StatusViewCommand) {
-        owner.use(scope) { it.execute(RuntimeCommand.StatusView(command)) }
-    }
+    suspend fun statusView(scope: RuntimeScope, command: StatusViewCommand, list: StatusViewScope?): Int =
+        owner.use(scope) { (it.execute(RuntimeCommand.StatusView(command, list)) as RuntimeResult.StatusViewWrites).writes }
 
     /** The Later presets on the runtime's synced clock; a read. */
     suspend fun snoozePresets(scope: RuntimeScope): List<SnoozePreset> =

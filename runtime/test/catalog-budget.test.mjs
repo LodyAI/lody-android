@@ -9,12 +9,15 @@ import {retrySessionRead} from '../vendor/cloud-runtime/src/runtime/session-read
 import {createReadAccess} from '../src/read-access.mjs';
 
 const source=await readFile(new URL('../vendor/cloud-runtime/src/runtime/index.ts',import.meta.url),'utf8');
+// Module constants the extracted functions read: the live workspace Flock read (pin sections)
+// shares the catalog watcher under this key and never gates the catalog.
+const MODULE_CONSTANTS="var WORKSPACE_STREAM='@wf:workspace';\n";
 
 // Execute the production watcher with deterministic transport windows.
 async function runWatcher({snapshot=1024, updates=0, initialReady=true, reads=[], fallback=snapshot, mode='meta', metadata, offset='1'}={}) {
  const {transform}=await import('esbuild');
  const start=source.indexOf('function watch(');
- const js=(await transform(source.slice(start,source.indexOf('\nconst ctx',start)),{loader:'ts',format:'cjs'})).code;
+ const js=(await transform(source.slice(start,source.indexOf('\nconst ctx',start)),{loader:'ts',format:'cjs'})).code.replace(/^/,MODULE_CONSTANTS);
  const events=[],watchers=new Map(),catalogs=new Map(), replicas=new Map();
  let bootstraps=0,index=0,finish;
  const done=new Promise(resolve=>{finish=resolve;});
@@ -85,7 +88,7 @@ async function reconnectingCatalog(t) {
  t.mock.timers.enable({apis:['setTimeout']});
  const {transform}=await import('esbuild');
  const start=source.indexOf('function watch(');
- const js=(await transform(source.slice(start,source.indexOf('\nconst ctx',start)),{loader:'ts',format:'cjs'})).code;
+ const js=(await transform(source.slice(start,source.indexOf('\nconst ctx',start)),{loader:'ts',format:'cjs'})).code.replace(/^/,MODULE_CONSTANTS);
  const server=new Flock('server');server.set(['title'],'Before',1);
  const snapshot=server.exportFile(), version=server.version();
  server.set(['title'],'After',2);
@@ -195,12 +198,14 @@ test('stopping a catalog during transport recovery prevents late publication and
 test('healthy metadata publishes with missing or failed machine streams and keeps their last known projects',async()=>{
  const {transform}=await import('esbuild');
  const start=source.indexOf('let revision =');
- const js=(await transform(source.slice(start,source.indexOf('\nfunction watch(',start)),{loader:'ts',format:'cjs'})).code;
+ const js=(await transform(source.slice(start,source.indexOf('\nfunction watch(',start)),{loader:'ts',format:'cjs'})).code.replace(/^/,MODULE_CONSTANTS);
  const events=[], tasks=[];
  const meta={projects:[{id:'meta-project',name:'Meta'}],sessions:[{id:'s',createdAt:'2026-01-01'}],machineIds:['good','bad','pending']};
  const catalogs=new Map([['meta',meta],['good',{projects:[{id:'good-project',name:'Good'}]}],['bad',{projects:[{id:'cached-project',name:'Cached'}]}]]);
  const unhealthy=new Set(['bad']);
- const context={setTimeout:task=>{tasks.push(task);return tasks.length;},catalogs,unhealthy,watchers:new Map(),machineReplicas:new Map(),state:{knownProjects:[]},gitRepos:new Map(),
+ const context={setTimeout:task=>{tasks.push(task);return tasks.length;},catalogs,unhealthy,watchers:new Map(),machineReplicas:new Map(),state:{knownProjects:[],pinSections:{sections:[],loaded:false}},gitRepos:new Map(),
+  // Before metadata the Status view has no sources, so publication carries no layout.
+  statusSources:()=>undefined,catalogStatusView:()=>undefined,statusViewNextChangeAt:()=>null,scheduleStatusRefresh(){},
   watch(id){context.watchers.set(id,new AbortController());},refreshSessionUsage(){},askGitState(){},mergeAgentQuotas:()=>[],keepRepos:value=>value,
   channel:{emit(type,payload){events.push({type,...payload});}}
  };
@@ -265,7 +270,7 @@ test('queued machine bootstraps cannot block metadata, cancellation or healthy m
  const {projectRows}=await import('../vendor/cloud-runtime/src/protocol/catalog.ts');
  const {transform}=await import('esbuild');
  const start=source.indexOf('function watch(');
- const js=(await transform(source.slice(start,source.indexOf('\nconst ctx',start)),{loader:'ts',format:'cjs'})).code;
+ const js=(await transform(source.slice(start,source.indexOf('\nconst ctx',start)),{loader:'ts',format:'cjs'})).code.replace(/^/,MODULE_CONSTANTS);
  const watchers=new Map(), catalogs=new Map(), machineReplicas=new Map(), unhealthy=new Set(), pending=new Map(), events=[];
  const context={
   catalogImportCheckpoint:()=>async()=>{},importCatalogUpdates,readCatalogRefresh,acquireCatalogBootstrap:catalogBootstrapSlots(2),

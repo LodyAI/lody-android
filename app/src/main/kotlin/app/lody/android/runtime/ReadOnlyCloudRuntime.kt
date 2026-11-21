@@ -16,6 +16,8 @@ internal class ReadOnlyCloudRuntime(
     private val shortcutCloud: ShortcutCloudProvider? = null,
     private val previewTokens: PreviewTokenProvider? = null,
     private val billing: BillingProvider? = null,
+    /** The member's workspace is read-only (a viewer role): the runtime then offers no Status view writes. */
+    private val workspaceReadOnly: suspend (RuntimeScope) -> Boolean = { false },
 ) : CloudRuntime {
     private val access = StreamAccess(scope.workspaceId, initialGrant.gatewayBaseUrl)
     private val runtime = WebViewRuntime(scope, WebViewCloudRuntime(context, "NetworkRuntime.html", access))
@@ -65,7 +67,8 @@ internal class ReadOnlyCloudRuntime(
                     val payload = JSONObject().put("token", grant.token).put("gatewayBaseUrl", access.origin).put("expiresIn", grant.remainingSeconds().also { if (it <= 0) throw RuntimeException(RuntimeFault("grant_expired", RuntimeErrorCategory.AUTH)) })
                     runtime.call("grant", JSONArray().put(payload))
                     if (connectedGeneration != generation) {
-                        runtime.call("connect", JSONArray().put(scope.workspaceId).put(access.origin).put(scope.accountId))
+                        val readOnly = try { workspaceReadOnly(scope) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { false }
+                        runtime.call("connect", JSONArray().put(scope.workspaceId).put(access.origin).put(scope.accountId).put(readOnly))
                         connectedGeneration = generation
                     }
                     return@launch

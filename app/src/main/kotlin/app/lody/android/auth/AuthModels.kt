@@ -7,7 +7,17 @@ class Credential(val token: String) {
     override fun toString() = "Credential(<redacted>)"
 }
 /** [image] is the workspace logo (HTTPS only), null when it has none. */
-data class WorkspaceMember(val id: String, val name: String, val image: String? = null)
+/** [role] is the Better Auth organization role (comma-separated for several); null when unknown. */
+data class WorkspaceMember(val id: String, val name: String, val image: String? = null, val role: String? = null) {
+    /**
+     * A known role without workspace write access (Lody's write roles are owner, admin and member,
+     * as `code-collab.ts`). Unknown roles are not read-only; the server still enforces writes.
+     */
+    val readOnly: Boolean get() = role?.split(',')?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() }
+        ?.let { roles -> roles.isNotEmpty() && roles.none { it in WRITE_ROLES } } == true
+
+    private companion object { val WRITE_ROLES = setOf("owner", "admin", "member") }
+}
 data class Workspace(val id: String, val name: String, val image: String? = null, val slug: String? = null, val contentMode: WorkspaceContentMode = WorkspaceContentMode.UNKNOWN, val genesisHash: String? = null)
 /** [image] is the user's avatar (HTTPS only), null when they have none. */
 data class Account(val id: String, val name: String, val workspaces: List<Workspace>, val image: String? = null, val email: String = "")

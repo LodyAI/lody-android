@@ -296,6 +296,6 @@ private fun chatContext(catalog: CatalogState, id: String, title: String, user: 
 
 /** Status view writes through the selected workspace's runtime lease. */
 private class RuntimeStatusViewService(private val repository: ChatRepository, private val scope: RuntimeScope) : StatusViewService {
-    override suspend fun run(command: app.lody.android.runtime.StatusViewCommand) = repository.statusView(scope, command)
+    override suspend fun run(command: app.lody.android.runtime.StatusViewCommand, list: app.lody.android.runtime.StatusViewScope?) = repository.statusView(scope, command, list)
     override suspend fun presets() = repository.snoozePresets(scope)
 }

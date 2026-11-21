@@ -63,8 +63,8 @@ open class WebViewRuntime internal constructor(
             RuntimeResult.Accepted
         }
         is RuntimeCommand.StatusView -> {
-            call("statusViewCommand", JSONArray().put(StatusViewJson.command(command.command)), CommandDeadline.WRITE)
-            RuntimeResult.Accepted
+            val value = call("statusViewCommand", JSONArray().put(StatusViewJson.command(command.command)).put(command.scope?.key ?: JSONObject.NULL), CommandDeadline.WRITE) as JSONObject
+            RuntimeResult.StatusViewWrites((value.opt("writes") as? Number)?.toInt()?.coerceAtLeast(0) ?: 0)
         }
         RuntimeCommand.SnoozePresets -> RuntimeResult.SnoozePresets(StatusViewJson.presets(call("snoozePresets", deadline = CommandDeadline.QUERY) as JSONObject))
         is RuntimeCommand.MarkRead -> {

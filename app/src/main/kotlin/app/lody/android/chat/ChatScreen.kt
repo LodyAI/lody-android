@@ -373,7 +373,8 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     val snackbar = remember { SnackbarHostState() }
     // Later / Settle / Move to Focus for the conversation, with the Later sheet, the opened
     // sub-conversation question and Undo (shared with Home).
-    val statusActions = app.lody.android.home.rememberStatusActions(statusView, snackbar)
+    // The page's row comes from the team layout, so its commands resolve against that list.
+    val statusActions = app.lody.android.home.rememberStatusActions(statusView, snackbar, app.lody.android.runtime.StatusViewScope.Team)
     val statusRow = context.statusRow
     val statusMenu = statusRow?.takeIf { statusActions != null && it.canManage && it.tier != app.lody.android.runtime.StatusTier.Pinned }?.let { row ->
         val target = app.lody.android.home.StatusTarget(row.id, row.tier, row.snoozedUntil, row.children.size,

@@ -28,16 +28,17 @@ cloud.shortcutCloudReply=(requestId,reply)=>runtime.shortcutCloud(requestId,repl
 // Native answers a previewToken request (a preview proof's request token) it received as an event.
 cloud.previewTokenReply=(requestId,reply)=>runtime.previewToken(requestId,reply);
 let identity;
-const connect=cloud.connect;cloud.connect=(workspaceId,gateway,userId)=>{const result=connect(workspaceId,gateway,userId);identity={workspaceId,userId};return result;};
+const connect=cloud.connect;cloud.connect=(workspaceId,gateway,userId,readOnly)=>{const result=connect(workspaceId,gateway,userId,readOnly);identity={workspaceId,userId};return result;};
 // A tool step's detail (command, output, diff) reads the watched session's local replica only.
 const detail={
  setTabClosed:(sessionId,closed)=>{if(!identity)throw Error("not_connected");return runtime.setTabClosed({workspaceId:identity.workspaceId,sessionId,closed});},
  // Archive or unarchive a conversation (iOS `SessionWrite.archive`); a write, never retried.
  archiveSession:(sessionId,archived)=>{if(!identity)throw Error("not_connected");if(typeof archived!=='boolean')throw Error('invalid_action');return runtime.archiveSession({workspaceId:identity.workspaceId,sessionId,archived});},
  // One Status view / pin-section command, planned against the runtime's replica by the shared planner; a write, never retried.
- statusViewCommand:command=>{if(!identity)throw Error('not_connected');if(!command||typeof command!=='object'||typeof command.type!=='string')throw Error('invalid_action');return runtime.statusViewCommand({workspaceId:identity.workspaceId,command});},
+ // `scope` names the list the gesture happened in (`move.beforeId` resolves against it); `{writes}` 0 is refused or no-op.
+ statusViewCommand:(command,scope)=>{if(!identity)throw Error('not_connected');if(!command||typeof command!=='object'||typeof command.type!=='string'||(scope!=null&&scope!=='mine'&&scope!=='team'))throw Error('invalid_action');return runtime.statusViewCommand({workspaceId:identity.workspaceId,command,...(scope?{scope}:{})});},
  // The Later presets resolved on the runtime's synced clock.
- snoozePresets:()=>{if(!identity)throw Error('not_connected');return runtime.snoozePresets({workspaceId:identity.workspaceId});},
+ snoozePresets:()=>{if(!identity)throw Error('not_connected');return runtime.snoozePresets({});},
  // Read receipt for an opened conversation (iOS marks read on view); monotonic in the runtime.
  markSessionRead:(sessionId,lastReadAt)=>{if(!identity)throw Error('not_connected');if(typeof sessionId!=='string'||!Number.isFinite(lastReadAt))throw Error('invalid_action');return runtime.markSessionRead({workspaceId:identity.workspaceId,sessionId,lastReadAt});},
  messageAction: (kind, input) => {

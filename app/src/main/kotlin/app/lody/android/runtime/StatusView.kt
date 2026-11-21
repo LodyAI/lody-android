@@ -66,6 +66,9 @@ data class PinSection(val id: String, val name: String, val orderKey: String? = 
  */
 data class SnoozePreset(val id: String, val until: Long, val countdown: String = "")
 
+/** The Status view list a command came from: My tasks or the whole team. */
+enum class StatusViewScope(val key: String) { Mine("mine"), Team("team") }
+
 /** Where a move lands (shared `StatusViewCommand.move.to`). */
 sealed interface StatusViewTarget {
     data object Focus : StatusViewTarget

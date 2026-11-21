@@ -61,7 +61,7 @@ export function contractBridge(runtime, emit) {
  return {
   ping:async()=>{await invoke('ping');return true;},
   setActive:async active=>{await invoke('setActive',{active});return true;},
-  start:async(workspaceId,userId='',active=false)=>{workspace=workspaceId;await invoke('start',{workspaceId,userId,active});return true;},
+  start:async(workspaceId,userId='',active=false,workspaceReadOnly=false)=>{workspace=workspaceId;await invoke('start',{workspaceId,userId,active,...(workspaceReadOnly?{workspaceReadOnly:true}:{})});return true;},
   probeSchema:()=>workspace?invoke('probeSchema',{workspaceId:workspace}):ready.then(()=>({creationOptionsTrial:{},machines:{}})),
   session:id=>invoke('openSession',{sessionId:id}),
   loadOlderSession:args=>invoke('loadOlderSession',args),
