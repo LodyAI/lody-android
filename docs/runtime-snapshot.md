@@ -242,7 +242,7 @@ matching WSS origin. The offline runtime keeps `connect-src none`. The mirrored
 iOS DataRuntime template permits `https:` and `wss:` while retaining its other CSP
 directives. This permission does not enable the Streams WebSocket transport.
 
-The snapshot at `f4e0301f` ([lody-ios#123](https://github.com/LodyAI/lody-ios/pull/123)) sends
+The snapshot at `9f9483cc` ([lody-ios#123](https://github.com/LodyAI/lody-ios/pull/123)) sends
 `readFile`, `fileDiff` and `turnDiff` for a path under a Project group member used in place
 (`additional` / `link`) with that member's `rootId` and a member-relative path, as web
 `toSessionFileRequestPath` does, so such conversation links no longer read the main root and

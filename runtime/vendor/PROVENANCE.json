@@ -274,7 +274,7 @@
   },
   "projectMemberFileRoots": {
     "repository": "LodyAI/lody-ios",
-    "commit": "f4e0301fd2859088b4a392775228c3ad532d96aa",
+    "commit": "9f9483cc63646364c4877c42b831984ef86bf4c9",
     "pullRequest": "https://github.com/LodyAI/lody-ios/pull/123",
     "files": [
       "src/protocol/session-file-roots.ts",
