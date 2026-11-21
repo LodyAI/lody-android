@@ -248,6 +248,6 @@ The snapshot at `9f9483cc` ([lody-ios#123](https://github.com/LodyAI/lody-ios/pu
 `toSessionFileRequestPath` does, so such conversation links no longer read the main root and
 report the file outside the project.
 
-The snapshot at `32717b2c` ([lody-ios#124](https://github.com/LodyAI/lody-ios/pull/124)) carries a tool call's `activityKind` (`context_compaction` /
+The snapshot at `84e41933` ([lody-ios#124](https://github.com/LodyAI/lody-ios/pull/124)) carries a tool call's `activityKind` (`context_compaction` /
 `codex_retry`, web `isProcessStatusToolCall`) in its transcript summary, so the conversation
 shows context compaction as its own status row instead of an ordinary tool step.

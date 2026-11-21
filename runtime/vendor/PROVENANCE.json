@@ -285,7 +285,7 @@
   },
   "contextCompactionStatus": {
     "repository": "LodyAI/lody-ios",
-    "commit": "32717b2cdd4597d38dae0812b0037eb5e189ccd8",
+    "commit": "84e419335d3610cdf29cf283dea1279c8ce4793f",
     "pullRequest": "https://github.com/LodyAI/lody-ios/pull/124",
     "files": [
       "src/models/session.ts",
