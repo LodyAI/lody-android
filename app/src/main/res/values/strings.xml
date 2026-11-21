@@ -1020,5 +1020,4 @@
     <string name="quote_snapshot">Quoted text</string>
     <string name="quote_too_long">Select up to 50,000 characters to quote.</string>
     <string name="quote_upgrade">Update Lody on this computer to use message quotes.</string>
-    <string name="message_select_text">Select text</string>
 </resources>

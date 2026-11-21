@@ -228,26 +228,15 @@ internal fun QuoteSheet(snapshot: String, comment: String, editing: Boolean, onD
 
 private val QuoteSheetSnapshotMax = LodySize.controlLg * 6
 
-/**
- * Full text in a sheet, selectable and copyable, with Quote when the conversation has a composer:
- * a user message ("Select text" in its menu) or a quote block's full snapshot.
- */
+/** A quote block's full snapshot in a sheet, selectable and copyable; user messages are not quotable. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SelectableTextSheet(text: String, quoted: Boolean, onDismiss: () -> Unit) {
-    val colors = LodyTheme.colors
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(), containerColor = colors.bgBase) {
-        // A Quote here closes the sheet, so the comment sheet opens over the conversation.
-        val quote = LocalMessageQuoter.current
-        androidx.compose.runtime.CompositionLocalProvider(LocalMessageQuoter provides quote?.let { inner -> { passage: String -> onDismiss(); inner(passage) } }) {
-            QuotableSelection(
-                Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-                    .padding(horizontal = LodySpacing.lg).padding(bottom = LodySpacing.xl).navigationBarsPadding(),
-            ) {
-                if (quoted) QuoteSnapshot(text)
-                else Text(text, style = LodyTheme.typography.reading, color = colors.textPrimary)
-            }
-        }
+internal fun QuoteSnapshotSheet(snapshot: String, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(), containerColor = LodyTheme.colors.bgBase) {
+        SelectionContainer(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(horizontal = LodySpacing.lg).padding(bottom = LodySpacing.xl).navigationBarsPadding(),
+        ) { QuoteSnapshot(snapshot) }
     }
 }
 

@@ -410,11 +410,11 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
     var expanded by androidx.compose.runtime.saveable.rememberSaveable(entry.id) { mutableStateOf(false) }
     var overflowing by remember(entry.text) { mutableStateOf(false) }
     var menu by remember(entry.id) { mutableStateOf(false) }
-    // The message's text (or one quote's full snapshot) in a sheet, selectable and quotable.
-    var selecting by remember(entry.id) { mutableStateOf<Pair<String, Boolean>?>(null) }
+    // One quote block's full snapshot in a sheet, selectable and copyable.
+    var selecting by remember(entry.id) { mutableStateOf<String?>(null) }
     val segments = remember(entry.text, entry.references, entry.quotes) { MessageQuotes.segments(entry.text, entry.references, entry.quotes) }
     val clipboard = LocalClipboardManager.current
-    selecting?.let { (text, quoted) -> SelectableTextSheet(text, quoted) { selecting = null } }
+    selecting?.let { snapshot -> QuoteSnapshotSheet(snapshot) { selecting = null } }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -469,7 +469,7 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
                         is MessageQuotes.Segment.Plain -> ReferenceText(segment.text, segment.references, lines, { if (!expanded && it) overflowing = true })
                         is MessageQuotes.Segment.Quote -> QuoteSnapshot(
                             segment.snapshot,
-                            Modifier.clip(RoundedCornerShape(LodyRadius.sm)).combinedClickable(onClick = { selecting = segment.snapshot to true }, onLongClick = { menu = true }),
+                            Modifier.clip(RoundedCornerShape(LodyRadius.sm)).combinedClickable(onClick = { selecting = segment.snapshot }, onLongClick = { menu = true }),
                             maxLines = 3,
                         )
                     }
@@ -484,20 +484,6 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
                     leadingIcon = { Icon(LodyIcons.Copy, contentDescription = null) },
                     enabled = entry.text.isNotBlank(),
                     onClick = { clipboard.setText(AnnotatedString(entry.text)); menu = false },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.message_select_text)) },
-                    leadingIcon = { Icon(LodyIcons.Quote, contentDescription = null) },
-                    enabled = entry.text.isNotBlank(),
-                    onClick = {
-                        menu = false
-                        selecting = segments.joinToString("\n\n") { segment ->
-                            when (segment) {
-                                is MessageQuotes.Segment.Plain -> segment.text
-                                is MessageQuotes.Segment.Quote -> segment.snapshot.lines().joinToString("\n") { "> $it" }
-                            }
-                        } to false
-                    },
                 )
                 // Editing resends text alone, so a turn with quotes is not offered for it.
                 if (entry.id == actions.editable && entry.quotes.isEmpty()) DropdownMenuItem(

@@ -1007,5 +1007,4 @@
     <string name="quote_snapshot">引用内容</string>
     <string name="quote_too_long">最多选择 50,000 个字符进行引用。</string>
     <string name="quote_upgrade">该电脑上的 Lody 需要升级后才能使用消息引用。</string>
-    <string name="message_select_text">选择文本</string>
 </resources>
