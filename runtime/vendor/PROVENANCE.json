@@ -271,5 +271,16 @@
       "src/runtime/settings.ts"
     ],
     "note": "Prompt Shortcuts migrate to workspace UserSpace streams (`<workspace>:shortcut-index` and `<workspace>:shortcut:<id>`) using the cached workspace Loro Streams token, remove `visibility` (`Share with workspace`) while stripping legacy stored `visibility`, update shortcut body documents in place without rotating `bodyDocId`, and retain Phase 1 read-only fallback to legacy `shortcut-index:*` and `shortcut-body:*` streams. Dependencies and licenses are unchanged."
+  },
+  "projectMemberFileRoots": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "f4e0301fd2859088b4a392775228c3ad532d96aa",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/123",
+    "files": [
+      "src/protocol/session-file-roots.ts",
+      "src/runtime/files.ts",
+      "src/runtime/handlers/context.ts"
+    ],
+    "note": "File reads and diffs under a Project group member used in place (additional / link) carry that member's rootId and a member-relative path, as web toSessionFileRequestPath does, and reported member keys are shown under the member directory. Dependencies and licenses are unchanged."
   }
 }
