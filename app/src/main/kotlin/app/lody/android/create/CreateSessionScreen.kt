@@ -773,6 +773,7 @@ internal const val RUN_CONFIG_OFF = "off"
 internal fun RunConfigSheet(
     rows: List<RunConfigRow>,
     defaultLabel: String,
+    title: String = stringResource(R.string.create_run_config),
     recents: List<PickerOption> = emptyList(),
     onRecent: (String) -> Unit = {},
     onPick: (String, String) -> Unit,
@@ -784,7 +785,7 @@ internal fun RunConfigSheet(
         verticalArrangement = Arrangement.spacedBy(LodySpacing.xs),
     ) {
         Text(
-            stringResource(R.string.create_run_config),
+            title,
             style = LodyTheme.typography.headline,
             color = colors.textPrimary,
             modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = LodySpacing.sm),

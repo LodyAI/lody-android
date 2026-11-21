@@ -30,7 +30,6 @@ internal fun ProviderEnvironment(existingKeys: List<String>, patch: Map<String, 
         ProviderValueRow(key, stringResource(value), onClick = { editing = key }, enabled = enabled)
     }
     ProviderValueRow(stringResource(R.string.settings_agent_env_add), null, onClick = { adding = true }, enabled = enabled, labelColor = LodyTheme.colors.accentFg)
-    ProviderFootnote(stringResource(R.string.settings_agent_env_hint))
     editing?.let { key ->
         EnvironmentValueSheet(key, existing = key in existingKeys, patch = patch, onDismiss = { editing = null }) { onChange(it); editing = null }
     }

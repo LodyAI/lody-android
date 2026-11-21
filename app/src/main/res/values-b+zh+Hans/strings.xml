@@ -761,6 +761,9 @@
     <string name="settings_agent_api_key">API 密钥（未修改时保留原值）</string>
     <string name="settings_agent_test">测试连接</string>
     <string name="settings_agent_title_generation">标题生成</string>
+    <string name="settings_agent_title_generation_hint">配置自动生成对话标题时使用的 Agent 参数。</string>
+    <string name="settings_agent_enabled">已启用</string>
+    <string name="settings_agent_disabled">已禁用</string>
     <string name="settings_agent_model">模型</string>
     <string name="settings_agent_mode">模式</string>
     <string name="settings_agent_test_hint">保存提供方后测试，以获取可用选项。</string>

@@ -12,19 +12,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import app.lody.android.R
+import app.lody.android.create.PickerOption
+import app.lody.android.create.RUN_CONFIG_ON
+import app.lody.android.create.RunConfigRow
+import app.lody.android.create.RunConfigSheet
 import app.lody.android.designsystem.*
 import app.lody.android.runtime.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/** The draft value a text sheet edits; every sheet only changes the draft, and Save persists it. */
-private enum class EditorSheet { Name, Command, Arguments, Prompt, ApiKey, CustomEndpoint, CodexBaseUrl, Auth, Usage }
+/** The draft value a sheet edits; every sheet only changes the draft, and Save persists it. */
+private enum class EditorSheet { Name, Command, Arguments, ApiKey, CustomEndpoint, CodexBaseUrl, TitleGeneration, Usage }
+
+private const val TITLE_DEFAULT = "__default__"
 
 /**
- * Header, Basics, Command (Custom), Account, Conversation defaults, Environment variables, Delete.
- * Description, runtime paths, Pi extensions and binary controls are not shown, but their loaded
- * values are sent back unchanged on save.
+ * Header, Basics, Command (Custom), Account, Title generation, Environment variables, Delete.
+ * System prompt, description, runtime paths, Pi extensions and binary controls are not shown,
+ * but their loaded values are sent back unchanged on save.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ProviderEditorScreen(editor: ProviderEditor, catalog: List<ProviderCatalogEntry>, canManage: Boolean, busy: Boolean, error: String?, service: AgentProviderService, scope: RuntimeScope,
     machine: ProviderMachine, presets: List<ProviderPreset>, quotas: List<UsageQuota>, onBack: () -> Unit, onSave: (ProviderFields) -> Unit, onDelete: () -> Unit) {
@@ -32,7 +39,7 @@ internal fun ProviderEditorScreen(editor: ProviderEditor, catalog: List<Provider
     val base = editor.base
     val tasks = rememberCoroutineScope()
     var name by rememberSaveable(editor.id) { mutableStateOf(base?.name.orEmpty()) }
-    var prompt by rememberSaveable(editor.id) { mutableStateOf(base?.prompt.orEmpty()) }
+    val prompt = base?.prompt.orEmpty()
     var selection by remember(editor.id) { mutableStateOf(catalog.firstOrNull()?.id.orEmpty()) }
     var cliType by rememberSaveable(editor.id) { mutableStateOf(base?.cliType ?: catalog.firstOrNull()?.cliType.orEmpty()) }
     var agentType by rememberSaveable(editor.id) { mutableStateOf(base?.agentType ?: catalog.firstOrNull()?.agentType.orEmpty()) }
@@ -79,8 +86,33 @@ internal fun ProviderEditorScreen(editor: ProviderEditor, catalog: List<Provider
     val fields = ProviderFields(name, prompt, cliType, agentType, if (cliType == "custom") command else "", if (cliType != "custom") emptyList() else if (base != null && arguments == base.args.joinToString("\n")) base.args else if (arguments.isEmpty()) emptyList() else arguments.split('\n'),
         ProviderAdvanced(detailRevision = detail?.revision, description = description.takeIf { detail != null || it.isNotEmpty() }, envPatch = envPatch.takeIf { it.isNotEmpty() }, runtimePaths = paths.takeIf { detail != null || it.isNotEmpty() }, titleValues = titles.takeIf { detail != null || it.isNotEmpty() }, piExtensions = extensions.takeIf { detail?.supportsPiExtensions == true }, codexAuth = codexAuth, presetId = presetId.takeIf { base == null }, presetModeId = mode?.id, presetEndpoint = endpoint))
     val loaded = detail
-    val auth = if (base != null && loaded != null) rememberProviderAuth(service, scope, machineId, editor.id, loaded, editable) else null
     val notSet = stringResource(R.string.settings_agent_not_set)
+    val defaultLabel = stringResource(R.string.create_default)
+    val enabledLabel = stringResource(R.string.settings_agent_enabled)
+    val disabledLabel = stringResource(R.string.settings_agent_disabled)
+    val modelLabel = stringResource(R.string.settings_agent_model)
+    val modeLabel = stringResource(R.string.settings_agent_mode)
+    val titleSelectors = remember(capabilities, modelLabel, modeLabel) {
+        val options = capabilities.options.toMutableList()
+        if (capabilities.models.isNotEmpty() && options.none { it.id == "model" }) {
+            options.add(0, ProviderOption("model", modelLabel, "select", null, null, capabilities.models))
+        }
+        if (capabilities.modes.isNotEmpty() && options.none { it.id == "mode" }) {
+            options.add(ProviderOption("mode", modeLabel, "select", null, null, capabilities.modes))
+        }
+        options
+    }
+    val showsTitle = preset == null && !capabilities.sessionTitle && titleSelectors.isNotEmpty()
+    val titleSummary = remember(titleSelectors, titles, enabledLabel, disabledLabel) {
+        titleSelectors.mapNotNull { option ->
+            val override = titles[option.id] ?: return@mapNotNull null
+            when {
+                option.type == "boolean" -> (override as? Boolean)?.let { "${option.name}: ${if (it) enabledLabel else disabledLabel}" }
+                override is String && override.isNotEmpty() -> option.choices.find { it.id == override }?.name ?: override
+                else -> null
+            }
+        }.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+    }
     fun refreshCapabilities() = tasks.launch {
         refreshing = true; refreshProgress = null; refreshResult = null
         refreshResult = try {
@@ -166,8 +198,7 @@ internal fun ProviderEditorScreen(editor: ProviderEditor, catalog: List<Provider
             // 4. Account.
             val codex = (detail?.supportsCodexProfiles ?: machine.supportsCodexProfiles) && agentType == "codex"
             val endpoints = detail?.endpoints.orEmpty()
-            if (auth != null || preset != null || codex || endpoints.isNotEmpty()) SettingsHeading(stringResource(R.string.settings_agent_account))
-            if (auth != null && loaded != null) ProviderValueRow(stringResource(R.string.settings_agent_auth), providerAuthStatus(auth, loaded), onClick = { sheet = EditorSheet.Auth })
+            if (preset != null || codex || endpoints.isNotEmpty()) SettingsHeading(stringResource(R.string.settings_agent_account))
             if (preset != null) {
                 val tokenSet = envPatch[preset.tokenEnvKey]?.isNotEmpty() == true || (preset.tokenEnvKey in detail?.envKeys.orEmpty() && !envPatch.containsKey(preset.tokenEnvKey))
                 ProviderValueRow(stringResource(R.string.settings_agent_api_key_short), stringResource(if (tokenSet) R.string.settings_agent_set else R.string.settings_agent_not_set),
@@ -184,21 +215,17 @@ internal fun ProviderEditorScreen(editor: ProviderEditor, catalog: List<Provider
             }
             endpoints.forEach { (key, original) -> ProviderValueRow(key, envPatch[key] ?: original, onClick = { endpointSheet = key }, enabled = editable, placeholder = notSet) }
 
-            // 5. Conversation defaults.
-            SettingsHeading(stringResource(R.string.settings_agent_defaults))
-            ProviderValueRow(stringResource(R.string.settings_agent_prompt), prompt, onClick = { sheet = EditorSheet.Prompt }, enabled = editable, placeholder = notSet, valueLines = 2)
-            if (!capabilities.sessionTitle) {
-                val selectors = capabilities.options.ifEmpty {
-                    listOfNotNull(capabilities.models.takeIf { it.isNotEmpty() }?.let { ProviderOption("model", stringResource(R.string.settings_agent_model), "select", null, null, it) },
-                        capabilities.modes.takeIf { it.isNotEmpty() }?.let { ProviderOption("mode", stringResource(R.string.settings_agent_mode), "select", null, null, it) })
-                }
-                val title = stringResource(R.string.settings_agent_title_generation)
-                selectors.forEach { option ->
-                    val label = "$title · ${option.name}"
-                    if (option.type == "boolean") ProviderSwitchRow(label, titles[option.id] as? Boolean ?: option.booleanValue ?: false, editable) { titles = titles + (option.id to it) }
-                    else ProviderChoiceField(label, titles[option.id] as? String ?: option.value.orEmpty(), option.choices, editable) { titles = titles + (option.id to it) }
-                }
-                if (selectors.isEmpty()) ProviderFootnote(stringResource(R.string.settings_agent_test_hint))
+            // 5. Title generation.
+            if (showsTitle) {
+                Spacer(Modifier.height(LodySpacing.md))
+                ProviderValueRow(
+                    stringResource(R.string.settings_agent_title_generation),
+                    titleSummary,
+                    onClick = { sheet = EditorSheet.TitleGeneration },
+                    enabled = editable,
+                    placeholder = defaultLabel,
+                )
+                ProviderFootnote(stringResource(R.string.settings_agent_title_generation_hint))
             }
 
             // 6. Environment variables.
@@ -222,12 +249,38 @@ internal fun ProviderEditorScreen(editor: ProviderEditor, catalog: List<Provider
         EditorSheet.Command -> ProviderTextSheet(stringResource(R.string.settings_agent_command), command, close, { command = it; close() })
         EditorSheet.Arguments -> ProviderTextSheet(stringResource(R.string.settings_agent_arguments), arguments, close, { arguments = it; close() },
             multiline = true, hint = stringResource(R.string.settings_agent_arguments_hint))
-        EditorSheet.Prompt -> ProviderTextSheet(stringResource(R.string.settings_agent_prompt), prompt, close, { prompt = it; close() }, multiline = true, fullHeight = true)
         EditorSheet.ApiKey -> if (preset != null) ProviderTextSheet(stringResource(R.string.settings_agent_api_key_short), "", close,
             { envPatch = envPatch + (preset.tokenEnvKey to it); close() }, secret = true, hint = stringResource(R.string.settings_agent_api_key), allowEmpty = false)
         EditorSheet.CustomEndpoint -> ProviderTextSheet(stringResource(R.string.settings_agent_endpoint), endpoint ?: mode?.endpoint.orEmpty(), close, { endpoint = it; close() })
         EditorSheet.CodexBaseUrl -> ProviderTextSheet(stringResource(R.string.settings_agent_endpoint), codexAuth?.baseUrl.orEmpty(), close, { codexAuth = codexAuth?.copy(baseUrl = it); close() })
-        EditorSheet.Auth -> if (auth != null && loaded != null) ProviderAuthenticationSheet(auth, loaded, editable, close)
+        EditorSheet.TitleGeneration -> if (showsTitle) {
+            ModalBottomSheet(onDismissRequest = close, containerColor = LodyTheme.colors.bgBase) {
+                RunConfigSheet(
+                    title = stringResource(R.string.settings_agent_title_generation),
+                    rows = titleSelectors.map { option ->
+                        if (option.type == "boolean") {
+                            RunConfigRow(option.id, option.name, emptyList(), toggle = titles[option.id] as? Boolean ?: option.booleanValue ?: false)
+                        } else {
+                            val selectedId = titles[option.id] as? String
+                            val defaultOption = PickerOption(TITLE_DEFAULT, defaultLabel, selected = selectedId == null)
+                            RunConfigRow(
+                                option.id,
+                                option.name,
+                                listOf(defaultOption) + option.choices.map { PickerOption(it.id, it.name, selected = it.id == selectedId) },
+                            )
+                        }
+                    },
+                    defaultLabel = defaultLabel,
+                ) { rowId, pickedId ->
+                    val option = titleSelectors.find { it.id == rowId } ?: return@RunConfigSheet
+                    titles = when {
+                        option.type == "boolean" -> titles + (rowId to (pickedId == RUN_CONFIG_ON))
+                        pickedId == TITLE_DEFAULT -> titles - rowId
+                        else -> titles + (rowId to pickedId)
+                    }
+                }
+            }
+        }
         EditorSheet.Usage -> ProviderQuotaSheet(name.ifBlank { base?.name.orEmpty() }, quotas, offline = !machine.online,
             refresh = if (editable && machine.online && loaded != null && loaded.supportsRateLimitsRefresh && "rate-limits-refresh" !in loaded.unavailableActions)
                 suspend { service.operation(scope, machineId, editor.id, "rate-limits-refresh", cliType, agentType).success } else null, onDismiss = close)

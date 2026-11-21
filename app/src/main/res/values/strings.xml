@@ -771,6 +771,9 @@
     <string name="settings_agent_api_key">API key (leave untouched to keep stored key)</string>
     <string name="settings_agent_test">Test connection</string>
     <string name="settings_agent_title_generation">Title generation</string>
+    <string name="settings_agent_title_generation_hint">Choose the agent options used to automatically generate conversation titles.</string>
+    <string name="settings_agent_enabled">Enabled</string>
+    <string name="settings_agent_disabled">Disabled</string>
     <string name="settings_agent_model">Model</string>
     <string name="settings_agent_mode">Mode</string>
     <string name="settings_agent_test_hint">Save the provider, then test to discover available options.</string>
