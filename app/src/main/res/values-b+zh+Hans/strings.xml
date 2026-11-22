@@ -175,6 +175,7 @@
     <string name="chat_delivery_unknown">发送状态未确认</string>
     <string name="chat_delivery_failed">未发送</string>
     <string name="chat_send_failed">消息未发送</string>
+    <string name="chat_send_mentions_failed">无法解析这条消息中的引用。可点击消息下方的“重试”重新解析。</string>
     <string name="chat_forget_title">移除未确认的消息？</string>
     <string name="chat_forget_message">这会移除本地待确认消息，电脑仍可能收到或处理该消息。</string>
     <string name="chat_forget_action">本地移除</string>

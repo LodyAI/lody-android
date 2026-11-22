@@ -144,6 +144,7 @@ open class WebViewRuntime internal constructor(
                         it.getString("path"), it.optString("name", it.getString("path")), it.optString("kind", "file"),
                         it.optString("subtitle"), it.optString("insertText").ifBlank { null },
                         it.optString("emoji").ifBlank { null },
+                        it.optString("revision").ifBlank { null },
                     )
                 },
                 value.optBoolean("truncated"), value.optBoolean("incomplete"),

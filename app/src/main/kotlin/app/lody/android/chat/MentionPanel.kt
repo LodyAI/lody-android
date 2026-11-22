@@ -149,6 +149,28 @@ object Mentions {
         return TextFieldValue(next, TextRange(trigger.start + written.length))
     }
 
+    /**
+     * Replaces the `/shortcut:<slug>` [token] a choice wrote (the occurrence nearest [near]) with
+     * [text], leaving the rest of the prompt and the caret where they are; null once it is gone
+     * (deleted, edited or sent), as iOS `ChatComposerInput.replaceReference`.
+     */
+    fun replaceToken(value: TextFieldValue, token: String, near: Int, text: String): TextFieldValue? {
+        val source = value.text
+        val start = generateSequence(source.indexOf(token).takeIf { it >= 0 }) { source.indexOf(token, it + 1).takeIf { next -> next >= 0 } }
+            .filter { (it == 0 || source[it - 1].isWhitespace()) && (it + token.length == source.length || source[it + token.length].isWhitespace()) }
+            .minByOrNull { kotlin.math.abs(it - near) } ?: return null
+        val end = start + token.length
+        fun moved(offset: Int) = when {
+            offset >= end -> offset + text.length - token.length
+            offset > start -> start + text.length
+            else -> offset
+        }
+        return TextFieldValue(source.replaceRange(start, end, text), TextRange(moved(value.selection.start), moved(value.selection.end)))
+    }
+
+    /** A body read ahead belongs to exactly the listed id and revision. */
+    fun bodyKey(item: MentionCandidate) = item.path + "\n" + (item.revision ?: "")
+
     /** What the prompt shows for a reference: an Agent Role reads as its emoji and name (web). */
     fun shown(item: MentionCandidate): String =
         if (item.kind == "role") roleLabel(item.emoji, item.name) else if (item.kind == "session") "@${item.name}" else item.insertText ?: "@${item.path}"
@@ -234,6 +256,7 @@ fun MentionPanel(
     onPop: () -> Unit,
     onInsert: (MentionCandidate) -> Unit,
     modifier: Modifier = Modifier,
+    height: androidx.compose.ui.unit.Dp = MentionPanelHeight,
 ) {
     val colors = LodyTheme.colors
     val type = LodyTheme.typography
@@ -242,7 +265,7 @@ fun MentionPanel(
     Column(
         modifier
             .fillMaxWidth()
-            .height(MentionPanelHeight)
+            .height(height)
             .clip(RoundedCornerShape(topStart = LodyRadius.xl, topEnd = LodyRadius.xl))
             .background(colors.bgRaised),
     ) {
@@ -334,6 +357,8 @@ fun MentionPanel(
 
 /** The panel's height while shown; the keyboard sits right below it. */
 val MentionPanelHeight = 280.dp
+/** The least a host may shrink the panel to when it lacks room; its lists scroll (iOS `minimumDockHeight`). */
+val MentionPanelMinimumHeight = 120.dp
 
 /** One composer's references: the catalogs read for it and the panel's level stack. */
 @Stable
@@ -427,6 +452,8 @@ fun MentionDock(
     active: Boolean,
     /** Reads a prompt shortcut's body by id; without it the `/shortcut:<slug>` token goes in. */
     loadShortcut: (suspend (String) -> org.json.JSONObject)? = null,
+    /** The panel's height; a host short of room passes less, down to [MentionPanelMinimumHeight]. */
+    height: androidx.compose.ui.unit.Dp = MentionPanelHeight,
     onFieldChange: (TextFieldValue) -> Unit,
 ) {
     val loads = androidx.compose.runtime.rememberCoroutineScope()
@@ -436,12 +463,32 @@ fun MentionDock(
     LaunchedEffect(trigger == null) { if (trigger == null) state.stack = listOf(MentionLevel.Root) }
     val show = trigger != null &&
         (state.stack.size > 1 || Mentions.rows(MentionLevel.Root, state.catalogs, trigger).isNotEmpty())
+    // Bodies of the shortcuts this showing of the panel lists, read ahead one at a time so choosing
+    // one writes its body at once; keyed by id and listed revision, dropped when the panel hides
+    // (iOS `ChatMentionPanel.warmShortcuts`).
+    val bodies = remember { mutableMapOf<String, org.json.JSONObject>() }
+    val tried = remember { mutableSetOf<String>() }
+    LaunchedEffect(show) { if (!show) { bodies.clear(); tried.clear() } }
+    val listedShortcuts = if (show && trigger != null && loadShortcut != null) {
+        Mentions.rows(state.stack.last(), state.catalogs, trigger).filter { it.category == "shortcut" }
+    } else emptyList()
+    LaunchedEffect(listedShortcuts.map(Mentions::bodyKey)) {
+        val load = loadShortcut ?: return@LaunchedEffect
+        for (item in listedShortcuts) {
+            val key = Mentions.bodyKey(item)
+            if (key in bodies || key in tried) continue
+            val body = try { load(item.path) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
+            tried += key
+            if (body != null && (item.revision == null || body.optString("revision") == item.revision)) bodies[key] = body
+        }
+    }
     AnimatedVisibility(
         show,
         enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
         exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
     ) {
         MentionPanel(
+            height = height,
             stack = state.stack,
             rowsFor = { level -> if (trigger == null) emptyList() else Mentions.rows(level, state.catalogs, trigger) },
             loading = { level ->
@@ -457,22 +504,34 @@ fun MentionDock(
             onInsert = { item ->
                 val current = Mentions.trigger(field)
                 if (current != null && item.category == "shortcut" && loadShortcut != null) {
-                    // Write the shortcut's body (web) once read, if the prompt has not moved on.
-                    val before = field
-                    loads.launch {
-                        val body = try { loadShortcut(item.path) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
-                        if (latest.text != before.text) return@launch
-                        if (body == null) {
-                            val next = Mentions.insert(before, current, item)
-                            if (next.text.length <= 32000) onFieldChange(next)
-                            return@launch
-                        }
+                    val cached = bodies[Mentions.bodyKey(item)]
+                    if (cached != null) {
                         val roles = mutableMapOf<String, String>()
-                        val text = Mentions.shortcutText(body, state.catalogs) { label, token -> roles[label] = token }
-                        val next = Mentions.insertText(before, current, text)
+                        val text = Mentions.shortcutText(cached, state.catalogs) { label, token -> roles[label] = token }
+                        val next = Mentions.insertText(field, current, text)
                         if (next.text.length <= 32000) {
                             state.labels = state.labels + roles
                             onFieldChange(next)
+                        }
+                    } else {
+                        // Not read yet: the `/shortcut:<slug>` token goes in at once (the runtime
+                        // expands it at send) and the body replaces that token alone when it
+                        // arrives, never the text typed meanwhile.
+                        val token = Mentions.token(item)
+                        val next = Mentions.insert(field, current, item)
+                        if (next.text.length <= 32000) {
+                            onFieldChange(next)
+                            loads.launch {
+                                val body = try { loadShortcut(item.path) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
+                                    ?: return@launch
+                                val roles = mutableMapOf<String, String>()
+                                val text = Mentions.shortcutText(body, state.catalogs) { label, role -> roles[label] = role }
+                                val replaced = Mentions.replaceToken(latest, token, current.start, text) ?: return@launch
+                                if (replaced.text.length <= 32000) {
+                                    state.labels = state.labels + roles
+                                    onFieldChange(replaced)
+                                }
+                            }
                         }
                     }
                 } else if (current != null) {

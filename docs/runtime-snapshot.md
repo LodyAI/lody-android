@@ -24,7 +24,10 @@ those copies. `runtime/contract/fixtures.json` `catalogStatusView` is the snapsh
 synthetic `catalog-status-view.json`, the Kotlin golden catalog; a test keeps them equal.
 Since that refresh the snapshot also presents `message_quote` spans in history and accepts
 `quotes` on sends; Android keeps its own quote adapter in `runtime/src` and strips `quotes`
-before the shared send, so quotes are written once. The catalog-budget harness extracts
+before the shared send, so quotes are written once. Android's send hook (`runtime/src/network.mjs`) also does what the shared `sendTurn` handler adds
+around `sendTurn`: `/shortcut:<slug>` tokens expand before references, and a conversation's first
+turn selects the workspace's default MCP servers (`sessionMcpSelection`, with a Streams grant asked
+of native through `contractBridge.requestGrant`); later turns keep their persisted selection. The catalog-budget harness extracts
 `watch` / `publish` from `src/runtime/index.ts`, so it supplies their module constants and
 Status view inputs explicitly.
 

@@ -1,6 +1,6 @@
 // Translate Android's native command surface to the shared runtime envelope contract.
 export function contractBridge(runtime, emit) {
- const pending=new Map(), grants=new Map(), clouds=new Map(), tokens=new Map(); let serial=0, workspace='';
+ const pending=new Map(), grants=new Map(), clouds=new Map(), tokens=new Map(), localGrants=new Set(); let serial=0, workspace='';
  // Prompt shortcut Convex calls the runtime asks the native host to make (iOS `shortcutCloud`).
  const cloudOperations=new Set(['listAccessibleDocuments','getStreamToken','stageDocument','activateDocument']);
  const receive=envelope=>runtime.receive(JSON.stringify(envelope));
@@ -116,6 +116,19 @@ export function contractBridge(runtime, emit) {
   decideProposal:args=>invoke('decideProposal',args),
   shortcutCloud,
   previewToken,
-  grant(value){for(const e of grants.values())receive(value?{...e,kind:'result',payload:value}:{...e,kind:'error',payload:undefined,error:{code:'grant_unavailable',retryable:true}});grants.clear();return true;},
+  grant(value){
+   for(const e of grants.values())receive(value?{...e,kind:'result',payload:value}:{...e,kind:'error',payload:undefined,error:{code:'grant_unavailable',retryable:true}});grants.clear();
+   for(const waiter of localGrants)waiter(value);localGrants.clear();
+   return true;
+  },
+  // A workspace Streams grant for an Android adapter read (the turn's MCP defaults), asked of the
+  // native host like the runtime's own grant requests and answered by the same `grant` reply.
+  requestGrant(){
+   return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{localGrants.delete(waiter);reject(Error('grant_unavailable'));},30000);
+    const waiter=value=>{clearTimeout(timer);if(value)resolve(value);else reject(Error('grant_unavailable'));};
+    localGrants.add(waiter);emit({type:'grant'});
+   });
+  },
  };
 }

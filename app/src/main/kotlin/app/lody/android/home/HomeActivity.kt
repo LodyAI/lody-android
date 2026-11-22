@@ -295,6 +295,9 @@ private fun chatContext(catalog: CatalogState, id: String, title: String, user: 
         machineCapabilities = session?.let { snapshot?.machineCapabilities?.get(it.machineId) }.orEmpty(),
         machineKind = snapshot?.let { app.lody.android.create.CreateSessionModel.machineKind(it, session?.machineId) }
             ?: app.lody.android.create.CreateSessionModel.MachineKind.Laptop,
+        agentConfigName = session?.agentConfigId?.let { config ->
+            snapshot?.agentUsage?.get(session.machineId)?.configs?.firstOrNull { it.id == config }?.name?.ifBlank { null }
+        },
         statusRow = snapshot?.let { ChatListModel.layoutRow(it, id) },
     )
 }

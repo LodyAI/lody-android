@@ -587,6 +587,8 @@ data class MentionCandidate(
     val path: String, val name: String, val kind: String, val subtitle: String = "", val insertText: String? = null,
     /** A Role's emoji: it leads the row instead of an icon (as the run-config Role row). */
     val emoji: String? = null,
+    /** A prompt shortcut's listed revision; a body read ahead belongs to exactly this revision. */
+    val revision: String? = null,
 ) {
     /**
      * Folders browse with the files; prompt shortcuts (listed with the agent's commands, inserting

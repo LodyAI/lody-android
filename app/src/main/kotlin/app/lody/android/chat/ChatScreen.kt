@@ -49,6 +49,8 @@ import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.testTag
@@ -94,6 +96,8 @@ data class ChatContext(
     val machineEmulator: Boolean = false,
     /** Numeric protocol capability versions advertised by the session's computer. */
     val machineCapabilities: Map<String, Int> = emptyMap(),
+    /** The conversation's Agent Config name from the computer's synced configs, online or not. */
+    val agentConfigName: String? = null,
     /** The conversation's Status view layout row (tier, permissions, opened children), if listed. */
     val statusRow: app.lody.android.runtime.StatusViewRow? = null,
     /** The member cannot write the workspace (a viewer, from the live member list): no status actions. */
@@ -160,7 +164,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     val mentions = rememberMentionState(id, scope)
     val appContext = LocalContext.current.applicationContext
     val coroutines = rememberCoroutineScope()
-    val agentName = agentLabel(context.session)
+    val agentName = agentLabel(context.session, context.agentConfigName, stringResource(R.string.settings_agent_kind_custom))
     val meName = context.me?.name.orEmpty()
     // Resolved in composition: the transcript is built off the main thread.
     val application = appContext.applicationContext as app.lody.android.LodyApplication
@@ -323,9 +327,33 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         // rejects it): read the workspace-wide options, as the new-chat page does for chats.
         // A multi-repository project's session reads them workspace-wide, as a plain chat.
         val project = session.projectId.takeUnless { app.lody.android.create.CreateSessionModel.isChat(it) || app.lody.android.create.CreateSessionModel.isGroup(it) }
-        try { options = repository.options(scope, project) }
-        catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { /* The chip still shows the session's model; choices wait for the next load. */ }
+        var probed = false
+        // The runtime answers before a computer's stream has caught up and leaves its capability
+        // out, so a read that failed or did not list this conversation's capability or agent is
+        // read again when the options change, never on every render; a retry keeps what an
+        // earlier read found (iOS `SessionComposerModel.optionsChanged`). An online agent listed
+        // without a capability is probed once, as the new-chat page does.
+        suspend fun read(): Boolean {
+            val value = try { repository.options(scope, project) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { return false }
+            val found = value.capability(session.machineId, session.cliType, session.agentType, session.agentConfigId)
+            val listed = value.agents.any { it.machineId == session.machineId && it.id == session.agentConfigId }
+            val previous = options
+            if (previous == null || found != null || previous.capability(session.machineId, session.cliType, session.agentType, session.agentConfigId) == null) options = value
+            val config = session.agentConfigId
+            if (found == null && !probed && config != null && listed) {
+                probed = true
+                launch {
+                    try { application.creation.refreshCapability(scope, config) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { }
+                }
+            }
+            return found != null && (listed || config == null)
+        }
+        if (read()) return@LaunchedEffect
+        application.creation.observeOptions(scope).first { read() }
     }
     var machineOnline by remember(scope, session?.machineId) { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(scope, session?.machineId) {
@@ -387,6 +415,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     }
     var runConfig by remember(id) { mutableStateOf(false) }
     val failedText = stringResource(R.string.chat_send_failed)
+    val mentionsFailedText = stringResource(R.string.chat_send_mentions_failed)
     // Picked attachments wait in the composer and upload when the turn is sent.
     var attachments by remember(id) { mutableStateOf(emptyList<PendingAttachment>()) }
     // Quote cards wait beside them in insertion order, kept on the device with the text draft.
@@ -498,7 +527,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     }
     val messageActions = rememberMessageActions(repository, scope, id, messages, status == "live" && canSend && session?.status !in RunningStatuses, onSelectTab)
     val running = session?.status in RunningStatuses || pending.any { it.delivery == Delivery.Sending || it.delivery == Delivery.Waiting }
-    val hasStreamingAssistant = messages.lastOrNull { !it.isUser }?.streaming == true
+    val hasStreamingAssistant = messages.lastOrNull { it.role != "user" }?.streaming == true
     val queuedBehavior = AppPreferences.queuedMessageBehavior(appContext)
     LaunchedEffect(scope, id, status == "live", session?.status, hasStreamingAssistant, capability?.steer, queuedBehavior) {
         application.sessionOutbox.setForeground(
@@ -533,7 +562,9 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             }
             val quota = quotaFailure(failure.reason)
             if (quota != null || failure.record.quotes.isNotEmpty()) handBack()
-            snackbar.showSnackbar(quota?.let { appContext.getString(it) } ?: failedText)
+            // A definite reference failure keeps the turn for Retry, which resolves the original
+            // tokens again with the same input id, attachments, quotes and turn configuration.
+            snackbar.showSnackbar(quota?.let { appContext.getString(it) } ?: if (failure.reason == "mention_expansion_failed") mentionsFailedText else failedText)
         }
     }
     val sendText: (String, List<PendingAttachment>, List<MessageQuoteCard>) -> Unit = sendText@{ text, files, cards ->
@@ -1045,18 +1076,27 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     var scrollToLatest by remember { mutableIntStateOf(0) }
     val atLatest by remember { derivedStateOf { !listState.canScrollForward } }
     val headerHeight = LodySize.controlLg + LodySpacing.md
+    var mentionDockHeight by remember(id) { mutableStateOf(MentionPanelHeight) }
     Scaffold(
         containerColor = colors.bgBase,
         snackbarHost = { SnackbarHost(snackbar) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
+        val headerRoom = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() + headerHeight
+        val density = LocalDensity.current
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
             .imePadding().windowInsetsPadding(
                 WindowInsets.navigationBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Bottom),
             )) {
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                val top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() + headerHeight
+            // The composer never rises under the floating header: when the transcript's room is
+            // smaller than the header, the @ panel gives up rows first, down to its minimum, since
+            // its lists scroll (iOS `ChatComposerView.fitPageRoom`).
+            Box(Modifier.weight(1f).fillMaxWidth().onSizeChanged { size ->
+                val room = with(density) { size.height.toDp() } - headerRoom
+                mentionDockHeight = (mentionDockHeight + room).coerceIn(MentionPanelMinimumHeight, MentionPanelHeight)
+            }) {
+                val top = headerRoom
                 if (context.session?.isTabClosed == true || all.isEmpty()) {
                     Box(Modifier.fillMaxSize().padding(top = top), contentAlignment = Alignment.Center) {
                         Text(stringResource(if (context.session?.isTabClosed == true) R.string.chat_tabs_all_closed else if (status == "live") R.string.chat_empty else if (status == "offline") R.string.chat_offline else R.string.chat_loading), style = LodyTheme.typography.body, color = colors.textSecondary)
@@ -1113,7 +1153,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                     Box(
                         Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(horizontal = TranscriptMargin, bottom = LodySpacing.md)
+                            .padding(start = TranscriptMargin, end = TranscriptMargin, bottom = LodySpacing.md)
                             .dropShadow(CircleShape, LodyElevations.sm.shadow())
                             .clip(CircleShape)
                             .background(colors.bgOverlay)
@@ -1122,7 +1162,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                             .padding(horizontal = LodySpacing.md, vertical = LodySpacing.xs + LodySpacing.xxs)
                             .semantics { contentDescription = statusLabel },
                     ) {
-                        Text(statusLabel, style = LodyTheme.typography.subheadline, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(statusLabel, style = LodyTheme.typography.subhead, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 // Web's round "scroll to latest" button, shown once the reader has scrolled up.
@@ -1202,7 +1242,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 onStop = stop,
             )
             // Docked between the prompt and the keyboard; rows never take focus, so the keyboard stays.
-            MentionDock(mentions, field, active = composerFocused && canSend, loadShortcut = { shortcutId -> repository.shortcut(scope, shortcutId) }) { next -> field = next; prompt = next.text }
+            MentionDock(mentions, field, active = composerFocused && canSend, loadShortcut = { shortcutId -> repository.shortcut(scope, shortcutId) }, height = mentionDockHeight) { next -> field = next; prompt = next.text }
         }
     }
     quoteEditor?.let { editing ->
@@ -1504,8 +1544,10 @@ internal fun senderIdentity(userId: String?, me: Account?, member: app.lody.andr
 }
 
 /** The session's assistant, by its last model or its agent type ("claude-code" → "Claude Code"). */
-private fun agentLabel(session: CatalogSession?): String =
-    session?.agentType?.split('-', '_')?.joinToString(" ") { part -> part.replaceFirstChar { it.uppercase() } }
+/** The synced Agent Config's name first; a custom command's `custom-<id>` agent type is internal and never shown. */
+private fun agentLabel(session: CatalogSession?, configName: String?, custom: String): String =
+    configName ?: (if (session?.cliType == "custom") custom else null)
+        ?: session?.agentType?.split('-', '_')?.joinToString(" ") { part -> part.replaceFirstChar { it.uppercase() } }
         ?: session?.modelName ?: "Agent"
 
 /** "Worked for 8s" / "1m 5s" once the turn finished; [format] holds one `%1$s`. */

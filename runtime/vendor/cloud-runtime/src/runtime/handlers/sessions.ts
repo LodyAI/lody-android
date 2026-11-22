@@ -16,11 +16,7 @@ import {
   renameSession,
   setSessionOwner,
 } from '../archive-session';
-import {
-  creationOptions,
-  createSession,
-  machineMeta,
-} from '../create-session';
+import { creationOptions, createSession, machineMeta } from '../create-session';
 import { planCommand } from '../status-view.ts';
 import { readWorkspaceProjects } from '../project-groups';
 import { sessionMcpSelection } from '../mcp';
@@ -523,9 +519,13 @@ export function registerSessions(
         scoped();
         const ids = await sessionMcpSelection(
           sourceWorkspace,
-          getGrant,
+          scopedWorkspaceGrant(ctx, sourceWorkspace, state.userId),
           persisted,
-          AbortSignal.timeout(30000),
+          AbortSignal.timeout(state.workspaceReplica ? 8000 : 30000),
+          () =>
+            state.workspace === sourceWorkspace
+              ? state.workspaceReplica
+              : undefined,
         );
         scoped();
         return ids;

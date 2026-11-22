@@ -267,18 +267,20 @@ internal fun ToolStep(
     val file = item.path?.substringAfterLast('/')?.takeIf { it.isNotBlank() && item.kind in FileKinds }
     // A title already opening with a capitalized word is an authored label and keeps it (web).
     val authored = item.title.matches(Regex("^[A-Z][a-z]+[\\s:(].*", RegexOption.DOT_MATCHES_ALL))
+    // A title relative to the working directory collapses its run of "../" into "…/" (iOS #152).
+    val title = compactParentHops(item.title)
     val text = buildAnnotatedString {
         when {
             file != null -> {
                 verb?.let { withStyle(SpanStyle(color = colors.textSecondary)) { append(it); append(' ') } }
                 withStyle(SpanStyle(color = colors.textTertiary)) { append(file) }
             }
-            verb != null && !authored && item.title.isNotBlank() -> {
+            verb != null && !authored && title.isNotBlank() -> {
                 withStyle(SpanStyle(color = colors.textSecondary)) { append(verb); append(' ') }
                 val command = item.kind == "execute" || item.kind == "bash"
-                withStyle(SpanStyle(color = colors.textTertiary, fontFamily = if (command) type.code.fontFamily else null)) { append(item.title) }
+                withStyle(SpanStyle(color = colors.textTertiary, fontFamily = if (command) type.code.fontFamily else null)) { append(title) }
             }
-            else -> withStyle(SpanStyle(color = colors.textSecondary)) { append(item.title.ifBlank { verb.orEmpty() }) }
+            else -> withStyle(SpanStyle(color = colors.textSecondary)) { append(title.ifBlank { verb.orEmpty() }) }
         }
     }
     val state = expanded?.let { stringResource(if (it) R.string.home_tree_expanded else R.string.home_tree_collapsed) }
@@ -286,9 +288,10 @@ internal fun ToolStep(
     Row(
         modifier
             .fillMaxWidth()
+            // Every step row keeps one height whether or not it opens a detail (iOS #152).
+            .heightIn(min = 32.dp)
             .then(
                 if (expanded != null) Modifier
-                    .heightIn(min = 32.dp)
                     .clickable(role = Role.Button) { onToggle(!expanded) }
                     .semantics { stateDescription = state.orEmpty() }
                 else Modifier,
@@ -321,6 +324,10 @@ internal fun ToolStep(
 }
 
 private val FileKinds = setOf("read", "edit", "write", "delete", "move")
+
+private val ParentHops = Regex("(?:\\.\\./){2,}")
+
+internal fun compactParentHops(text: String): String = text.replace(ParentHops, "…/")
 
 @Composable
 private fun stepVerb(kind: String, running: Boolean): String? {

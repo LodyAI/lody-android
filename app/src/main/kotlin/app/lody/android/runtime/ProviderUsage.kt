@@ -3,7 +3,8 @@ package app.lody.android.runtime
 import org.json.JSONObject
 
 /** Runtime owns capability/auth eligibility. Never match quota by display name. */
-data class ProviderUsageConfig(val id: String, val provider: String, val eligible: Boolean, val rateLimitsAvailable: Boolean = false)
+/** [name] is the Agent Config's configured name, synced whether or not the computer is online. */
+data class ProviderUsageConfig(val id: String, val provider: String, val eligible: Boolean, val rateLimitsAvailable: Boolean = false, val name: String = "")
 data class ProviderQuota(val provider: String, val agentConfigId: String?, val quota: UsageQuota, val id: String = "")
 data class ProviderUsage(val configs: List<ProviderUsageConfig>, val quotas: List<ProviderQuota>) {
     fun forProvider(provider: AgentProvider): List<UsageQuota> {
@@ -51,7 +52,7 @@ internal object ProviderUsageJson {
                     val c = configs?.optJSONObject(i) ?: return@mapNotNull null
                     val id = c.opt("id") as? String ?: return@mapNotNull null
                     val provider = c.opt("provider") as? String ?: return@mapNotNull null
-                    ProviderUsageConfig(id, provider, c.opt("eligible") == true, c.opt("rateLimitsAvailable") == true)
+                    ProviderUsageConfig(id, provider, c.opt("eligible") == true, c.opt("rateLimitsAvailable") == true, c.opt("name") as? String ?: "")
                 },
                 (0 until (quotas?.length() ?: 0)).mapNotNull { i ->
                     val q = quotas?.optJSONObject(i) ?: return@mapNotNull null

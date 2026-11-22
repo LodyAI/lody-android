@@ -50,4 +50,17 @@ class MentionPresentationTest {
         assertEquals(Mentions.shown(a), Mentions.shown(b))
         assertNotEquals(Mentions.token(a), Mentions.token(b))
     }
+    @Test fun lateShortcutBodyReplacesOnlyItsTokenAndKeepsLaterTyping() {
+        val token = "/shortcut:review"
+        // Chosen at the start, then typed after: the body replaces the token, the caret follows.
+        val typed = androidx.compose.ui.text.input.TextFieldValue("$token then more", androidx.compose.ui.text.TextRange(26))
+        val replaced = Mentions.replaceToken(typed, token, 0, "Review it")!!
+        assertEquals("Review it then more", replaced.text)
+        assertEquals(19, replaced.selection.start)
+        // Text typed before the token moves it; a longer slug sharing the prefix is not the token.
+        val moved = androidx.compose.ui.text.input.TextFieldValue("Hi /shortcut:reviewer $token ", androidx.compose.ui.text.TextRange(3))
+        assertEquals("Hi /shortcut:reviewer body ", Mentions.replaceToken(moved, token, 0, "body")!!.text)
+        // Deleted or sent: nothing to replace.
+        assertNull(Mentions.replaceToken(androidx.compose.ui.text.input.TextFieldValue("/shortcut:revie"), token, 0, "body"))
+    }
 }

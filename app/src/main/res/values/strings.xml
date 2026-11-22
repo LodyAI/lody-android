@@ -176,6 +176,7 @@
     <string name="chat_delivery_unknown">Delivery unconfirmed</string>
     <string name="chat_delivery_failed">Not sent</string>
     <string name="chat_send_failed">The message was not sent</string>
+    <string name="chat_send_mentions_failed">The references in this message could not be resolved. Tap Retry below the message to resolve them again.</string>
     <string name="chat_forget_title">Remove unconfirmed message?</string>
     <string name="chat_forget_message">This removes the local pending message. The computer may still receive or process it.</string>
     <string name="chat_forget_action">Remove locally</string>
@@ -355,7 +356,7 @@
     </plurals>
     <string name="create_no_available_agents">No available assistants on this computer. Choose another computer.</string>
     <string name="create_waiting_agents">Waiting for assistants to sync…</string>
-    <string name="chat_new_tab">New conversation in current working directory</string>
+    <string name="chat_new_tab">New session</string>
     <string name="chat_current_tab">Current conversation</string>
     <string name="chat_tab_creation_failed">Could not create a Tab conversation.</string>
     <string name="chat_tab_creation_unknown">Creation result is unknown. Tap again to open the conversation.</string>

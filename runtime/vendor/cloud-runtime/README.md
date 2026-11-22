@@ -254,12 +254,15 @@ member's machine are not discoverable here and are refused.
 `start({ workspaceReadOnly })` removes every status, pin and section action, and
 section management waits until the section rows are known.
 
-The workspace Flock is read live beside `:meta` and `:mf:<id>`; its failures are
+The workspace Flock is read live beside `:meta` and `:mf:<id>`. `start` opens it
+together with `:meta` rather than after the first catalog, so the small section
+stream is usually ready before the full conversation list publishes and pinned
+sections do not appear after the rows. Its failures are
 diagnostics, never `syncError`, and keep the last sections. A workspace without
 that stream has no sections; the first section write creates the stream, as Agent
 Role saves do, and the read restarts at once. Time is the server clock: the
-`/api/time` round-trip midpoint (Lody `time-sync.ts`), recalibrated on start and
-foreground, the device clock until a sample succeeds. The runtime republishes at
+`/api/time` round-trip midpoint (Lody `time-sync.ts`), using the device clock until a sample succeeds. A foreground return reuses a
+calibration younger than a minute if wall and monotonic elapsed time still agree. The runtime republishes at
 the layouts' `nextChangeAt` while the host is active, on every foreground, and
 whenever a calibration changes the offset, since hosts learn it from `nowMs`.
 

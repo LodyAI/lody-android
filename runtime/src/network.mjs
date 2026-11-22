@@ -3,6 +3,8 @@
 import '../vendor/cloud-runtime/src/runtime/platform-fallbacks.ts';
 import './abort-signal-timeout.mjs';
 import {expandMentions} from '../vendor/cloud-runtime/src/runtime/mention-expansion.ts';
+import {expandShortcuts} from '../vendor/cloud-runtime/src/runtime/prompt-shortcuts.ts';
+import {sessionMcpSelection} from '../vendor/cloud-runtime/src/runtime/mcp.ts';
 import {referenceSpans} from '../vendor/cloud-runtime/src/protocol/message-references.ts';
 import {contractBridge} from './contract-bridge.mjs';
 import '../vendor/cloud-runtime/src/runtime/index.ts';
@@ -74,18 +76,35 @@ const detail={
   catch(error){const code=String(error?.message??'');return {error:['session_not_ready','workspace_changed','invalid_option','invalid_answers','upload_failed'].includes(code)?code:'permission_write_failed'};}
  }};
 // A quoted turn expands mentions in its main text only, then appends the quote blocks and comments
-// (Web order), so a quote's snapshot is never rewritten.
+// (Web order), so a quote's snapshot is never rewritten. `/shortcut:<slug>` tokens (a shortcut
+// chosen before its body was read) expand first, as the shared `sendTurn` handler does.
 const sendWithReferences = ({quotes,quoteMain,...args}) => sendTurn(args, async text => {
  const items = [];
  const source = quotes?.length ? quoteMain : text;
  if (!source && quotes?.length) return appendMessageQuotes('', [], quotes);
- const expanded = await expandMentions(source, async category => {
-  const catalog = await runtime.mentionCatalog({workspaceId:identity.workspaceId,sessionId:args.sessionId,machineId:args.machineId,userId:args.userId,cliType:args.cliType,agentType:args.agentType,category});
-  items.push(...catalog.items);
-  return catalog;
- });
+ const shortcuts={workspaceId:identity.workspaceId,userId:args.userId};
+ const expanded = await expandShortcuts(
+  source,
+  async () => (await runtime.promptShortcuts({...shortcuts,action:'list'})).entries,
+  async entry => (await runtime.promptShortcuts({...shortcuts,action:'read',entry})).shortcut,
+  part => expandMentions(part, async category => {
+   const catalog = await runtime.mentionCatalog({workspaceId:identity.workspaceId,sessionId:args.sessionId,machineId:args.machineId,userId:args.userId,cliType:args.cliType,agentType:args.agentType,category});
+   items.push(...catalog.items);
+   return catalog;
+  }),
+ );
  const spans = referenceSpans(expanded,items);
  return quotes?.length ? appendMessageQuotes(expanded,spans,quotes) : {text:expanded,spans};
+},
+// A conversation's first turn takes the workspace's default MCP servers; later turns keep their
+// persisted selection, [] included (the shared `sendTurn` handler, iOS #156).
+persisted => {
+ const workspaceId=identity.workspaceId;
+ return sessionMcpSelection(workspaceId, async () => {
+  const value=await runtime.requestGrant();
+  if(identity?.workspaceId!==workspaceId)throw Error('workspace_changed');
+  return value;
+ }, persisted, AbortSignal.timeout(30000));
 });
 globalThis.androidDispatch=createDispatcher(core,emit,{...cloud,...createCommands(runtime,sendWithReferences,()=>identity),...scheduleCommands(runtime,()=>identity),...proposalCommands(runtime,()=>identity),...providerCommands(runtime,()=>identity),...roleCommands(runtime,()=>identity),...shortcutCommands(runtime,()=>identity),...detail});
 emit({type:'hostReady',protocol:HOST_PROTOCOL,capabilities:[...CORE_CAPABILITIES,'connect','grant','watchSession','closeSession','loadOlderSession','forgetPendingInput','retryPendingInput','creationOptions','createAndSend','sendText','turnQuota','itemDetail','createTab','turnDiff','listDir','readFile','controlTurn','respondPermission','agentRoles','mentionCatalog','localProjects','shortcutBody','projectGroups','messageAction','setTabClosed','archiveSession','statusViewCommand','snoozePresets','markSessionRead','schedules','scheduleDetail','scheduleCommand','decideProposal','agentProviders','agentProviderDetail','agentProviderProbe','agentProviderAuth','agentProviderOperation','agentRoleSettings','shortcutCloudReply','shortcutSettings','sessionPreview','iosSimulatorControl','androidEmulatorControl','previewTokenReply']});
