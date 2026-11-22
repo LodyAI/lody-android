@@ -75,6 +75,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.ui.platform.LocalDensity
 import app.lody.android.designsystem.LodyMotion
 import androidx.compose.foundation.lazy.LazyColumn
@@ -996,7 +1001,8 @@ internal fun HomeList(
     }
     val slots = held?.slots ?: computed
     val slop = LocalViewConfiguration.current.touchSlop
-    val families = remember(shown) { shown.flatMap { it.chats }.groupBy { it.nestedUnder ?: it.id } }
+    // Unfolded, so a folding family keeps its children composed while they animate away.
+    val families = remember(sections) { sections.flatMap { it.chats }.groupBy { it.nestedUnder ?: it.id } }
     val haptics = LocalHapticFeedback.current
     val direction = LocalLayoutDirection.current
     // The list sits below the app bar. Only the bottom bar overlaps its viewport.
@@ -1233,7 +1239,10 @@ private fun FamilyRows(
     val rootActions = rowActions(root, section, sections, status, onSetArchived, archivedList, labels)
     val up = status?.let { StatusMoves.by(section, root, -1) }
     val down = status?.let { StatusMoves.by(section, root, 1) }
+    val expanded = root.treeParent && root.id !in folded
+    val collapseLabel = stringResource(R.string.home_tree_collapse)
     val semantics = buildList {
+        if (expanded) add(CustomAccessibilityAction(collapseLabel) { toggleOpener(root.id); true })
         if (up != null) add(CustomAccessibilityAction(labels.moveUp) { move(up); true })
         if (down != null) add(CustomAccessibilityAction(labels.moveDown) { move(down); true })
         if (rootActions.hasMenu) add(CustomAccessibilityAction(labels.actions) { onMenu(true); true })
@@ -1253,15 +1262,26 @@ private fun FamilyRows(
             ) { onOpenChat(root) }
         }
         // Opened children move with their opener (no drag or Move up / down) but take every other action.
-        kids.forEach { kid ->
-            var kidMenu by remember { mutableStateOf(false) }
-            val kidActions = rowActions(kid, section, sections, status, onSetArchived, archivedList, labels)
-            SwipeActions(kidActions.leading.takeIf { !dragging }, kidActions.trailing.takeIf { !dragging }.orEmpty()) {
-                ChatRow(
-                    kid, rowDetails(kid), now, owner(kid), menuOpen = kidMenu, onMenu = if (kidActions.hasMenu) { open: Boolean -> kidMenu = open } else null,
-                    actions = if (kidActions.hasMenu) listOf(CustomAccessibilityAction(labels.actions) { kidMenu = true; true }) else emptyList(),
-                    menu = { close -> RowMenu(section, kid, kidActions, sections, status, archivedList, close) },
-                ) { onOpenChat(kid) }
+        // Expanded, the count line gives way to them and the first child carries the collapse chevron.
+        AnimatedVisibility(expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Column {
+                kids.forEachIndexed { index, kid ->
+                    var kidMenu by remember { mutableStateOf(false) }
+                    val kidActions = rowActions(kid, section, sections, status, onSetArchived, archivedList, labels)
+                    val collapse: (() -> Unit)? = if (index == 0) { { toggleOpener(root.id) } } else null
+                    val kidSemantics = buildList {
+                        if (collapse != null) add(CustomAccessibilityAction(collapseLabel) { collapse(); true })
+                        if (kidActions.hasMenu) add(CustomAccessibilityAction(labels.actions) { kidMenu = true; true })
+                    }
+                    SwipeActions(kidActions.leading.takeIf { !dragging }, kidActions.trailing.takeIf { !dragging }.orEmpty()) {
+                        ChatRow(
+                            kid, rowDetails(kid), now, owner(kid), collapseFamily = collapse,
+                            menuOpen = kidMenu, onMenu = if (kidActions.hasMenu) { open: Boolean -> kidMenu = open } else null,
+                            actions = kidSemantics,
+                            menu = { close -> RowMenu(section, kid, kidActions, sections, status, archivedList, close) },
+                        ) { onOpenChat(kid) }
+                    }
+                }
             }
         }
     }
@@ -1687,8 +1707,10 @@ private fun SectionTitle(
  * Line 1: status slot, title, age. Line 2 (only when an enabled detail has a value): repo or folder
  * mark + project, branch, and the PR mark trailing. iOS counterpart: `ChatRowContent`.
  *
- * [expanded] is set on a row with nested chats: whether they are shown. A "⌄ 4 opened chats" line
- * below the row heads the family. Nested rows read one size down and have rounded branches.
+ * [expanded] is set on a row with nested chats: whether they are shown. While folded, a "› 4 opened
+ * chats" line below the row stands for the family; expanded, it gives way to the children and
+ * [collapseFamily] (the first child's leading chevron) folds them again. Nested rows read one size
+ * down and have rounded branches.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1699,6 +1721,7 @@ private fun ChatRow(
     owner: WorkspaceMember? = null,
     expanded: Boolean? = null,
     onToggle: () -> Unit = {},
+    collapseFamily: (() -> Unit)? = null,
     /** The long-press action menu: open state, its toggle (null: no menu) and its items. */
     menuOpen: Boolean = false,
     onMenu: ((Boolean) -> Unit)? = null,
@@ -1719,93 +1742,124 @@ private fun ChatRow(
     val nested = chat.nestedUnder != null
     val rail = colors.borderDefault
     var titleHeight by remember { mutableFloatStateOf(0f) }
+    val first = collapseFamily != null
     Column(
         modifier
             .fillMaxWidth()
-            .drawBehind { if (nested) drawRail(rail, chat.lastChild, if (twoLine) LodySpacing.sm.toPx() + titleHeight / 2 else size.height / 2) },
+            // A little air between an expanded family and the next conversation; children stay tight.
+            .padding(bottom = if (nested && chat.lastChild) LodySpacing.sm else 0.dp)
+            .drawBehind {
+                if (nested) {
+                    val turn = if (twoLine) LodySpacing.sm.toPx() + titleHeight / 2 else size.height / 2
+                    if (first) drawTrunkBelowChevron(rail, chat.lastChild, turn) else drawRail(rail, chat.lastChild, turn)
+                }
+            },
     ) {
         // A popup: it takes no space in the column and anchors to this row.
         if (onMenu != null) DropdownMenu(expanded = menuOpen, onDismissRequest = { onMenu(false) }, containerColor = colors.bgOverlay) {
             menu { onMenu(false) }
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = if (nested) LodySize.controlMd else LodySize.listRow)
-                .then(press?.let { handle -> Modifier.clickable(onClick = onClick).then(handle()) }
-                    ?: Modifier.combinedClickable(onClick = onClick, onLongClick = onMenu?.let { { it(true) } }))
-                .then(if (actions.isNotEmpty()) Modifier.semantics { customActions = actions } else Modifier)
-                .padding(horizontal = LodyLayout.screenPaddingX)
-                .padding(vertical = if (twoLine) LodySpacing.sm else 0.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (nested) Spacer(Modifier.width(TreeLevel))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(LodySpacing.xxs)) {
-                Row(Modifier.onSizeChanged { titleHeight = it.height.toFloat() }, verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        chat.title,
-                        style = when {
-                            nested -> type.callout.copy(fontWeight = if (chat.unread) type.bodyEmphasis.fontWeight else type.callout.fontWeight)
-                            chat.unread -> type.bodyEmphasis
-                            else -> type.body
-                        },
-                        // Archived chats read in tertiary ink on the grey page (iOS #2541).
-                        color = if (LocalArchivedPage.current) colors.textTertiary else colors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (chat.attention != null) {
-                        Box(Modifier.padding(start = LodySpacing.sm).size(LodyIconSize.md), contentAlignment = Alignment.Center) { AttentionGlyph(chat.attention) }
-                    }
-                    if (chat.attention == null && pr != null && !twoLine) PullRequestMark(pr, chat.prCi, Modifier.padding(start = LodySpacing.sm))
-                    val wakes = chat.snoozedUntil?.takeIf { chat.tier == app.lody.android.runtime.StatusTier.Later && it > now }
-                    if (wakes != null) {
-                        // A Later row's wake-up countdown parks at the trailing edge in neutral ink, after
-                        // any status mark (an unread or waiting Later row still shows when it returns).
-                        val left = countdownText(wakes, now)
-                        val described = stringResource(R.string.status_returns_in, left)
-                        Row(Modifier.padding(start = LodySpacing.sm).semantics(mergeDescendants = true) { contentDescription = described },
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LodySpacing.xxs)) {
-                            Glyph(LodyIcons.Clock, colors.iconTertiary, LodyIconSize.xs)
-                            Text(left, style = type.footnote.copy(fontFeatureSettings = "tnum"), color = colors.textTertiary, maxLines = 1)
-                        }
-                    }
-                    if (chat.attention == null && wakes == null) chat.activityAt?.let { at ->
+        Box(if (first) Modifier.height(IntrinsicSize.Min) else Modifier) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = if (nested) LodySize.controlMd else LodySize.listRow)
+                    .then(press?.let { handle -> Modifier.clickable(onClick = onClick).then(handle()) }
+                        ?: Modifier.combinedClickable(onClick = onClick, onLongClick = onMenu?.let { { it(true) } }))
+                    .then(if (actions.isNotEmpty()) Modifier.semantics { customActions = actions } else Modifier)
+                    .padding(horizontal = LodyLayout.screenPaddingX)
+                    .padding(vertical = if (twoLine) LodySpacing.sm else 0.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (nested) Spacer(Modifier.width(TreeLevel))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(LodySpacing.xxs)) {
+                    Row(Modifier.onSizeChanged { titleHeight = it.height.toFloat() }, verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            ageText(at, now),
-                            style = type.footnote.copy(fontFeatureSettings = "tnum"),
-                            color = colors.textTertiary,
+                            chat.title,
+                            style = when {
+                                nested -> type.callout.copy(fontWeight = if (chat.unread) type.bodyEmphasis.fontWeight else type.callout.fontWeight)
+                                chat.unread -> type.bodyEmphasis
+                                else -> type.body
+                            },
+                            // Archived chats read in tertiary ink on the grey page (iOS #2541).
+                            color = if (LocalArchivedPage.current) colors.textTertiary else colors.textPrimary,
                             maxLines = 1,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.padding(start = if (pr != null && !twoLine) LodySpacing.xs else LodySpacing.sm),
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
                         )
-                    }
-                    if (owner != null) {
-                        Spacer(Modifier.width(LodySpacing.sm))
-                        Avatar(owner.image, owner.name.ifBlank { "?" }, LodyIconSize.md)
-                    }
-                }
-                if (twoLine) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Project and branch share the leading space so the PR mark stays pinned trailing.
-                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LodySpacing.xs)) {
-                            if (place != null) {
-                                if (chat.placeIsRepo) RepositoryIcon(chat.repository)
-                                else Glyph(LodyIcons.Folder, colors.iconSecondary, LodyIconSize.sm)
-                                Text(place, style = type.footnote, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                            }
-                            if (branch != null) {
-                                Glyph(LodyIcons.Branch, colors.iconTertiary, LodyIconSize.sm, Modifier.padding(start = if (place != null) LodySpacing.xs else 0.dp))
-                                Text(branch, style = type.footnote, color = colors.textTertiary, maxLines = 1, overflow = TextOverflow.MiddleEllipsis, modifier = Modifier.weight(1f, fill = false))
+                        if (chat.attention != null) {
+                            Box(Modifier.padding(start = LodySpacing.sm).size(LodyIconSize.md), contentAlignment = Alignment.Center) { AttentionGlyph(chat.attention) }
+                        }
+                        if (chat.attention == null && pr != null && !twoLine) PullRequestMark(pr, chat.prCi, Modifier.padding(start = LodySpacing.sm))
+                        val wakes = chat.snoozedUntil?.takeIf { chat.tier == app.lody.android.runtime.StatusTier.Later && it > now }
+                        if (wakes != null) {
+                            // A Later row's wake-up countdown parks at the trailing edge in neutral ink, after
+                            // any status mark (an unread or waiting Later row still shows when it returns).
+                            val left = countdownText(wakes, now)
+                            val described = stringResource(R.string.status_returns_in, left)
+                            Row(Modifier.padding(start = LodySpacing.sm).semantics(mergeDescendants = true) { contentDescription = described },
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LodySpacing.xxs)) {
+                                Glyph(LodyIcons.Clock, colors.iconTertiary, LodyIconSize.xs)
+                                Text(left, style = type.footnote.copy(fontFeatureSettings = "tnum"), color = colors.textTertiary, maxLines = 1)
                             }
                         }
-                        if (pr != null) PullRequestMark(pr, chat.prCi, Modifier.padding(start = LodySpacing.sm))
+                        if (chat.attention == null && wakes == null) chat.activityAt?.let { at ->
+                            Text(
+                                ageText(at, now),
+                                style = type.footnote.copy(fontFeatureSettings = "tnum"),
+                                color = colors.textTertiary,
+                                maxLines = 1,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.padding(start = if (pr != null && !twoLine) LodySpacing.xs else LodySpacing.sm),
+                            )
+                        }
+                        if (owner != null) {
+                            Spacer(Modifier.width(LodySpacing.sm))
+                            Avatar(owner.image, owner.name.ifBlank { "?" }, LodyIconSize.md)
+                        }
+                    }
+                    if (twoLine) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Project and branch share the leading space so the PR mark stays pinned trailing.
+                            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LodySpacing.xs)) {
+                                if (place != null) {
+                                    if (chat.placeIsRepo) RepositoryIcon(chat.repository)
+                                    else Glyph(LodyIcons.Folder, colors.iconSecondary, LodyIconSize.sm)
+                                    Text(place, style = type.footnote, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                                }
+                                if (branch != null) {
+                                    Glyph(LodyIcons.Branch, colors.iconTertiary, LodyIconSize.sm, Modifier.padding(start = if (place != null) LodySpacing.xs else 0.dp))
+                                    Text(branch, style = type.footnote, color = colors.textTertiary, maxLines = 1, overflow = TextOverflow.MiddleEllipsis, modifier = Modifier.weight(1f, fill = false))
+                                }
+                            }
+                            if (pr != null) PullRequestMark(pr, chat.prCi, Modifier.padding(start = LodySpacing.sm))
+                        }
                     }
                 }
             }
+            if (collapseFamily != null) {
+                // The first child's leading gutter folds the family; its chevron sits on the trunk, level with the title.
+                val chevronTop = with(LocalDensity.current) { (LodySpacing.sm.toPx() + titleHeight / 2).toDp() } - FamilyChevron / 2
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .width(LodyLayout.childIndent)
+                        .clickable(onClick = collapseFamily)
+                        .clearAndSetSemantics {},
+                    contentAlignment = if (twoLine) Alignment.TopStart else Alignment.CenterStart,
+                ) {
+                    Glyph(
+                        LodyIcons.Forward, colors.iconSecondary, FamilyChevron,
+                        Modifier.padding(start = LodyLayout.screenPaddingX).offset(y = if (twoLine) chevronTop else 0.dp).rotate(90f),
+                    )
+                }
+            }
         }
-        if (expanded != null) FamilyToggle(chat.childCount, expanded, chat.childAttention, onToggle)
+        if (expanded != null) {
+            AnimatedVisibility(!expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                FamilyToggle(chat.childCount, chat.childAttention, onToggle)
+            }
+        }
     }
 }
 
@@ -1837,19 +1891,26 @@ private fun DrawScope.drawRail(color: Color, last: Boolean, turn: Float) {
     drawPath(path, color, style = Stroke(width = RailWidth.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
+/** The first child's trunk: it starts below the collapse chevron and continues only when more children follow. */
+private fun DrawScope.drawTrunkBelowChevron(color: Color, last: Boolean, turn: Float) {
+    if (last) return
+    val trunk = RailX.toPx()
+    drawLine(color, Offset(trunk, turn + FamilyChevron.toPx() / 2 + LodySpacing.xs.toPx()), Offset(trunk, size.height),
+        strokeWidth = RailWidth.toPx(), cap = StrokeCap.Round)
+}
+
 /**
- * The family's own line under the opener (Slack's "7 replies"): chevron + "7 opened chats",
- * aligned with the opener's title. Same place folded or open; the chevron turns down when the
- * family shows and the rail starts beneath it. The whole line toggles the family and announces
- * its count and expansion state; the separate opener row opens the conversation.
+ * A folded family's line under the opener (Slack's "7 replies"): chevron + "7 opened chats",
+ * aligned with the opener's title. The whole line expands the family and announces its count and
+ * folded state; the separate opener row opens the conversation. Expanded, the line hides and the
+ * first child's chevron folds the family again.
  */
 @Composable
-private fun FamilyToggle(count: Int, expanded: Boolean, childAttention: ChatAttention?, onToggle: () -> Unit) {
+private fun FamilyToggle(count: Int, childAttention: ChatAttention?, onToggle: () -> Unit) {
     val colors = LodyTheme.colors
-    val action = stringResource(if (expanded) R.string.home_tree_collapse else R.string.home_tree_expand)
+    val action = stringResource(R.string.home_tree_expand)
     val label = pluralStringResource(R.plurals.home_tree_count, count, count)
-    val description = label + ", " + stringResource(if (expanded) R.string.home_tree_expanded else R.string.home_tree_collapsed)
-    val angle by animateFloatAsState(if (expanded) 90f else 0f, LodySpring.snappy(), label = "family")
+    val description = label + ", " + stringResource(R.string.home_tree_collapsed)
     Box(
         Modifier
             .fillMaxWidth()
@@ -1866,7 +1927,7 @@ private fun FamilyToggle(count: Int, expanded: Boolean, childAttention: ChatAtte
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(LodySpacing.xs),
         ) {
-            Glyph(LodyIcons.Forward, colors.iconSecondary, FamilyChevron, Modifier.rotate(angle))
+            Glyph(LodyIcons.Forward, colors.iconSecondary, FamilyChevron)
             Text(
                 label,
                 style = LodyTheme.typography.footnote.copy(fontFeatureSettings = "tnum"),
@@ -1874,7 +1935,7 @@ private fun FamilyToggle(count: Int, expanded: Boolean, childAttention: ChatAtte
                 maxLines = 1,
             )
         }
-        if (!expanded && childAttention != null) {
+        if (childAttention != null) {
             Box(Modifier.align(Alignment.CenterEnd).padding(end = LodyLayout.screenPaddingX).size(LodyIconSize.md), contentAlignment = Alignment.Center) {
                 AttentionGlyph(childAttention)
             }
