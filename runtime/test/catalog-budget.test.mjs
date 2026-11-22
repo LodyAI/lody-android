@@ -206,6 +206,8 @@ test('healthy metadata publishes with missing or failed machine streams and keep
  const context={setTimeout:task=>{tasks.push(task);return tasks.length;},catalogs,unhealthy,watchers:new Map(),machineReplicas:new Map(),state:{knownProjects:[],pinSections:{sections:[],loaded:false}},gitRepos:new Map(),
   // Before metadata the Status view has no sources, so publication carries no layout.
   statusSources:()=>undefined,catalogStatusView:()=>undefined,statusViewNextChangeAt:()=>null,scheduleStatusRefresh(){},
+  // The change signature includes the clock calibration, so a new offset republishes.
+  serverClock:{offset:()=>0,now:()=>0},
   watch(id){context.watchers.set(id,new AbortController());},refreshSessionUsage(){},askGitState(){},mergeAgentQuotas:()=>[],keepRepos:value=>value,
   channel:{emit(type,payload){events.push({type,...payload});}}
  };
