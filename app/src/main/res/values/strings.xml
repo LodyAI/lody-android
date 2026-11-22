@@ -1033,7 +1033,7 @@
     <string name="status_action_move_up">Move up</string>
     <string name="status_action_move_down">Move down</string>
     <string name="status_preset_one_hour">In 1 hour</string>
-    <string name="status_preset_later_today">Later today</string>
+    <string name="status_preset_later_today">In 3 hours</string>
     <string name="status_preset_tomorrow">Tomorrow morning</string>
     <string name="status_preset_next_week">Next week</string>
     <string name="status_preset_custom">Custom time…</string>
