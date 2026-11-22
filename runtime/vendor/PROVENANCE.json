@@ -380,5 +380,16 @@
       "src/runtime/status-view.ts"
     ],
     "note": "Line C review fixes with the shared modules re-vendored from Lody #3093: the first pin section creates the missing workspace settings stream; a failed append discards and re-bootstraps the replica instead of keeping an unsent commit; touchOnSend reaches Guide/Steer and edit-and-resend sends and resolves a Tab to its conversation; a teammate's local-project conversation is not manageable; canManageSections waits for the section rows; My tasks scopes per conversation and counts the Pinned rows it hid; conversation activity includes its Tabs (unread stays its own); a new clock calibration republishes the catalog so hosts learn the offset from nowMs. No contract shape changes. Dependencies and licenses are unchanged."
+  },
+  "steerDeliveryFix": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "512d209a058c41c31a4f4b4ab9ba69f771207c5e",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/157",
+    "files": [
+      "src/runtime/execution.ts",
+      "src/runtime/handlers/sessions.ts",
+      "src/runtime/session.ts"
+    ],
+    "note": "Mirrors the reviewed iOS steer delivery fix (#157, plus the existing-turn MCP empty-selection guard in session.ts from #156): avoid writing _lodyDeliveryKind='steer' onto user inputConfig / acpSessionConfig before session/steer confirms applied=true so daemon-requeued steers remain dispatchable; opt out of queue/inbox pausing (pauseInbox=false) when cancelling for interrupt-based steering on operationInbox machines and unpause stopped drafts with a fresh resend id; resolve activeAssistantTurn from only the latest assistant entry; stamp humanInputReceipts on Loro turns; and settle executionProjection delivery states. Dependencies, contract and licenses are unchanged."
   }
 }

@@ -483,10 +483,11 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         val choice = Triple(modelId, modeId, effort)
         val role = SessionRoles.send(roles != null, activeRole, pickedRole, durableRole)
         val switches = if (chosen) chosenOptions else emptyMap()
+        val hasStreamingAssistant = messages.lastOrNull { !it.isUser }?.streaming == true
         coroutines.launch {
-            val busy = session.status in RunningStatuses
+            val busy = session.status in RunningStatuses || hasStreamingAssistant
             // The Guide preference steers the running reply when the agent can; otherwise it queues.
-            val guide = busy && capability?.steer == true && AppPreferences.queuedMessageBehavior(appContext) == AppPreferences.GUIDE
+            val guide = busy && hasStreamingAssistant && capability?.steer == true && AppPreferences.queuedMessageBehavior(appContext) == AppPreferences.GUIDE
             val queue = busy && !guide
             // iOS `turnQuota`: a refused turn must not upload its attachments first. A failed check
             // admits it; the send checks the quota again.
