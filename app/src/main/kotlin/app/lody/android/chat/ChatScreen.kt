@@ -377,9 +377,9 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     // sub-conversation question and Undo (shared with Home).
     // The page's row comes from the team layout, so its commands resolve against that list.
     val sessionsNow by androidx.compose.runtime.rememberUpdatedState(context.relatedSessions)
-    val statusActions = app.lody.android.home.rememberStatusActions(statusView, snackbar, app.lody.android.runtime.StatusViewScope.Team) { sessionsNow }
+    val statusActions = app.lody.android.home.rememberStatusActions(statusView.takeUnless { context.readOnly }, snackbar, app.lody.android.runtime.StatusViewScope.Team) { sessionsNow }
     val statusRow = context.statusRow
-    val statusMenu = statusRow?.takeIf { statusActions != null && it.canManage && !context.readOnly }?.let { row ->
+    val statusMenu = statusRow?.takeIf { statusActions != null && it.canManage }?.let { row ->
         val conversation = context.relatedSessions.firstOrNull { it.id == row.id }
         // A conversation the layout carries under a pinned opener is not pinned itself: its own
         // snooze / settle metadata decides the actions. A pinned one takes none here.

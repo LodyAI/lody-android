@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import sh.calvin.reorderable.ReorderableItem
 import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import app.lody.android.auth.WorkspaceMember
 
@@ -295,21 +296,22 @@ fun ChatListScreen(
     // Status view actions: the Later sheet, the sub-conversation question and Undo live in one host.
     val statusList = if (homeScope == HomeScope.Mine) app.lody.android.runtime.StatusViewScope.Mine else app.lody.android.runtime.StatusViewScope.Team
     val snapshotNow by androidx.compose.runtime.rememberUpdatedState(state.snapshot)
-    val statusActions = rememberStatusActions(statusView, snackbar, statusList) { snapshotNow?.sessions.orEmpty() }
+    // A role discovered after the runtime started can revoke an already-open action sheet.
+    val readOnly = state.userId?.let { state.members[it] }?.readOnly == true
+    val readOnlyNow by androidx.compose.runtime.rememberUpdatedState(readOnly)
+    val statusActions = rememberStatusActions(statusView.takeUnless { readOnly }, snackbar, statusList) { snapshotNow?.sessions.orEmpty() }
     val statusFailed = stringResource(R.string.status_write_failed)
     // A section name prompt: (section id or null for a new one, its name, the row to move into a new one).
     var sectionDialog by remember { mutableStateOf<Triple<String?, String, String?>?>(null) }
     var deleting by remember { mutableStateOf<Pair<String, String>?>(null) }
     // Section management follows the layout's grant, and waits until the section rows were read.
     val manageSections = state.snapshot?.statusView?.let { it.sectionsLoaded && it.team.canManageSections } == true
-    // The live member list is checked too: the runtime learns the role only when it starts, from the
-    // cached list, so a viewer whose role arrived later is still offered no status action here.
-    val readOnly = state.userId?.let { state.members[it] }?.readOnly == true
     val pinSections = remember(state.snapshot?.pinSections) { listOf<Pair<String?, String?>>(null to null) + state.snapshot?.pinSections.orEmpty().map { it.id to it.name } }
     val statusControls = remember(statusActions, statusView, manageSections, statusList, readOnly, pinSections) {
         if (statusActions == null || statusView == null || readOnly) null else {
             val run: (app.lody.android.runtime.StatusViewCommand, (Boolean) -> Unit) -> Unit = { command, done ->
                 notices.launch {
+                    if (readOnlyNow) { done(false); return@launch }
                     val ok = try { statusView.run(command, statusList) > 0 }
                     catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                     catch (_: Exception) { false }
@@ -332,7 +334,10 @@ fun ChatListScreen(
             )
         }
     }
-    sectionDialog?.let { (id, name, moving) ->
+    LaunchedEffect(readOnly) {
+        if (readOnly) { sectionDialog = null; deleting = null }
+    }
+    sectionDialog.takeUnless { readOnly }?.let { (id, name, moving) ->
         SectionNameDialog(stringResource(if (id == null) R.string.status_section_new else R.string.status_section_rename), name, onDismiss = { sectionDialog = null }) { next ->
             sectionDialog = null
             val created = java.util.UUID.randomUUID().toString()
@@ -345,7 +350,7 @@ fun ChatListScreen(
             }
         }
     }
-    deleting?.let { (id, name) ->
+    deleting.takeUnless { readOnly }?.let { (id, name) ->
         DeleteSectionDialog(name, onDismiss = { deleting = null }) {
             deleting = null
             statusControls?.run?.invoke(app.lody.android.runtime.StatusViewCommand.DeleteSection(id)) {}
@@ -973,6 +978,12 @@ internal fun HomeList(
     val computed = remember(shown, settledExpanded) { StatusMoves.slots(shown, settledExpanded) }
     var drag by remember { mutableStateOf<HeldOrder?>(null) }
     val held = drag
+    val windowInfo = LocalWindowInfo.current
+    val windowFocused = windowInfo.isWindowFocused
+    BackHandler(enabled = held?.dragging == true) { drag = null }
+    LaunchedEffect(windowFocused) {
+        if (!windowFocused && drag?.dragging == true) drag = null
+    }
     // The dropped order holds until the catalog shows the row where it landed, or until two
     // catalogs arrived after the write without it (another change won); a failed write releases.
     LaunchedEffect(computed) {
@@ -988,12 +999,18 @@ internal fun HomeList(
     val families = remember(shown) { shown.flatMap { it.chats }.groupBy { it.nestedUnder ?: it.id } }
     val haptics = LocalHapticFeedback.current
     val direction = LocalLayoutDirection.current
-// The list already sits below the app bar; only the bottom bar overlaps its viewport.
+    // The list sits below the app bar. Only the bottom bar overlaps its viewport.
     val reorderState = rememberReorderableLazyListState(listState, scrollThresholdPadding = PaddingValues(bottom = padding.calculateBottomPadding())) { from, to ->
-        val current = drag ?: return@rememberReorderableLazyListState
-        val next = StatusMoves.swap(current.slots, from.key as String, to.key as String)
-        if (next !== current.slots) {
-            drag = current.copy(slots = StatusMoves.settle(next), moved = true)
+        val current = drag?.takeIf { it.dragging } ?: return@rememberReorderableLazyListState
+        val target = to.key as String
+        val next = StatusMoves.swap(current.slots, from.key as String, target)
+        val moved = next !== current.slots
+        drag = current.copy(
+            slots = if (moved) StatusMoves.settle(next) else current.slots,
+            moved = current.moved || moved,
+            target = target,
+        )
+        if (moved) {
             haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
         }
     }
@@ -1081,16 +1098,22 @@ internal fun HomeList(
                                             drag = HeldOrder(slots, slots, dragging = true)
                                         },
                                         onDragStopped = {
-                                            val current = drag
-                                            val command = current?.takeIf { it.moved }?.let { StatusMoves.drop(it.slots, it.original, root.id) }
+                                            val current = drag?.takeIf { it.dragging } ?: return@draggableHandle
+                                            // The reorder library needs its requested index during the gesture.
+                                            // A header drop becomes the top of that section on release.
+                                            val landed = StatusMoves.belowHeader(current.slots, root.id, current.target)
+                                            val moved = current.moved || landed !== current.slots
+                                            val command = if (moved) StatusMoves.drop(landed, current.original, root.id) else null
                                             // A cancelled gesture (back swipe, notification shade) never writes or opens the menu.
-                                            when (current?.let { StatusMoves.release(gesture.ended, it.moved, gesture.travelled, slop, command) }) {
-                                                null -> Unit
+                                            when (StatusMoves.release(gesture.ended && windowInfo.isWindowFocused, moved, gesture.travelled, slop, command)) {
                                                 StatusMoves.Release.Menu -> { drag = null; menuFor = root.id }
                                                 StatusMoves.Release.Revert -> drag = null
                                                 StatusMoves.Release.Commit -> {
-                                                    drag = current.copy(dragging = false, command = command)
-                                                    status?.run?.invoke(command!!) { ok -> drag = drag?.let { if (ok) it.copy(written = true) else null } }
+                                                    val dropped = current.copy(slots = landed, dragging = false, command = command)
+                                                    drag = dropped
+                                                    status.run(command!!) { ok ->
+                                                        if (drag === dropped) drag = if (ok) dropped.copy(written = true) else null
+                                                    }
                                                 }
                                             }
                                         },
@@ -1113,6 +1136,7 @@ private data class HeldOrder(
     val original: List<ListSlot>,
     val dragging: Boolean,
     val moved: Boolean = false,
+    val target: String? = null,
     val command: app.lody.android.runtime.StatusViewCommand.Move? = null,
     val written: Boolean = false,
     val misses: Int = 0,

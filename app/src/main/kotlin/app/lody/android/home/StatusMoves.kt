@@ -55,17 +55,24 @@ object StatusMoves {
         StatusViewTarget.Focus -> chat.canManage
     }
 
-    /**
-     * Moves the [from] slot to [to]'s position; the list a reorderable `onMove` must apply at once.
-     * Only rows move, and never above the first header: a row there belongs to no section, so the
-     * list could not render it and the drag would end.
-     */
+    /** Moves a row to the exact index requested by the reorder library. */
     fun swap(slots: List<ListSlot>, from: String, to: String): List<ListSlot> {
         val source = slots.indexOfFirst { it.key == from }
         val destination = slots.indexOfFirst { it.key == to }
         if (source < 0 || destination < 0 || source == destination || slots[source] !is ListSlot.Row) return slots
-        val moved = slots.toMutableList().apply { add(destination, removeAt(source)) }
-        return if (moved.first() is ListSlot.Header) moved else slots
+        // An item before the first header has no section and would disappear during the drag.
+        if (destination == 0) return slots
+        return slots.toMutableList().apply { add(destination, removeAt(source)) }
+    }
+
+    /** An explicit drop on a header lands immediately below it in either direction. */
+    fun belowHeader(slots: List<ListSlot>, id: String, headerKey: String?): List<ListSlot> {
+        if (headerKey == null) return slots
+        val source = slots.indexOfFirst { it.key == ListSlot.rowKey(id) }
+        val header = slots.indexOfFirst { it is ListSlot.Header && it.key == headerKey }
+        if (source < 0 || header < 0 || source == header + 1) return slots
+        val destination = if (source < header) header else header + 1
+        return settle(slots.toMutableList().apply { add(destination, removeAt(source)) })
     }
 
     /** Recomputes gaps after a move: an emptied Focus gains its gap, a filled one loses it. */

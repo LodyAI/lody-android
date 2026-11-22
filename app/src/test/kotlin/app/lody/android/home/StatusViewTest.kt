@@ -263,18 +263,19 @@ class StatusViewTest {
 
     private fun slots() = StatusMoves.slots(home(HomeGrouping.Status).map { it.copy(collapsed = false) })
 
-    private fun moved(id: String, before: String): List<ListSlot> = StatusMoves.swap(slots(), ListSlot.rowKey(id), before)
+    private fun moved(id: String, target: String): List<ListSlot> {
+        val reordered = StatusMoves.swap(slots(), ListSlot.rowKey(id), target)
+        return StatusMoves.belowHeader(reordered, id, target)
+    }
 
     @Test fun dragsBecomeMovesNamingTheRowLandedBefore() {
         val original = slots()
         // Reorder inside Focus: "new" over "old" lands in front of it.
         assertEquals(StatusViewCommand.Move("new", StatusViewTarget.Focus, "old"), StatusMoves.drop(moved("new", ListSlot.rowKey("old")), original, "new"))
-        // Dropped into an empty named pin section (onto the next header): pinned there, at the end.
         assertEquals(StatusViewCommand.Move("old", StatusViewTarget.Pinned("maint"), null),
-            StatusMoves.drop(moved("old", "header/status-focus"), original, "old"))
-        // A Later row dropped back into Focus (over the Later header) is restored at Focus's end.
-        assertEquals(StatusViewCommand.Move("snoozed", StatusViewTarget.Focus, null),
-            StatusMoves.drop(moved("snoozed", "header/status-later"), original, "snoozed"))
+            StatusMoves.drop(moved("old", "header/pin-maint"), original, "old"))
+        assertEquals(StatusViewCommand.Move("snoozed", StatusViewTarget.Focus, "old"),
+            StatusMoves.drop(moved("snoozed", "header/status-focus"), original, "snoozed"))
         // Later has no manual order; a drop there or back in place changes nothing.
         assertNull(StatusMoves.drop(moved("new", ListSlot.rowKey("snoozed")), original, "new"))
         assertNull(StatusMoves.drop(original, original, "new"))
@@ -282,11 +283,11 @@ class StatusViewTest {
         assertEquals(original, StatusMoves.swap(original, "header/status-focus", ListSlot.rowKey("new")))
     }
 
-    @Test fun aRowNeverMovesAboveTheFirstHeader() {
+    @Test fun theFirstHeaderAcceptsRowsAtTheTopOfItsSection() {
         val original = slots()
-        // Onto the very first header: the row would belong to no section, so the swap is refused.
-        assertEquals(original, StatusMoves.swap(original, ListSlot.rowKey("pin"), "header/pinned"))
-        assertTrue(StatusMoves.swap(original, ListSlot.rowKey("new"), "header/pinned") === original)
+        assertTrue(StatusMoves.swap(original, ListSlot.rowKey("pin"), "header/pinned") === original)
+        assertEquals(StatusViewCommand.Move("new", StatusViewTarget.Pinned(null), "pin"),
+            StatusMoves.drop(moved("new", "header/pinned"), original, "new"))
     }
 
     @Test fun anEmptyFocusOffersALandingSlotThatFollowsItsRows() {
@@ -310,7 +311,7 @@ class StatusViewTest {
         val sections = home(HomeGrouping.Status, StatusViewJson.statusView(JSONObject().put("mine", withRows).put("team", withRows)))
             .map { it.copy(collapsed = it.id == "pinned") }
         val original = StatusMoves.slots(sections)
-        val moved = StatusMoves.swap(original, ListSlot.rowKey("new"), "header/status-focus")
+        val moved = StatusMoves.belowHeader(original, "new", "header/pinned")
         assertEquals(StatusViewCommand.Move("new", StatusViewTarget.Pinned(null), "pin"), StatusMoves.drop(moved, original, "new"))
     }
 
