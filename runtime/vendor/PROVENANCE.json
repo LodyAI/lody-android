@@ -391,5 +391,17 @@
       "src/runtime/session.ts"
     ],
     "note": "Mirrors the reviewed iOS steer delivery fix (#157, plus the existing-turn MCP empty-selection guard in session.ts from #156): avoid writing _lodyDeliveryKind='steer' onto user inputConfig / acpSessionConfig before session/steer confirms applied=true so daemon-requeued steers remain dispatchable; opt out of queue/inbox pausing (pauseInbox=false) when cancelling for interrupt-based steering on operationInbox machines and unpause stopped drafts with a fresh resend id; resolve activeAssistantTurn from only the latest assistant entry; stamp humanInputReceipts on Loro turns; and settle executionProjection delivery states. Dependencies, contract and licenses are unchanged."
+  },
+  "sessionConnectionRecovery": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "5e8da4b8096febd309dde2e2ff585b7b46075a7b",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/159",
+    "files": [
+      "src/runtime/handlers/lifecycle.ts",
+      "src/runtime/index.ts",
+      "src/runtime/session-read.ts",
+      "src/runtime/session.ts"
+    ],
+    "note": "Mirrors the reviewed iOS session connection recovery fix (#159): probe stream recovery without live long-poll when streamReady is false (and on catalog retries), keep streamReady true across healthy multi-page live bursts, rebase concurrent Roost history supersessions in place, invalidate cached Streams grants on unauthorized/forbidden session reads, and wake pending read-retry sleeps on foreground resume. Dependencies, contract and licenses are unchanged."
   }
 }

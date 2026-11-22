@@ -115,6 +115,11 @@ export function createCommands(runtime, sendTurn, identity) {
    const scope=identity();if(!scope?.userId)throw Error('not_connected');
    try {
     await runtime.ensureSession({sessionId:input.sessionId});
+   } catch {
+    signal?.throwIfAborted();
+    return {state:'not_sent',reason:'session_not_ready'};
+   }
+   try {
     signal?.throwIfAborted();
     const sent=await sendTurn({billingEntitlement:billingEntitlement(input.billingEntitlement),id:input.turnId,sessionId:input.sessionId,machineId:input.machineId,userId:scope.userId,text,...(quotes.length?{quotes,quoteMain:input.text.trim()}:{}),cliType:input.cliType,agentType:input.agentType,...choice,...(attachments.length?{attachmentBlocks:attachments}:{}),...(input.resume?{resume:input.resume}:{}),...(input.guide===true?{guide:true}:input.queue?{queue:true}:{})});
     return {state:sent.state,reason:sent.reason};

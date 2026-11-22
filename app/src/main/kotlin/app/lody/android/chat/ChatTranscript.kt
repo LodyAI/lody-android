@@ -86,7 +86,7 @@ import kotlinx.coroutines.launch
 data class TurnIdentity(val name: String, val image: String? = null, val time: String = "")
 
 /** A user turn's delivery as web's `UserMessageSendStatus` shows it. */
-enum class Delivery { Sending, Sent, Queued, Seen, Failed, Unknown }
+enum class Delivery { Waiting, Sending, Sent, Queued, Seen, Failed, Unknown }
 
 /** A transcript entry. Assistant replies render as Markdown blocks; user turns as plain text. */
 sealed interface ChatEntry {
@@ -430,6 +430,7 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
                 horizontalArrangement = Arrangement.spacedBy(LodySpacing.sm),
             ) {
                 DeliveryMark(entry.delivery)
+                if (entry.delivery == Delivery.Waiting) Text(stringResource(R.string.chat_delivery_waiting_connection), style = LodyTheme.typography.footnote, color = colors.textTertiary, maxLines = 1)
                 if (entry.delivery == Delivery.Unknown) Text(stringResource(R.string.chat_delivery_unknown), style = LodyTheme.typography.footnote, color = colors.textTertiary, maxLines = 1)
                 if (entry.who.time.isNotEmpty()) Text(entry.who.time, style = LodyTheme.typography.footnote, color = colors.textTertiary, maxLines = 1)
                 Text(entry.who.name, style = LodyTheme.typography.footnote, color = colors.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -585,6 +586,7 @@ private fun DeliveryMark(delivery: Delivery) {
     val size = LodyIconSize.sm
     val label = stringResource(
         when (delivery) {
+            Delivery.Waiting -> R.string.chat_delivery_waiting_connection
             Delivery.Sending -> R.string.chat_delivery_sending
             Delivery.Sent -> R.string.chat_delivery_sent
             Delivery.Queued -> R.string.chat_delivery_queued
@@ -595,7 +597,7 @@ private fun DeliveryMark(delivery: Delivery) {
     )
     val mark = Modifier.size(size).semantics { contentDescription = label }
     when (delivery) {
-        Delivery.Sending -> app.lody.android.designsystem.LodyLoadingIndicator(mark.padding(LodySpacing.xxs), color = colors.iconTertiary)
+        Delivery.Waiting, Delivery.Sending -> app.lody.android.designsystem.LodyLoadingIndicator(mark.padding(LodySpacing.xxs), color = colors.iconTertiary)
         Delivery.Seen -> Icon(LodyIcons.StateDone, contentDescription = label, tint = colors.accentDefault, modifier = Modifier.size(size))
         Delivery.Unknown -> Icon(LodyIcons.Alert, contentDescription = label, tint = colors.iconTertiary, modifier = Modifier.size(size))
         Delivery.Failed -> Icon(LodyIcons.Alert, contentDescription = label, tint = colors.dangerDefault, modifier = Modifier.size(size))

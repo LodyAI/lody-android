@@ -22,6 +22,20 @@ open class LodyApplication : Application() {
         private set
     lateinit var creation: app.lody.android.create.CreationService
     val submissions by lazy { app.lody.android.create.CreationSubmissions(applicationScope) { scope, request -> creation.create(scope, request) } }
+    val sessionOutbox by lazy {
+        app.lody.android.chat.SessionOutbox(
+            this, applicationScope, cloud.state,
+            turnQuota = { scope, sessionId ->
+                runtimeOwner.use(scope) { (it.execute(RuntimeCommand.TurnQuota(sessionId)) as RuntimeResult.Sent).takeIf { sent -> sent.state == "not_sent" }?.reason }
+            },
+            upload = { scope, sessionId, items ->
+                if (items.isEmpty()) emptyList() else attachments.upload(scope, sessionId, items)
+            },
+            send = { scope, request ->
+                runtimeOwner.use(scope) { it.execute(RuntimeCommand.SendText(request)) as RuntimeResult.Sent }
+            },
+        )
+    }
     /** In-memory cache keeping active web and device previews alive across conversation switches; cleared on logout. */
     val previewCache by lazy { app.lody.android.chat.PreviewCache(applicationScope) }
     lateinit var pullRequests: app.lody.android.chat.PullRequestWriter
@@ -112,6 +126,7 @@ open class LodyApplication : Application() {
         account = AccountController(CloudAuthHttp(WorkspaceModePins(java.io.File(noBackupFilesDir, "workspace-modes" + BackendEnvironment.storageSuffix + ".json")), OkHttpAuthTransport()), KeystoreCredentialStore(this), applicationScope, cache) {
             if (::notifications.isInitialized) notifications.clear()
             app.lody.android.chat.ComposerDrafts.clear(this)
+            sessionOutbox.clear()
             scheduleCache.invalidate()
             previewCache.clearAll()
             prepared = null

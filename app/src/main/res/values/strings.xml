@@ -184,6 +184,9 @@
     <string name="chat_worked_for">Worked for %1$s</string>
     <string name="chat_composer_placeholder">Reply…</string>
     <string name="chat_composer_unavailable">Waiting for the conversation to connect…</string>
+    <string name="chat_connection_connecting">Connecting</string>
+    <string name="chat_connection_paused">Connection paused, tap to resync</string>
+    <string name="chat_delivery_waiting_connection">Waiting for connection…</string>
     <string name="chat_stop">Stop</string>
     <string name="chat_stop_failed">Couldn’t stop the turn. Try again.</string>
     <string name="chat_run_config">Model and mode</string>
