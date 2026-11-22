@@ -101,7 +101,7 @@
   "src/runtime/handlers/content.ts": "7c551d661c1b61518db0c53d1568d36ee6795f859ba7b4202a2438adeedc175a",
   "src/runtime/handlers/context.ts": "434839741189ce1f576793b4eb5a3c278013cb145730f352eb9d569438aa36e4",
   "src/runtime/handlers/debug.ts": "7f6b37e33c9dfd2b24b22769376d7cdc2a1e10504fcac0b4ce7f85546c09fbd9",
-  "src/runtime/handlers/lifecycle.ts": "40a031598d75e948b5dd02b0ecd56014796299b230af6ff6b382fccf34de39e9",
+  "src/runtime/handlers/lifecycle.ts": "553ac1b39ec396e67a0dacfcc3ccef0fbde1ca6e9a61bec819c99c2ef98ed519",
   "src/runtime/handlers/mentions.ts": "29be79277219df8e5c83caa0ce494459eae278a92920c67efc76890f04076623",
   "src/runtime/handlers/projects.ts": "e473cd10a85297ec8fc4faef0f9792cf96d006b9288d5e8074ce3d12545197e1",
   "src/runtime/handlers/proposals.ts": "1d614c746a667852a1f84c2b789e2c12d6cc868eec577cd82e96ed4a54210349",

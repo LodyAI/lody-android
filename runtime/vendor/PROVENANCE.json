@@ -403,5 +403,12 @@
       "src/runtime/session.ts"
     ],
     "note": "Mirrors the reviewed iOS session connection recovery fix (#159): probe stream recovery without live long-poll when streamReady is false (and on catalog retries), keep streamReady true across healthy multi-page live bursts, rebase concurrent Roost history supersessions in place, invalidate cached Streams grants on unauthorized/forbidden session reads, and wake pending read-retry sleeps on foreground resume. Dependencies, contract and licenses are unchanged."
+  },
+  "pinSectionsWithMeta": {
+    "repository": "https://github.com/LodyAI/lody-ios",
+    "commit": "d6de3bff1d4102d1cb962ae476884dcdb38d1e73",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/162",
+    "files": 1,
+    "note": "start opens the workspace settings stream (pin sections) together with :meta instead of after the first catalog publish, so lists no longer show every conversation before their sections and order settle. Only this hunk is mirrored from the reviewed iOS commit; other unmirrored iOS changes stay out of the snapshot, and dependencies and licenses are unchanged."
   }
 }
