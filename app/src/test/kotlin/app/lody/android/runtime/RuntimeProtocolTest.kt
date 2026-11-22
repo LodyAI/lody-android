@@ -155,12 +155,16 @@ class RuntimeProtocolTest {
   assertEquals(RunChoice(), composer("""{}"""))
  }
  @Test fun composerChoiceAndUserAttachmentsAreParsed() {
-  val body="""{"v":1,"status":"live","composer":{"modelId":"gpt","modeId":"plan","effort":"high","configOptionValues":{"fast":true}},"entries":[{"id":"u","role":"user","finished":true,"items":[{"type":"image_group","images":[{"id":"i1","fileName":"a.png"},{"id":"i2","fileName":"b.png"}]},{"type":"file","file":{"id":"f1","fileName":"notes.md"}}]}]}"""
+  val body="""{"v":1,"status":"live","composer":{"modelId":"gpt","modeId":"plan","effort":"high","configOptionValues":{"fast":true}},"entries":[{"id":"u","role":"user","finished":true,"items":[{"type":"image_group","images":[{"id":"i1","fileName":"a.png"},{"id":"i2","fileName":"b.png"}]},{"type":"file","file":{"id":"f1","fileName":"notes.md","storageSessionId":"parent","transport":"r2","sizeBytes":12}}]}]}"""
   val snapshot=(RuntimeProtocol.event(JSONObject().put("type","session").put("sessionId","s").put("session",body)) as RuntimeEvent.SessionUpdated).snapshot
   // Agent switches (Fast) come back so the chip and sheet reopen on them; no Role was said.
   assertEquals(RunChoice("gpt","plan","high",mapOf("fast" to true)),snapshot.composer)
   // An attachment-only user turn stays in the transcript.
-  assertEquals(listOf(MessageAttachment("a.png",true),MessageAttachment("b.png",true),MessageAttachment("notes.md",false)),snapshot.messages.single().attachments)
+  // An uploaded file keeps what opening it needs: its id, the session that stores it, transport and size.
+  val notes=app.lody.android.chat.SessionFileRef("f1","notes.md","parent","r2",12)
+  assertEquals(listOf(MessageAttachment("a.png",true),MessageAttachment("b.png",true),MessageAttachment("notes.md",false,notes)),snapshot.messages.single().attachments)
+  assertTrue(notes.downloadable && notes.markdown)
+  assertFalse(notes.copy(transport="local").downloadable)
  }
  @Test fun sessionProjectionIsNotDropped() {
   val frame=JSONObject().put("type","session").put("sessionId","s").put("session", """{"v":1,"status":"live","entries":[]}""")

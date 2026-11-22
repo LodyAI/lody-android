@@ -366,6 +366,17 @@
         <item quantity="one">%d 个文件</item>
         <item quantity="other">%d 个文件</item>
     </plurals>
+    <string name="chat_file_save">存储到文件</string>
+    <string name="chat_file_share">分享</string>
+    <string name="chat_file_saved">已存储</string>
+    <string name="chat_file_save_failed">无法存储文件</string>
+    <string name="chat_file_no_app">此设备上没有可以打开此文件的应用</string>
+    <string name="chat_file_open">打开 %1$s</string>
+    <string name="chat_file_error_download">附件下载失败，请检查网络后重试</string>
+    <string name="chat_file_error_unavailable">附件已过期或不可用</string>
+    <string name="chat_file_error_permission">无权访问此附件，请确认已登录正确的账户</string>
+    <string name="chat_file_error_too_large">附件超过 100 MB 的大小限制</string>
+    <string name="chat_file_error_pending">附件尚未上传</string>
     <string name="files_title">项目文件</string>
     <string name="files_retry">重试</string>
     <string name="files_error_folder">无法读取此文件夹，电脑可能已离线。</string>

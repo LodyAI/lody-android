@@ -348,7 +348,12 @@ sealed interface TurnItem {
      * A file the agent shared (`lody_upload_files`, web `SessionFileCard`): its name, type and
      * size; never folded.
      */
-    data class File(override val id: String, val fileName: String, val mimeType: String? = null, val sizeBytes: Long? = null) : TurnItem
+    data class File(
+        override val id: String, val fileName: String, val mimeType: String? = null, val sizeBytes: Long? = null,
+        val fileId: String = "", val storageSessionId: String? = null, val transport: String? = null,
+    ) : TurnItem {
+        val ref: app.lody.android.chat.SessionFileRef get() = app.lody.android.chat.SessionFileRef(fileId, fileName, storageSessionId, transport, sizeBytes, mimeType)
+    }
     /** A failure or notice the turn ended with; never folded. */
     data class Notice(override val id: String, val text: String, val failure: Boolean) : TurnItem
     /**
@@ -410,7 +415,8 @@ sealed interface RoleSend {
     data object None : RoleSend
     data class Role(val id: String) : RoleSend
 }
-data class MessageAttachment(val name: String, val image: Boolean)
+/** A turn's attachment; [file] is set for an uploaded file the reader can open. */
+data class MessageAttachment(val name: String, val image: Boolean, val file: app.lody.android.chat.SessionFileRef? = null)
 /**
  * The latest user turn's run config (runtime session `composer`), what the next turn would use.
  * [roleKnown] is false when the turn says nothing about a Role; then [agentRoleId] null is

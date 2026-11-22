@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -217,7 +219,8 @@ private fun failureText(code: String): String = stringResource(
 
 /**
  * A file the agent shared (`lody_upload_files`, web `SessionFileCard`): a type glyph, its name,
- * and its type and size. Display only; Android has no session-file download yet.
+ * and its type and size. Tapping opens it ([LocalSessionFiles]): Markdown in a sheet, other files
+ * in an app that views them, with a spinner while it downloads.
  */
 @Composable
 fun AgentFileCard(item: TurnItem.File, modifier: Modifier = Modifier) {
@@ -235,9 +238,13 @@ fun AgentFileCard(item: TurnItem.File, modifier: Modifier = Modifier) {
         type.startsWith("text/") || extension.lowercase() in setOf("md", "txt", "log", "json", "yaml", "yml", "xml", "html", "csv") -> LodyIcons.FileCode
         else -> LodyIcons.File
     }
+    val files = LocalSessionFiles.current
+    val ref = item.ref
+    val openLabel = androidx.compose.ui.res.stringResource(app.lody.android.R.string.chat_file_open, item.fileName)
     Row(
         modifier.fillMaxWidth().padding(horizontal = TranscriptMargin).padding(bottom = LodySpacing.md)
-            .background(colors.bgRaised, shape).border(LodyStroke.default, colors.borderSubtle, shape)
+            .clip(shape).background(colors.bgRaised, shape).border(LodyStroke.default, colors.borderSubtle, shape)
+            .then(if (files != null) Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = openLabel) { files.open(ref) } else Modifier)
             .padding(LodySpacing.md),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(LodySpacing.md),
@@ -248,5 +255,6 @@ fun AgentFileCard(item: TurnItem.File, modifier: Modifier = Modifier) {
             Text(item.fileName, style = LodyTheme.typography.callout, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
             if (detail.isNotEmpty()) Text(detail, style = LodyTheme.typography.caption, color = colors.textSecondary, maxLines = 1)
         }
+        if (files != null && ref.id in files.busy) LodyLoadingIndicator(Modifier.size(LodyIconSize.sm), color = colors.iconTertiary)
     }
 }

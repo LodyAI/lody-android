@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only the cache copy written for the image viewer's Copy and Share actions. -->
+<!-- Only the cache copies written for the image viewer's Copy and Share actions and for opening, saving and sharing session files. -->
 <paths>
     <cache-path name="shared_images" path="shared-images/" />
+    <cache-path name="session_files" path="session-files/" />
 </paths>

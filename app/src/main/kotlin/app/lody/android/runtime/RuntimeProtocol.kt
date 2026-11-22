@@ -302,6 +302,9 @@ internal object RuntimeProtocol {
                     fileName = file.optString("fileName").ifBlank { "file" },
                     mimeType = (file.opt("mimeType") as? String)?.takeIf { it.isNotBlank() },
                     sizeBytes = (file.opt("sizeBytes") as? Number)?.toLong()?.takeIf { it >= 0 },
+                    fileId = file.optString("id"),
+                    storageSessionId = (file.opt("storageSessionId") as? String)?.takeIf { it.isNotBlank() },
+                    transport = (file.opt("transport") as? String)?.takeIf { it.isNotBlank() },
                 )
             }
             "system_notice" -> {
@@ -385,7 +388,18 @@ internal object RuntimeProtocol {
             "image_group" -> item.optJSONArray("images")?.objects().orEmpty()
             else -> emptyList()
         }.map { MessageAttachment(it.optString("fileName").ifBlank { "image" }, image = true) } +
-            listOfNotNull(item.optJSONObject("file")?.takeIf { item.optString("type") == "file" }?.let { MessageAttachment(it.optString("fileName").ifBlank { "file" }, image = false) })
+            listOfNotNull(item.optJSONObject("file")?.takeIf { item.optString("type") == "file" }?.let {
+                val name = it.optString("fileName").ifBlank { "file" }
+                MessageAttachment(name, image = false, file = it.optString("id").takeIf { id -> id.isNotEmpty() }?.let { id ->
+                    app.lody.android.chat.SessionFileRef(
+                        id, name,
+                        storageSessionId = (it.opt("storageSessionId") as? String)?.takeIf { value -> value.isNotBlank() },
+                        transport = (it.opt("transport") as? String)?.takeIf { value -> value.isNotBlank() },
+                        sizeBytes = (it.opt("sizeBytes") as? Number)?.toLong()?.takeIf { size -> size >= 0 },
+                        mimeType = (it.opt("mimeType") as? String)?.takeIf { value -> value.isNotBlank() },
+                    )
+                })
+            })
     }
     private fun JSONObject.text(key: String) = get(key) as String
     private fun JSONObject.nonnegative(key: String): Long {

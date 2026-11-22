@@ -46,6 +46,7 @@ open class LodyApplication : Application() {
         private set
     /** Reads agent images in conversations with the verified account. */
     lateinit var sessionImages: app.lody.android.chat.SessionImageReader
+    lateinit var sessionFiles: app.lody.android.chat.SessionFileReader
         private set
     lateinit var members: WorkspaceMembers
         private set
@@ -122,6 +123,10 @@ open class LodyApplication : Application() {
         val imageReads = app.lody.android.chat.SessionImageHttp()
         sessionImages = app.lody.android.chat.SessionImageReader { scope, sessionId, image, width ->
             account.withVerifiedAccount(scope) { credential -> imageReads.read(credential.token, scope.workspaceId, image.storageSessionId ?: sessionId, image.id, width) }
+        }
+        val fileReads = app.lody.android.chat.SessionFileHttp()
+        sessionFiles = app.lody.android.chat.SessionFileReader { scope, sessionId, file, directory ->
+            account.withVerifiedAccount(scope) { credential -> fileReads.download(credential.token, scope.workspaceId, file.storageSessionId ?: sessionId, file, directory) }
         }
         account = AccountController(CloudAuthHttp(WorkspaceModePins(java.io.File(noBackupFilesDir, "workspace-modes" + BackendEnvironment.storageSuffix + ".json")), OkHttpAuthTransport()), KeystoreCredentialStore(this), applicationScope, cache) {
             if (::notifications.isInitialized) notifications.clear()

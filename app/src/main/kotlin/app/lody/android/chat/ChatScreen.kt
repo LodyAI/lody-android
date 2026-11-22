@@ -170,6 +170,8 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     val application = appContext.applicationContext as app.lody.android.LodyApplication
     // Agent images in this conversation, read with the verified account (iOS `ChatImageCell`).
     val sessionImages = remember(scope, id) { SessionImageSource(application.sessionImages, scope, id) }
+    // Files in this conversation, read with the verified account (iOS `openAttachment`).
+    val sessionFiles = rememberSessionFileOpener(application.sessionFiles, scope, id)
     val accountState by application.account.state.collectAsState()
     var members by remember(scope) { mutableStateOf(emptyMap<String, app.lody.android.auth.WorkspaceMember>()) }
     LaunchedEffect(scope, accountState.verified) {
@@ -1104,7 +1106,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 } else {
                     // The transcript scrolls under the floating header.
                     val transcriptSelection = remember { TranscriptSelection() }
-                    CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides transcriptLinks, LocalSessionImages provides sessionImages, LocalMessageQuoter provides quoter.takeIf { context.session?.isTabClosed != true }, LocalTranscriptSelection provides transcriptSelection) { ChatTranscript(
+                    CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides transcriptLinks, LocalSessionImages provides sessionImages, LocalSessionFiles provides sessionFiles, LocalMessageQuoter provides quoter.takeIf { context.session?.isTabClosed != true }, LocalTranscriptSelection provides transcriptSelection) { ChatTranscript(
                         all, Modifier.fillMaxSize().clearsTranscriptSelection(transcriptSelection), contentPadding = PaddingValues(top = top + if (creationNotice != null) LodySize.controlLg else LodySpacing.none, bottom = LodySpacing.md), state = listState, scrollToLatest = scrollToLatest,
                         historyHasMore = historyHasMore, historyLoading = historyLoading,
                         loadEarlier = { repository.loadOlder(scope, id) },
@@ -1244,6 +1246,9 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             // Docked between the prompt and the keyboard; rows never take focus, so the keyboard stays.
             MentionDock(mentions, field, active = composerFocused && canSend, loadShortcut = { shortcutId -> repository.shortcut(scope, shortcutId) }, height = mentionDockHeight) { next -> field = next; prompt = next.text }
         }
+    }
+    sessionFiles.markdown?.let { file ->
+        key(file) { MarkdownAttachmentSheet(file, sessionFiles) { sessionFiles.markdown = null } }
     }
     quoteEditor?.let { editing ->
         key(editing) {

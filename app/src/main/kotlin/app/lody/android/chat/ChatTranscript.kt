@@ -8,6 +8,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -453,7 +455,16 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
                     horizontalArrangement = Arrangement.spacedBy(LodySpacing.xs, Alignment.End),
                     verticalArrangement = Arrangement.spacedBy(LodySpacing.xs),
                 ) {
-                    entry.attachments.forEach { AttachmentChip(it.name, it.image) }
+                    val files = LocalSessionFiles.current
+                    entry.attachments.forEach { attachment ->
+                        val file = attachment.file
+                        val opens = files != null && file != null
+                        AttachmentChip(
+                            attachment.name, attachment.image,
+                            if (opens) Modifier.clip(RoundedCornerShape(LodyRadius.md)).clickable(role = Role.Button) { files!!.open(file!!) } else Modifier,
+                            trailing = if (opens && file!!.id in files!!.busy) ({ app.lody.android.designsystem.LodyLoadingIndicator(Modifier.size(LodyIconSize.sm), color = LodyTheme.colors.iconTertiary) }) else null,
+                        )
+                    }
                 }
             }
             val bubble = Modifier

@@ -368,6 +368,17 @@
         <item quantity="one">%d file</item>
         <item quantity="other">%d files</item>
     </plurals>
+    <string name="chat_file_save">Save to Files</string>
+    <string name="chat_file_share">Share</string>
+    <string name="chat_file_saved">Saved</string>
+    <string name="chat_file_save_failed">Couldn\'t save the file</string>
+    <string name="chat_file_no_app">No app on this device can open this file</string>
+    <string name="chat_file_open">Open %1$s</string>
+    <string name="chat_file_error_download">Could not download the attachment. Check your connection and try again.</string>
+    <string name="chat_file_error_unavailable">This attachment has expired or is no longer available.</string>
+    <string name="chat_file_error_permission">You do not have access to this attachment. Check that you are signed in to the correct account.</string>
+    <string name="chat_file_error_too_large">The attachment exceeds the 100 MB limit.</string>
+    <string name="chat_file_error_pending">This attachment has not been uploaded yet.</string>
     <string name="files_title">Project files</string>
     <string name="files_retry">Retry</string>
     <string name="files_error_folder">Could not read this folder. The computer may be offline.</string>
