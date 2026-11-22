@@ -63,4 +63,13 @@ class MentionPresentationTest {
         // Deleted or sent: nothing to replace.
         assertNull(Mentions.replaceToken(androidx.compose.ui.text.input.TextFieldValue("/shortcut:revie"), token, 0, "body"))
     }
+
+    @Test fun currencySignsOpenSkillsLikeDollar() {
+        for (sign in listOf("$", "￥", "¥")) {
+            val text = "run ${sign}auth"
+            val trigger = Mentions.trigger(androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length)))!!
+            assertEquals(Mentions.Trigger(4, text.length, "auth", "skill"), trigger)
+        }
+        assertNull(Mentions.trigger(androidx.compose.ui.text.input.TextFieldValue("price¥5", androidx.compose.ui.text.TextRange(7))))
+    }
 }

@@ -62,7 +62,7 @@ sealed interface MentionLevel {
 
 /**
  * The composer's @ references, after iOS `ChatMentionPanel` (Notion-style): typing a trigger
- * (`@`, `$` for skills, `/` for commands at the start) opens a panel docked on the keyboard
+ * (`@`, `$` / `￥` / `¥` for skills, `/` for commands at the start) opens a panel docked on the keyboard
  * under the prompt; the text after the trigger filters the visible level.
  */
 object Mentions {
@@ -84,7 +84,7 @@ object Mentions {
     /** The trigger the caret is in: where it starts, the query after it, and its scope. */
     data class Trigger(val start: Int, val end: Int, val query: String, val scoped: String?)
 
-    private val token = Regex("(?:^|\\s)([@$][^\\s@$]*)$|^(/[^\\s/]*)$")
+    private val token = Regex("(?:^|\\s)([@$￥¥][^\\s@$￥¥]*)$|^(/[^\\s/]*)$")
 
     fun trigger(value: TextFieldValue): Trigger? {
         val selection = value.selection
@@ -96,7 +96,7 @@ object Mentions {
         val group = match.groups[1] ?: match.groups[2] ?: return null
         var query = group.value.drop(1)
         var scoped: String? = when (group.value.first()) {
-            '$' -> "skill"
+            '$', '￥', '¥' -> "skill"
             '/' -> "cmd"
             else -> null
         }
