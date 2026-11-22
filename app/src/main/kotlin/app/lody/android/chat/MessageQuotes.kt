@@ -1,5 +1,14 @@
 package app.lody.android.chat
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.text.selection.SelectionState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -126,6 +135,51 @@ internal object MessageQuotes {
     }
 }
 
+/**
+ * The transcript's one live selection. Each answer block owns its own [SelectionContainer], which
+ * only clears for taps inside itself; this lets a new selection, or a tap anywhere else in the
+ * transcript ([clearsTranscriptSelection]), clear the previous one.
+ */
+@Stable
+internal class TranscriptSelection {
+    private var active: SelectionState? = null
+
+    fun selected(state: SelectionState) {
+        if (active !== state) active?.clear()
+        active = state
+    }
+
+    fun released(state: SelectionState) {
+        if (active === state) active = null
+    }
+
+    fun clear() {
+        active?.clear()
+        active = null
+    }
+}
+
+internal val LocalTranscriptSelection = staticCompositionLocalOf<TranscriptSelection?> { null }
+
+/**
+ * Clears [selection] on a tap anywhere in this area. Observed before the children so a link or
+ * another block still gets the tap; drags (scrolling) and long presses (selecting) never clear.
+ */
+internal fun Modifier.clearsTranscriptSelection(selection: TranscriptSelection) = pointerInput(selection) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        var tapped = false
+        withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+            while (true) {
+                val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+                if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) break
+                if (!change.pressed) { tapped = true; break }
+            }
+        }
+        if (tapped) selection.clear()
+    }
+}
+
 /** Quotes a selected passage into the conversation composer; null where there is no composer. */
 internal val LocalMessageQuoter = compositionLocalOf<((String) -> Unit)?> { null }
 
@@ -142,6 +196,13 @@ internal fun QuotableSelection(modifier: Modifier = Modifier, content: @Composab
         return
     }
     val state = rememberSelectionState()
+    val transcript = LocalTranscriptSelection.current
+    if (transcript != null) {
+        LaunchedEffect(state, transcript) {
+            snapshotFlow { state.selectedTexts.isNotEmpty() }.collect { if (it) transcript.selected(state) else transcript.released(state) }
+        }
+        DisposableEffect(state, transcript) { onDispose { transcript.released(state) } }
+    }
     val label = stringResource(R.string.quote_action)
     Box(modifier.appendTextContextMenuComponents {
         item(key = QuoteMenuKey, label = label) {

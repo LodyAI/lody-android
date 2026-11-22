@@ -1036,8 +1036,9 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                     }
                 } else {
                     // The transcript scrolls under the floating header.
-                    CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides transcriptLinks, LocalSessionImages provides sessionImages, LocalMessageQuoter provides quoter.takeIf { context.session?.isTabClosed != true }) { ChatTranscript(
-                        all, Modifier.fillMaxSize(), contentPadding = PaddingValues(top = top + if (creationNotice != null) LodySize.controlLg else LodySpacing.none, bottom = LodySpacing.md), state = listState, scrollToLatest = scrollToLatest,
+                    val transcriptSelection = remember { TranscriptSelection() }
+                    CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides transcriptLinks, LocalSessionImages provides sessionImages, LocalMessageQuoter provides quoter.takeIf { context.session?.isTabClosed != true }, LocalTranscriptSelection provides transcriptSelection) { ChatTranscript(
+                        all, Modifier.fillMaxSize().clearsTranscriptSelection(transcriptSelection), contentPadding = PaddingValues(top = top + if (creationNotice != null) LodySize.controlLg else LodySpacing.none, bottom = LodySpacing.md), state = listState, scrollToLatest = scrollToLatest,
                         historyHasMore = historyHasMore, historyLoading = historyLoading,
                         loadEarlier = { repository.loadOlder(scope, id) },
                         onForgetPending = { forgetId = it },
