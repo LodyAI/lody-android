@@ -104,8 +104,8 @@ internal object MessageQuotes {
     }
 
     sealed interface Segment {
-        /** Text around the quotes, blank lines at its edges removed, with its references rebased. */
-        data class Plain(val text: String, val references: List<MessageReference>) : Segment
+        /** Text around the quotes, blank lines at its edges removed, with its references rebased; [comment] when it directly follows a quote. */
+        data class Plain(val text: String, val references: List<MessageReference>, val comment: Boolean = false) : Segment
         data class Quote(val snapshot: String) : Segment
     }
 
@@ -122,7 +122,7 @@ internal object MessageQuotes {
             while (end > start && text[end - 1].isWhitespace()) end--
             if (start >= end) return
             val inside = references.filter { it.start >= start && it.end <= end }.map { MessageReference(it.start - start, it.end - start) }
-            result += Segment.Plain(text.substring(start, end), inside)
+            result += Segment.Plain(text.substring(start, end), inside, result.lastOrNull() is Segment.Quote)
         }
         var cursor = 0
         valid.forEach { quote ->

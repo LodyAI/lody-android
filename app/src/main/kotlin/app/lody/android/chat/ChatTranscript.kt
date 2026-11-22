@@ -474,14 +474,19 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
             val lines = if (expanded) Int.MAX_VALUE else 6
             if (entry.quotes.isEmpty()) {
                 if (entry.text.isNotBlank()) ReferenceText(entry.text, entry.references, lines, { if (!expanded) overflowing = it }, bubble)
-            } else Column(bubble, verticalArrangement = Arrangement.spacedBy(LodySpacing.md)) {
+            } else Column(bubble) {
                 // Quote blocks read as their snapshot (bar, secondary ink, three lines); a tap opens it whole.
-                segments.forEach { segment ->
+                segments.forEachIndexed { index, segment ->
+                    val gap = Modifier.padding(top = when {
+                        index == 0 -> 0.dp
+                        segment is MessageQuotes.Segment.Plain && segment.comment -> LodySpacing.xs
+                        else -> LodySpacing.md
+                    })
                     when (segment) {
-                        is MessageQuotes.Segment.Plain -> ReferenceText(segment.text, segment.references, lines, { if (!expanded && it) overflowing = true })
+                        is MessageQuotes.Segment.Plain -> ReferenceText(segment.text, segment.references, lines, { if (!expanded && it) overflowing = true }, gap)
                         is MessageQuotes.Segment.Quote -> QuoteSnapshot(
                             segment.snapshot,
-                            Modifier.clip(RoundedCornerShape(LodyRadius.sm)).combinedClickable(onClick = { selecting = segment.snapshot }, onLongClick = { menu = true }),
+                            gap.clip(RoundedCornerShape(LodyRadius.sm)).combinedClickable(onClick = { selecting = segment.snapshot }, onLongClick = { menu = true }),
                             maxLines = 3,
                         )
                     }
