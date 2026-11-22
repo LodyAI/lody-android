@@ -20,6 +20,11 @@ sealed interface ListSlot {
         override val key get() = rowKey(chat.id)
     }
 
+    /** An empty Focus's landing slot ("Drag a conversation here"): a drop target, never dragged. */
+    data class Gap(val section: HomeSection) : ListSlot {
+        override val key get() = "gap/${section.id}"
+    }
+
     companion object {
         fun rowKey(id: String) = "row/$id"
     }
@@ -31,9 +36,11 @@ sealed interface ListSlot {
  * so the runtime resolves it against its current order. Native code never orders rows itself.
  */
 object StatusMoves {
-    /** Header and root slots, in display order. */
+    /** Header and root slots, in display order; an expanded, empty Focus gets a [ListSlot.Gap]. */
     fun slots(sections: List<HomeSection>, settledExpanded: Boolean = false): List<ListSlot> = sections.flatMap { section ->
-        listOf(ListSlot.Header(section)) + section.visibleChats(settledExpanded).filter { it.nestedUnder == null }.map { ListSlot.Row(section.id, it) }
+        val rows = section.visibleChats(settledExpanded).filter { it.nestedUnder == null }.map { ListSlot.Row(section.id, it) }
+        val gap = rows.isEmpty() && !section.collapsed && (section.header as? HomeSection.Header.Tier)?.tier == StatusTier.Focus
+        listOf(ListSlot.Header(section)) + rows + listOfNotNull(ListSlot.Gap(section).takeIf { gap })
     }
 
     /** The area a section stands for, if rows can be placed there by hand. */
@@ -48,12 +55,27 @@ object StatusMoves {
         StatusViewTarget.Focus -> chat.canManage
     }
 
-    /** Moves the [from] slot to [to]'s position; the list a reorderable `onMove` must apply at once. */
+    /**
+     * Moves the [from] slot to [to]'s position; the list a reorderable `onMove` must apply at once.
+     * Only rows move, and never above the first header: a row there belongs to no section, so the
+     * list could not render it and the drag would end.
+     */
     fun swap(slots: List<ListSlot>, from: String, to: String): List<ListSlot> {
         val source = slots.indexOfFirst { it.key == from }
         val destination = slots.indexOfFirst { it.key == to }
         if (source < 0 || destination < 0 || source == destination || slots[source] !is ListSlot.Row) return slots
-        return slots.toMutableList().apply { add(destination, removeAt(source)) }
+        val moved = slots.toMutableList().apply { add(destination, removeAt(source)) }
+        return if (moved.first() is ListSlot.Header) moved else slots
+    }
+
+    /** Recomputes gaps after a move: an emptied Focus gains its gap, a filled one loses it. */
+    fun settle(slots: List<ListSlot>): List<ListSlot> {
+        val bare = slots.filter { it !is ListSlot.Gap }
+        return bare.flatMapIndexed { index, slot ->
+            val empty = slot is ListSlot.Header && !slot.section.collapsed && (slot.section.header as? HomeSection.Header.Tier)?.tier == StatusTier.Focus &&
+                bare.getOrNull(index + 1).let { it == null || it is ListSlot.Header }
+            if (empty) listOf(slot, ListSlot.Gap((slot as ListSlot.Header).section)) else listOf(slot)
+        }
     }
 
     /**
@@ -71,13 +93,41 @@ object StatusMoves {
         return StatusViewCommand.Move(id, target, before)
     }
 
-    /** The section a row sits in and the root it sits in front of. */
-    private fun place(slots: List<ListSlot>, id: String): Pair<HomeSection, String?>? {
+    /**
+     * The section a row sits in and the root it sits in front of. Directly under a collapsed
+     * header the row goes to the top of that section, as a drop on a header does.
+     */
+    fun place(slots: List<ListSlot>, id: String): Pair<HomeSection, String?>? {
         val index = slots.indexOfFirst { it.key == ListSlot.rowKey(id) }
         if (index < 0) return null
         val header = slots.subList(0, index).lastOrNull { it is ListSlot.Header } as? ListSlot.Header ?: return null
-        val next = slots.drop(index + 1).firstOrNull()
-        return header.section to (next as? ListSlot.Row)?.chat?.id
+        val next = slots.drop(index + 1).firstOrNull { it !is ListSlot.Gap }
+        val before = (next as? ListSlot.Row)?.chat?.id
+            ?: roots(header.section).firstOrNull { it.id != id }?.id?.takeIf { header.section.collapsed && slots[index - 1] === header }
+        return header.section to before
+    }
+
+    /** How a finished long-press gesture resolves. */
+    enum class Release { Menu, Revert, Commit }
+
+    /**
+     * A cancelled gesture (system back swipe, notification shade) never writes or opens the menu;
+     * a press that moved past touch slop is a drag even when it crossed no slot.
+     */
+    fun release(ended: Boolean, swapped: Boolean, travelled: Float, slop: Float, command: StatusViewCommand.Move?): Release = when {
+        !ended -> Release.Revert
+        !swapped && travelled <= slop -> Release.Menu
+        command == null -> Release.Revert
+        else -> Release.Commit
+    }
+
+    /**
+     * Whether the catalog shows the dropped row where it was dropped. A held order is released
+     * then, or once a few catalogs arrived after the write without it (another change won).
+     */
+    fun landed(slots: List<ListSlot>, command: StatusViewCommand.Move): Boolean {
+        val (section, before) = place(slots, command.sessionId) ?: return false
+        return target(section) == command.to && before == command.beforeId
     }
 
     private fun roots(section: HomeSection) = section.chats.filter { it.nestedUnder == null }

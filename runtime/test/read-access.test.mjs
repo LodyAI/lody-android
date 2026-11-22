@@ -88,3 +88,51 @@ test('schedule streams: the registry and one schedule doc are created, read and 
  for(const [stream,method] of [['workspace:sr','GET'],['workspace:sr','POST'],['workspace:sr','PUT'],['workspace:sr/bootstrap','GET'],['workspace:schedule:s1','PUT'],['workspace:schedule:s1','POST'],['workspace:schedule:s1','GET']])assert.equal(await(await access.fetch('https://streams.example.org/ds/lody/'+encodeURIComponent(stream).replace('%2F','/'),{method})).text(),'ok');
  for(const [stream,method] of [['workspace:sr','DELETE'],['other:sr','GET'],['other:schedule:s1','PUT'],['workspace:schedule:s1','DELETE'],['workspace:schedule:a:b','PUT'],['workspace:schedule:s1/bootstrap','POST']])await assert.rejects(access.fetch('https://streams.example.org/ds/lody/'+encodeURIComponent(stream).replace('%2F','/'),{method}),/network_denied/);
 });
+
+test('the guarded fetch forwards a caller abort by hand and unhooks it when the request ends',async()=>{
+ // Without AbortSignal.any (WebView before 116) and without leaving a listener per request on the
+ // caller's signal: a fallback any would keep one for that signal's whole life.
+ const native=AbortSignal.any;delete AbortSignal.any;
+ const added=new Set();
+ const add=EventTarget.prototype.addEventListener, remove=EventTarget.prototype.removeEventListener;
+ const ours=listener=>typeof listener==='function' && String(listener).includes('original.signal.reason');
+ EventTarget.prototype.addEventListener=function(type,listener,options){if(type==='abort'&&ours(listener))added.add(listener);return add.call(this,type,listener,options);};
+ EventTarget.prototype.removeEventListener=function(type,listener,options){if(type==='abort')added.delete(listener);return remove.call(this,type,listener,options);};
+ try {
+  let release;
+  const access=createReadAccess(request=>new Promise((resolve,reject)=>{
+   request.signal.addEventListener('abort',()=>reject(request.signal.reason),{once:true});
+   release=()=>resolve(new Response('done'));
+  }));
+  access.configure(config);
+  const caller=new AbortController();
+  const url='https://streams.example.org/ds/lody/workspace%3Ameta';
+  // Completed: the forwarding listener is gone.
+  const done=access.fetch(url,{signal:caller.signal});
+  await Promise.resolve();release();
+  assert.equal(await (await done).text(),'done');
+  assert.equal(added.size,0);
+  // In flight: a caller abort still reaches the request.
+  const pending=access.fetch(url,{signal:caller.signal});
+  caller.abort(new Error('session_closed'));
+  await assert.rejects(pending,/session_closed/);
+  assert.equal(added.size,0);
+ } finally {
+  EventTarget.prototype.addEventListener=add;EventTarget.prototype.removeEventListener=remove;
+  AbortSignal.any=native;
+ }
+});
+
+test('only the exact credential-free server time read leaves the stream gateway',async()=>{
+ const seen=[];
+ const access=createReadAccess(async request=>{seen.push([request.method,request.url,request.credentials,request.redirect]);return new Response('{"serverTime":5}');},()=>{},{timeUrl:'https://worker.example.org/api/time'});
+ access.configure(config);
+ assert.equal(await (await access.fetch('https://worker.example.org/api/time')).text(),'{"serverTime":5}');
+ assert.deepEqual(seen,[['GET','https://worker.example.org/api/time','omit','error']]);
+ for(const [url,init] of [['https://worker.example.org/api/time?x=1'],['https://worker.example.org/api/other'],['https://evil.example.org/api/time'],['https://worker.example.org/api/time',{method:'POST',body:'x'}]])
+  await assert.rejects(access.fetch(url,init),/network_denied/,url);
+ // Suspended hosts make no reads, this one included.
+ access.setActive(false);
+ await assert.rejects(access.fetch('https://worker.example.org/api/time'),/inactive_read/);
+ assert.throws(()=>createReadAccess(async()=>new Response(''),()=>{},{timeUrl:'http://worker.example.org/api/time'}),/network_denied/);
+});

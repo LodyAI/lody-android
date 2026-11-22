@@ -1,6 +1,12 @@
-/** Network permission comes only from the native-validated workspace grant. */
-export function createReadAccess(fetch, emit=()=>{}) {
+/**
+ * Network permission comes only from the native-validated workspace grant, plus one exact
+ * credential-free read: the server time ([timeUrl], `GET <worker>/api/time`) the Status view
+ * clock calibrates against.
+ */
+export function createReadAccess(fetch, emit=()=>{}, {timeUrl}={}) {
  let config, active=true;
+ const time=timeUrl ? new URL(timeUrl) : undefined;
+ if(time && (time.protocol!=='https:' || time.username || time.password || time.search || time.hash || time.port || time.pathname!=='/api/time')) throw Error('network_denied');
  const requests=new Set(), waiters=new Set();
  function configure(value) {
   const gateway=new URL(value.gatewayBaseUrl);
@@ -40,6 +46,7 @@ export function createReadAccess(fetch, emit=()=>{}) {
  }
  async function guardedFetch(input, init) {
   const original=new Request(input,init);
+  if(time && original.method==='GET' && original.url===time.href) return timeRead(original);
   if(!allowed(original)) throw Error('network_denied');
   if(!active && !['GET','HEAD'].includes(original.method))throw Error('inactive_write');
   if(!active) await new Promise((resolve,reject)=>{
@@ -52,35 +59,49 @@ export function createReadAccess(fetch, emit=()=>{}) {
   original.signal.throwIfAborted();
   if(requests.size>=32)throw Error('network_busy');
   const controller=new AbortController();requests.add(controller);
-  const request=new Request(original,{redirect:'error',credentials:'omit',signal:AbortSignal.any([original.signal,controller.signal])});
+  // The caller's signal is forwarded by hand and unhooked when the request ends, instead of
+  // AbortSignal.any: a fallback any (WebView before 116) keeps its listener on the input for that
+  // signal's whole life, so a long-lived caller signal would collect one per request.
+  const forward=()=>controller.abort(original.signal.reason);
+  original.signal.addEventListener('abort',forward,{once:true});
+  const release=()=>{requests.delete(controller);original.signal.removeEventListener('abort',forward);};
+  const request=new Request(original,{redirect:'error',credentials:'omit',signal:controller.signal});
   try {
    const response=await fetch(request);
    if(response.status===401 || response.status===403)emit({type:'networkStatus',status:'authorization_required'});
    // WebView may expose an empty stream for a null-body HTTP status.
    // Re-wrapping it with a ReadableStream makes Response throw a TypeError.
    if([204,205,304].includes(response.status)) {
-    requests.delete(controller);
+    release();
     await response.body?.cancel();
     return new Response(null,{status:response.status,statusText:response.statusText,headers:response.headers});
    }
-   if(!response.body){requests.delete(controller);return response;}
+   if(!response.body){release();return response;}
    const reader=response.body.getReader();let bytes=0;
    const body=new ReadableStream({
     async pull(output){try {
      const part=await reader.read();
-     if(part.done){requests.delete(controller);output.close();return;}
+     if(part.done){release();output.close();return;}
      bytes+=part.value.byteLength;if(bytes>16*1024*1024)throw Error('response_too_large');
      output.enqueue(part.value);
-    }catch(error){requests.delete(controller);controller.abort();void reader.cancel().catch(()=>{});output.error(error);}},
-    cancel(){requests.delete(controller);controller.abort();return reader.cancel();}
+    }catch(error){release();controller.abort();void reader.cancel().catch(()=>{});output.error(error);}},
+    cancel(){release();controller.abort();return reader.cancel();}
    });
    return new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers});
   } catch(error) {
-   requests.delete(controller);
+   release();
    // Closing a session or suspending the app cancels its request, not the network.
    if(!request.signal.aborted)emit({type:'networkStatus',status:'unavailable'});
    throw error;
   }
+ }
+ // The server time read: no credentials, cookies or redirects, a bounded JSON body, never while suspended.
+ async function timeRead(original) {
+  if(!active)throw Error('inactive_read');
+  const response=await fetch(new Request(original,{redirect:'error',credentials:'omit'}));
+  const text=await response.text();
+  if(text.length>4096)throw Error('response_too_large');
+  return new Response(text,{status:response.status,statusText:response.statusText,headers:response.headers});
  }
  return {configure,setActive,fetch:guardedFetch};
 }

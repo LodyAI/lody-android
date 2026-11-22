@@ -122,7 +122,11 @@ class CatalogRepository(private val account: AccountController, private val owne
      if (identity != epoch || scoped.scope != scope || scoped.generation != owner.state.value.status.generation) return@collect
      enterGeneration(scoped.generation)
      when (val event = scoped.event) {
-      is RuntimeEvent.CatalogUpdated -> { pending = event.snapshot; pendingGeneration = scoped.generation }
+      is RuntimeEvent.CatalogUpdated -> {
+       // Live layouts carry their server-clock instant; Home times Later and receipts against it.
+       app.lody.android.runtime.StatusClock.observe(event.snapshot.statusView?.nowMs)
+       pending = event.snapshot; pendingGeneration = scoped.generation
+      }
       is RuntimeEvent.Synced -> {
        val snapshot = pending
        if (snapshot == null || snapshot.revision != event.revision || pendingGeneration != owner.state.value.status.generation) return@collect

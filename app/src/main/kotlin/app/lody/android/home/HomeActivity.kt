@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import app.lody.android.chat.TabBrowsing
+import app.lody.android.runtime.StatusClock
 import app.lody.android.chat.ChatRepository
 import app.lody.android.chat.ChatScreen
 import app.lody.android.create.CreateSessionScreen
@@ -151,14 +152,18 @@ class HomeActivity : ComponentActivity() {
                 // Read receipts: an opened conversation in the foreground is marked read through the
                 // runtime (`markSessionRead`), so its unread state, a woken one's included, clears everywhere.
                 // Read from the remote catalog: local Tab watermarks are not receipts.
-                val receipt = remoteCatalog.snapshot?.let { ChatListModel.readReceipt(it, selectedId) }
-                LaunchedEffect(receipt, activeScope, resumed) {
-                    val (sessionId, at) = receipt ?: return@LaunchedEffect
+                // A Tab also owes its conversation the wake-up it showed. Sent only while the catalog is
+                // live (the runtime can write), so a receipt that failed while connecting is sent again then.
+                val receipts = remoteCatalog.snapshot?.let { ChatListModel.readReceipts(it, selectedId, StatusClock.now()) }.orEmpty()
+                val live = remoteCatalog.phase == ConnectionPhase.LIVE
+                LaunchedEffect(receipts, activeScope, resumed, live) {
                     val scope = activeScope ?: return@LaunchedEffect
-                    if (!resumed) return@LaunchedEffect
-                    try { repository.markRead(scope, sessionId, at) }
-                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                    catch (_: Exception) { /* The next open or new message retries; reads never block the page. */ }
+                    if (!resumed || !live) return@LaunchedEffect
+                    for ((sessionId, at) in receipts) {
+                        try { repository.markRead(scope, sessionId, at) }
+                        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                        catch (_: Exception) { /* Retried when the catalog is live again or the receipt changes. */ }
+                    }
                 }
                 val statusView = remember(repository, activeScope) { activeScope?.let { scope -> RuntimeStatusViewService(repository, scope) } }
                 val creator = app.creation
@@ -188,7 +193,7 @@ class HomeActivity : ComponentActivity() {
                     ) { destination ->
                         val id = destination.takeUnless { it == "create" || it == "home" }
                         if (id != null && workspace != null) {
-                            ChatScreen(repository, RuntimeScope(user.id, workspace.id), id, chatContext(catalog, id, selectedTitle, user), onBack = { selectedId = null }, onSelectTab = { selectedId = it; selectedTitle = "" }, creation = submissions[id]?.takeIf { it.scope == activeScope }, persistDraft = workspace.contentMode == WorkspaceContentMode.PLAINTEXT, statusView = statusView)
+                            ChatScreen(repository, RuntimeScope(user.id, workspace.id), id, chatContext(catalog, id, selectedTitle, user).copy(readOnly = members[user.id]?.readOnly == true), onBack = { selectedId = null }, onSelectTab = { selectedId = it; selectedTitle = "" }, creation = submissions[id]?.takeIf { it.scope == activeScope }, persistDraft = workspace.contentMode == WorkspaceContentMode.PLAINTEXT, statusView = statusView)
                         } else if (destination == "create" && workspace != null) {
                             // Like web, new session is its own full screen over Home; back returns.
                             BackHandler { creating = false }

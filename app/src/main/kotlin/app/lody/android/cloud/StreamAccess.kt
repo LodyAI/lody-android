@@ -46,3 +46,12 @@ internal class StreamAccess(val workspaceId: String, gateway: String) {
 
     } catch (_: Exception) { false }
 }
+
+/**
+ * The one request the network runtime makes outside its stream gateway: the server time
+ * (`GET <worker>/api/time`, no query) that calibrates the Status view clock. Exact match only.
+ */
+internal object ServerTimeAccess {
+    fun url(worker: String): String = worker.trimEnd('/') + "/api/time"
+    fun allows(url: String, method: String, worker: String): Boolean = method == "GET" && url == url(worker) && worker.startsWith("https://")
+}

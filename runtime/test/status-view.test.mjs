@@ -37,3 +37,11 @@ test('the Kotlin golden catalog is the snapshot runtime fixture, byte for byte i
  const vendored=JSON.parse(await readFile(new URL('../vendor/cloud-runtime/contract/fixtures/catalog-status-view.json',import.meta.url),'utf8'));
  assert.deepEqual(JSON.parse(fixtures.catalogStatusView.catalog),vendored);
 });
+
+test('the Kotlin Later countdown table is what the shared formatter returns',async()=>{
+ const {formatSnoozeCountdown}=await import('../vendor/cloud-runtime/src/protocol/lody-shared/status-view/index.ts');
+ const minute=60_000, hour=60*minute, day=24*hour, base=1_000_000_000;
+ // Mirrored, case for case, by StatusViewTest.laterCountdownsMatchTheSharedFormatter.
+ const table=[[0,null],[30_000,'<1m'],[minute,'1m'],[minute+1,'2m'],[59*minute,'59m'],[59.5*minute,'1h'],[hour,'1h'],[hour+1,'2h'],[3*hour,'3h'],[23.5*hour,'1d'],[2.4*day,'2d'],[2.6*day,'3d']];
+ for(const [left,expected] of table)assert.equal(formatSnoozeCountdown(base+Math.trunc(left),base),expected,String(left));
+});

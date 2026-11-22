@@ -42,6 +42,11 @@ data class ChatItem(
     val canManage: Boolean = false,
     /** Pin, unpin and pin placement. */
     val canPrefer: Boolean = false,
+    /** An open internal Tab has output this person has not read (the layout row knows only the root's). */
+    val tabUnread: Boolean = false,
+    /** The session's own snooze / settle metadata, for rows the layout carries under a pinned opener. */
+    val ownSnoozedUntil: Long? = null,
+    val ownSettled: Boolean = false,
     /** The chat that opened this one (resolved like iOS `SessionRows.tree`), if any. */
     val openerId: String? = null,
     /** Set by [ChatListModel.nest]: shown nested under this row id. */
@@ -195,10 +200,12 @@ object ChatListModel {
         val layout = snapshot.statusView?.let { if (owner != null) it.mine else it.team }
         if (layout != null) {
             val items = homeItems(snapshot).associateBy { it.id }
-            val pinned = layout.pinned.map { group ->
+            // The default section is shown only while it holds rows (Spec: an empty default section is
+            // not shown); named sections stay, so rows can be moved into them.
+            val pinned = layout.pinned.filter { it.sectionId != null || it.rows.isNotEmpty() || it.hiddenCount > 0 }.map { group ->
                 HomeSection(pinSectionKey(group.sectionId), HomeSection.Header.Pinned(group.sectionId, group.name), rows(group.rows, items), hiddenCount = group.hiddenCount)
             }
-            val rest = if (grouping == HomeGrouping.Status) tiers(layout, items) else {
+            val rest = if (grouping == HomeGrouping.Status) tiers(layout, items, pending(snapshot, layout, owner, items)) else {
                 val lifted = layout.pinned.flatMap { group -> group.rows.flatMap { listOf(it) + it.children } }.mapTo(mutableSetOf()) { it.id }
                 val listed = scoped.sessions.filterNot { it.id in lifted || conversation(it.id, all(scoped)) in lifted }
                 // Time and project groups keep their native order; each row still carries its layout facts.
@@ -234,11 +241,28 @@ object ChatListModel {
     /** Later and Settled start collapsed (device-local; the stored set records changes from this default). */
     fun collapsedByDefault(sectionId: String) = sectionId == tierKey(StatusTier.Later) || sectionId == tierKey(StatusTier.Settled)
 
-    /** Focus always lists (it is where rows are dropped back); Later and Settled only when nonempty. */
-    private fun tiers(layout: StatusViewLayout, items: Map<String, ChatItem>): List<HomeSection> =
+    /**
+     * Focus always lists (it is where rows are dropped back); Later and Settled only when nonempty.
+     * [pending] (new chats the runtime has not read back yet) lead Focus, where a new chat opens.
+     */
+    private fun tiers(layout: StatusViewLayout, items: Map<String, ChatItem>, pending: List<ChatItem> = emptyList()): List<HomeSection> =
         listOf(StatusTier.Focus to layout.focus, StatusTier.Later to layout.later, StatusTier.Settled to layout.settled)
             .filter { (tier, rows) -> tier == StatusTier.Focus || rows.isNotEmpty() }
-            .map { (tier, rows) -> HomeSection(tierKey(tier), HomeSection.Header.Tier(tier), rows(rows, items)) }
+            .map { (tier, rows) -> HomeSection(tierKey(tier), HomeSection.Header.Tier(tier), (if (tier == StatusTier.Focus) pending else emptyList()) + rows(rows, items)) }
+
+    /**
+     * Unpinned conversations no layout lists yet: a chat created on this phone shows at once
+     * instead of after its read back. They take no status action until the layout lists them.
+     * Pinned ones stay hidden (a pinned row may be waiting for its section to be read).
+     */
+    private fun pending(snapshot: CatalogSnapshot, layout: StatusViewLayout, owner: String?, items: Map<String, ChatItem>): List<ChatItem> {
+        val listed = (snapshot.statusView?.team?.ids.orEmpty() + layout.ids).toSet()
+        val all = all(snapshot)
+        return snapshot.sessions
+            .filter { !it.archived && !isTab(it) && !it.pinned && it.id !in listed && opener(it, all) == null && (owner == null || it.userId == null || it.userId == owner) }
+            .mapNotNull { items[it.id]?.copy(tier = StatusTier.Focus, nestedUnder = null, treeParent = false, childCount = 0) }
+            .sortedByDescending { it.activityAt ?: Long.MIN_VALUE }
+    }
 
     /**
      * Layout rows in layout order, each root followed by its opened children one level down (as
@@ -257,10 +281,14 @@ object ChatListModel {
 
     private fun flatten(rows: List<StatusViewRow>): List<StatusViewRow> = rows.flatMap { listOf(it) + flatten(it.children) }
 
+    /**
+     * Unread is the layout's (a woken conversation stays unread until read) or an open Tab's: the
+     * layout row knows only the root conversation, so a Tab's unread output must not be cleared.
+     */
     private fun laid(item: ChatItem, row: StatusViewRow): ChatItem = item.copy(
         attention = when {
             item.attention == null && row.unread -> ChatAttention.Unread
-            item.attention == ChatAttention.Unread && !row.unread -> null
+            item.attention == ChatAttention.Unread && !row.unread && !item.tabUnread -> null
             else -> item.attention
         },
         activityAt = row.activityAt.takeIf { it > 0 } ?: item.activityAt,
@@ -281,15 +309,19 @@ object ChatListModel {
     }
 
     /**
-     * The read receipt opening [id] owes: up to its last message, or its wake-up time when a snooze
-     * expired later (a woken conversation stays unread until read). Null once already read.
+     * The read receipts opening [id] owes, as the shared unread rule reads them: the opened session
+     * up to its last message or its expired snooze ([now] on the server clock), whichever is later;
+     * and when [id] is a Tab, its conversation up to that conversation's expired snooze (the wake-up
+     * was seen, its own messages were not). A session without messages or wake-up owes none.
      */
-    fun readReceipt(snapshot: CatalogSnapshot, id: String?): Pair<String, Long>? {
-        val session = snapshot.sessions.firstOrNull { it.id == id } ?: return null
-        val woken = layoutRow(snapshot, session.id)?.takeIf { it.id == session.id }?.activityAt
-        val at = listOfNotNull(session.lastMessageAt, woken).maxOrNull() ?: return null
-        if ((session.lastReadAt ?: Long.MIN_VALUE) >= at) return null
-        return session.id to at
+    fun readReceipts(snapshot: CatalogSnapshot, id: String?, now: Long): List<Pair<String, Long>> {
+        val all = all(snapshot)
+        val session = all[id] ?: return emptyList()
+        fun woke(target: CatalogSession) = target.snoozedUntil?.takeIf { it <= now }
+        fun owed(target: CatalogSession, at: Long?) = at?.takeIf { it > (target.lastReadAt ?: Long.MIN_VALUE) }?.let { target.id to it }
+        val own = owed(session, listOfNotNull(session.lastMessageAt, woke(session)).maxOrNull())
+        val root = all[conversation(session.id, all)]?.takeIf { it.id != session.id }
+        return listOfNotNull(own, root?.let { owed(it, woke(it)) })
     }
 
     /** One group per project, most recently active first; unassigned chats form the "Chats" group. */
@@ -315,11 +347,13 @@ object ChatListModel {
         val projects = snapshot.projects.associateBy { it.id }
         val all = snapshot.sessions.associateBy { it.id }
         val attention = conversationAttention(snapshot.sessions)
+        val tabUnread = tabUnread(snapshot.sessions)
         return snapshot.sessions
             .filter { it.archived == archived && !isTab(it) }
             .map { session ->
                 val project = projects[session.projectId]?.takeUnless { isChat(it.id) }
-                item(session, project?.name.orEmpty(), project?.repoFullName != null, attention[session.id]).copy(openerId = opener(session, all), repository = project?.repoFullName)
+                item(session, project?.name.orEmpty(), project?.repoFullName != null, attention[session.id])
+                    .copy(openerId = opener(session, all), repository = project?.repoFullName, tabUnread = session.id in tabUnread)
             }
             .sortedByDescending { it.activityAt ?: Long.MIN_VALUE }
     }
@@ -348,6 +382,53 @@ object ChatListModel {
             if (current == null || priority.indexOf(candidate) < priority.indexOf(current)) result[owner.id] = candidate
         }
         return result
+    }
+
+    /**
+     * The commands an Undo sends to put [ids] back as they were before a Later, Settle or Move to
+     * Focus. Each session is restored on its own (never as a tree): a future snooze is snoozed
+     * again, an explicit settle settled again, anything else (including a snooze that expired since)
+     * moved back to Focus. [rootTier] is the root's tier before the action, for an implicit Settled.
+     */
+    fun restore(sessions: List<CatalogSession>, ids: List<String>, rootTier: StatusTier?, now: Long): List<app.lody.android.runtime.StatusViewCommand> {
+        val all = sessions.associateBy { it.id }
+        return ids.mapIndexedNotNull { index, id ->
+            val session = all[id] ?: return@mapIndexedNotNull null
+            val until = session.snoozedUntil?.takeIf { it > now }
+            when {
+                until != null -> app.lody.android.runtime.StatusViewCommand.Snooze(id, until, false)
+                session.settledAt != null || (index == 0 && rootTier == StatusTier.Settled) -> app.lody.android.runtime.StatusViewCommand.Settle(id, false)
+                else -> app.lody.android.runtime.StatusViewCommand.MoveToFocus(id, false)
+            }
+        }
+    }
+
+    /** Conversations whose open internal Tabs (same machine, not side panels) have unread output. */
+    private fun tabUnread(sessions: List<CatalogSession>): Set<String> {
+        val all = sessions.associateBy { it.id }
+        return sessions.filter { tab -> isTab(tab) && !tab.archived && tab.childSessionPlacement != "side-panel" && isUnread(tab) }
+            .mapNotNull { tab -> all[conversation(tab.id, all)]?.takeIf { !isTab(it) && !it.archived && it.machineId == tab.machineId }?.id }
+            .toSet()
+    }
+
+    /**
+     * The conversation's opened sub-conversations at any depth and in any tier (non-archived, Tabs
+     * excluded): what Later, Settle and Move to Focus may carry along.
+     */
+    fun openedTree(snapshot: CatalogSnapshot, id: String): List<CatalogSession> = openedTree(snapshot.sessions, id)
+
+    fun openedTree(sessions: List<CatalogSession>, id: String): List<CatalogSession> {
+        val all = sessions.associateBy { it.id }
+        val byOpener = sessions.filter { !it.archived && !isTab(it) }.groupBy { opener(it, all) }
+        val out = mutableListOf<CatalogSession>()
+        val seen = mutableSetOf(id)
+        var frontier = listOf(id)
+        while (frontier.isNotEmpty()) {
+            val next = frontier.flatMap { byOpener[it].orEmpty() }.filter { seen.add(it.id) }
+            out += next
+            frontier = next.map { it.id }
+        }
+        return out
     }
 
     /**
@@ -537,5 +618,7 @@ object ChatListModel {
         projectId = session.projectId,
         pinned = session.pinned,
         pinSectionId = session.pinSectionId,
+        ownSnoozedUntil = session.snoozedUntil,
+        ownSettled = session.settledAt != null,
     )
 }

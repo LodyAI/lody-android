@@ -35,17 +35,12 @@ interface StatusViewService {
 }
 
 /**
- * The conversation a status action applies to: its tier now (for Undo), its wake time while in
- * Later, and its opened sub-conversations ([children], [working] of them running) for the
- * "apply to opened sub-conversations too?" question.
+ * The conversation a status action applies to: its tier now and its opened sub-conversations at
+ * any depth and tier ([opened], [working] of them running), for the "apply to opened
+ * sub-conversations too?" question and for an Undo that restores each session as it was.
  */
-data class StatusTarget(val id: String, val tier: StatusTier?, val snoozedUntil: Long? = null, val children: Int = 0, val working: Int = 0) {
-    companion object {
-        fun of(chat: ChatItem, family: List<ChatItem>): StatusTarget {
-            val kids = family.filter { it.nestedUnder == chat.id }
-            return StatusTarget(chat.id, chat.tier, chat.snoozedUntil, kids.size, kids.count { it.attention == ChatAttention.Running })
-        }
-    }
+data class StatusTarget(val id: String, val tier: StatusTier?, val opened: List<String> = emptyList(), val working: Int = 0) {
+    val children: Int get() = opened.size
 }
 
 /** Runs status actions with their sheet, question and Undo notice; see [StatusActionHost]. */
@@ -65,7 +60,13 @@ class StatusActions internal constructor(private val start: (Pending) -> Unit, v
  * retried.
  */
 @Composable
-fun rememberStatusActions(service: StatusViewService?, snackbar: SnackbarHostState, list: StatusViewScope?): StatusActions? {
+fun rememberStatusActions(
+    service: StatusViewService?,
+    snackbar: SnackbarHostState,
+    list: StatusViewScope?,
+    /** The catalog sessions as they are now: Undo reads each session's state before the action. */
+    sessions: () -> List<app.lody.android.runtime.CatalogSession> = { emptyList() },
+): StatusActions? {
     if (service == null) return null
     val scope = rememberCoroutineScope()
     var sheet by remember { mutableStateOf<StatusActions.Pending?>(null) }
@@ -77,6 +78,15 @@ fun rememberStatusActions(service: StatusViewService?, snackbar: SnackbarHostSta
         StatusActions.Kind.Settle to stringResource(R.string.status_settled_done),
         StatusActions.Kind.Focus to stringResource(R.string.status_focused_done),
     )
+    // An Undo restores session by session; a command that changes nothing is no failure here.
+    val undoAll: (List<StatusViewCommand>) -> Unit = { commands ->
+        scope.launch {
+            val ok = try { commands.forEach { service.run(it, list) }; true }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { false }
+            if (!ok) snackbar.showSnackbar(failed)
+        }
+    }
     val run: (StatusViewCommand, String?) -> Unit = { command, notice ->
         scope.launch {
             val ok = try { service.run(command, list) > 0 }
@@ -92,20 +102,18 @@ fun rememberStatusActions(service: StatusViewService?, snackbar: SnackbarHostSta
             StatusActions.Kind.Settle -> StatusViewCommand.Settle(target.id, includeOpened)
             StatusActions.Kind.Focus -> StatusViewCommand.MoveToFocus(target.id, includeOpened)
         }
-        // Undo puts the conversation back where it was.
-        val restore = when (target.tier) {
-            StatusTier.Later -> target.snoozedUntil?.let { StatusViewCommand.Snooze(target.id, it, includeOpened) }
-            StatusTier.Settled -> StatusViewCommand.Settle(target.id, includeOpened)
-            else -> StatusViewCommand.MoveToFocus(target.id, includeOpened)
-        }.takeIf { pending.kind != StatusActions.Kind.Focus }
+        // Undo puts every affected session back as it was, each on its own, read before the write.
+        val restore = if (pending.kind == StatusActions.Kind.Focus) emptyList() else ChatListModel.restore(
+            sessions(), listOf(target.id) + if (includeOpened) target.opened else emptyList(), target.tier, app.lody.android.runtime.StatusClock.now(),
+        )
         scope.launch {
             // Zero writes is a refusal (or nothing to change): the row stays where it was.
             val ok = try { service.run(command, list) > 0 }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { false }
             if (!ok) { snackbar.showSnackbar(failed); return@launch }
-            val result = snackbar.showSnackbar(done.getValue(pending.kind), actionLabel = undo.takeIf { restore != null }, duration = SnackbarDuration.Short)
-            if (result == SnackbarResult.ActionPerformed && restore != null) run(restore, null)
+            val result = snackbar.showSnackbar(done.getValue(pending.kind), actionLabel = undo.takeIf { restore.isNotEmpty() }, duration = SnackbarDuration.Short)
+            if (result == SnackbarResult.ActionPerformed) undoAll(restore)
         }
     }
     val proceed = { pending: StatusActions.Pending -> if (pending.target.children > 0) asking = pending else execute(pending, false) }
@@ -198,13 +206,14 @@ private fun SheetRow(title: String, detail: String?, onClick: () -> Unit) {
 @Composable
 private fun CustomTime(is24Hour: Boolean, zone: ZoneId, onPick: (Long) -> Unit) {
     val colors = LodyTheme.colors
-    val start = remember { LocalDateTime.now(zone).plusHours(1).withMinute(0) }
+    val start = remember { Instant.ofEpochMilli(app.lody.android.runtime.StatusClock.now()).atZone(zone).toLocalDateTime().plusHours(1).withMinute(0) }
     // The date picker works in UTC midnights; the wall time is read in the device zone.
     val date = rememberDatePickerState(initialSelectedDateMillis = start.toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
     val time = rememberTimePickerState(initialHour = start.hour, initialMinute = start.minute, is24Hour = is24Hour)
     val day = date.selectedDateMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }
     val chosen = day?.atTime(time.hour, time.minute)?.atZone(zone)?.toInstant()?.toEpochMilli()
-    val future = chosen != null && chosen > System.currentTimeMillis()
+    // Past times are refused on the server clock the runtime plans with.
+    val future = chosen != null && chosen > app.lody.android.runtime.StatusClock.now()
     Column(Modifier.fillMaxWidth().padding(horizontal = LodySpacing.sm)) {
         Text(stringResource(R.string.status_later_pick), style = LodyTheme.typography.subhead, color = colors.textSecondary,
             modifier = Modifier.padding(horizontal = LodySpacing.md, vertical = LodySpacing.xs))
@@ -246,18 +255,37 @@ internal fun DeleteSectionDialog(name: String, onDismiss: () -> Unit, onDelete: 
     )
 }
 
-/** The compact Later countdown (`3d`, `2h`, `45m`, `<1m`), as the desktop row shows it. */
-@Composable
-internal fun countdownText(until: Long, now: Long): String {
-    val left = until - now
-    return when {
-        left >= DAY -> stringResource(R.string.status_countdown_days, (left / DAY).toInt())
-        left >= HOUR -> stringResource(R.string.status_countdown_hours, (left / HOUR).toInt())
-        left >= MINUTE -> stringResource(R.string.status_countdown_minutes, (left / MINUTE).toInt())
-        else -> stringResource(R.string.status_countdown_soon)
+/** A Later countdown's unit and amount (`<1m` is [Soon]); null once the wake-up has passed. */
+internal sealed interface Countdown {
+    data object Soon : Countdown
+    data class Minutes(val value: Int) : Countdown
+    data class Hours(val value: Int) : Countdown
+    data class Days(val value: Int) : Countdown
+
+    companion object {
+        /** Shared `formatSnoozeCountdown`, rule for rule: minutes and hours round up, days to nearest. */
+        fun of(until: Long, now: Long): Countdown? {
+            val left = (until - now).toDouble()
+            return when {
+                left <= 0 -> null
+                left < MINUTE -> Soon
+                left < 59.5 * MINUTE -> Minutes(kotlin.math.ceil(left / MINUTE).toInt())
+                left < 23.5 * HOUR -> Hours(kotlin.math.ceil(left / HOUR).toInt())
+                else -> Days(maxOf(1, kotlin.math.round(left / DAY).toInt()))
+            }
+        }
     }
 }
 
-private const val MINUTE = 60_000L
+/** The compact Later countdown (`3d`, `2h`, `45m`, `<1m`), as the desktop row shows it. */
+@Composable
+internal fun countdownText(until: Long, now: Long): String = when (val left = Countdown.of(until, now)) {
+    is Countdown.Days -> stringResource(R.string.status_countdown_days, left.value)
+    is Countdown.Hours -> stringResource(R.string.status_countdown_hours, left.value)
+    is Countdown.Minutes -> stringResource(R.string.status_countdown_minutes, left.value)
+    Countdown.Soon, null -> stringResource(R.string.status_countdown_soon)
+}
+
+private const val MINUTE = 60_000.0
 private const val HOUR = 60 * MINUTE
 private const val DAY = 24 * HOUR

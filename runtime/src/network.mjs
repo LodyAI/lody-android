@@ -18,7 +18,8 @@ import {shortcutCommands} from './shortcut-commands.mjs';
 import {scheduleCommands} from './schedule-commands.mjs';
 import {proposalCommands} from './proposal-commands.mjs';
 const emit=message=>globalThis.webkit.messageHandlers.dataRuntime.postMessage(message);
-const access=createReadAccess(globalThis.fetch.bind(globalThis),emit);
+// The Status view clock reads the worker's /api/time (build-time backend config, as on iOS).
+const access=createReadAccess(globalThis.fetch.bind(globalThis),emit,{timeUrl:`${LODY_MOBILE_WORKER_URL}/api/time`});
 globalThis.fetch=access.fetch;
 // Bundled Streams uses fetch. Other outbound APIs have no permission in this host.
 globalThis.XMLHttpRequest=undefined;globalThis.WebSocket=undefined;globalThis.EventSource=undefined;

@@ -16,13 +16,14 @@ const prelude = preludeBuild.outputFiles[0].text;
 const documents={main:'DataRuntime.html',debug:'DebugRuntime.html',network:'NetworkRuntime.html'};
 for (const variant of Object.keys(documents)) {
   const result = await build({entryPoints:[path.join(root,`src/${variant}.mjs`)], bundle:true,format:'esm',platform:'browser',target:'chrome100',write:false,
-    define:{LODY_MOBILE_STORAGE_SUFFIX:JSON.stringify(backends.STORAGE_SUFFIX)},
+    // The worker origin the runtime's server clock reads (`/api/time`), from the shared backend config.
+    define:{LODY_MOBILE_STORAGE_SUFFIX:JSON.stringify(backends.STORAGE_SUFFIX),LODY_MOBILE_WORKER_URL:JSON.stringify(backends.CF_WORKER_URL)},
     loader:{'.wasm':'binary'},
     plugins:[{name:'inline-loro-wasm',setup(b){b.onResolve({filter:/^loro-crdt(?:\/base64)?$/},()=>({path:path.join(root,'src/loro-wasm.mjs')}));}}]});
   const dir=path.join(output,variant==='network'?'main':variant,'runtime');await mkdir(dir,{recursive:true});
   const script=result.outputFiles[0].text.replaceAll('</script','<\\/script');
   // Offline probe: no network access, external scripts or frames.
-  const html=`<!doctype html><meta charset="utf-8"><title>Lody Runtime</title><meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src ${variant==='network'?'__LODY_STREAM_ORIGIN__':"'none'"}; script-src 'unsafe-inline' 'wasm-unsafe-eval'; base-uri 'none'; form-action 'none'"><script>${prelude}</script><script type="module">${script}</script>`;
+  const html=`<!doctype html><meta charset="utf-8"><title>Lody Runtime</title><meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src ${variant==='network'?`__LODY_STREAM_ORIGIN__ ${new URL(backends.CF_WORKER_URL).origin}`:"'none'"}; script-src 'unsafe-inline' 'wasm-unsafe-eval'; base-uri 'none'; form-action 'none'"><script>${prelude}</script><script type="module">${script}</script>`;
   await writeFile(path.join(dir,documents[variant]),html);
 }
 const licenses=path.join(output,'main/runtime/licenses');await rm(licenses,{recursive:true,force:true});await mkdir(licenses,{recursive:true});

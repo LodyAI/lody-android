@@ -48,7 +48,7 @@ class StatusViewTest {
         session("pin", 1).copy(pinned = true),
         session("old", 2),
         session("kid", 3).copy(openedBySessionId = "old"),
-        session("woke", 4).copy(lastReadAt = 4),
+        session("woke", 4).copy(lastReadAt = 4, snoozedUntil = 9_000),
         session("new", 8),
         session("snoozed", 7),
         session("tab", 9).copy(parentSessionId = "old"),
@@ -132,20 +132,107 @@ class StatusViewTest {
         assertEquals(listOf("tomorrowMorning"), StatusViewJson.presets(JSONObject("""{"nowMs":1,"presets":[{"id":"tomorrowMorning","until":9,"countdown":"9h"},{"id":"bad"},{"until":3}]}""")).map { it.id })
     }
 
-    @Test fun openingAConversationOwesAReadReceiptUntilItIsRead() {
+    @Test fun openingAConversationOwesReceiptsAsTheSharedUnreadRuleReadsThem() {
         val data = snapshot()
-        assertEquals("new" to 8L, ChatListModel.readReceipt(data, "new"))
-        // A woken conversation is read up to its wake-up time.
-        assertEquals("woke" to 9_000L, ChatListModel.readReceipt(data, "woke"))
+        val now = 10_000L
+        assertEquals(listOf("new" to 8L), ChatListModel.readReceipts(data, "new", now))
+        // A woken conversation is read up to its wake-up time (its expired snooze, on the server clock).
+        assertEquals(listOf("woke" to 9_000L), ChatListModel.readReceipts(data, "woke", now))
+        // Before the wake-up the snooze is not unread yet: only the last message counts.
+        assertEquals(emptyList<Pair<String, Long>>(), ChatListModel.readReceipts(data, "woke", 8_999))
         val read = data.copy(sessions = data.sessions.map { if (it.id == "new") it.copy(lastReadAt = 8) else it })
-        assertNull(ChatListModel.readReceipt(read, "new"))
-        assertNull(ChatListModel.readReceipt(data, null))
-        // A Tab resolves to its conversation's layout row but never takes its wake-up time.
-        assertEquals("old", ChatListModel.layoutRow(data, "tab")?.id)
-        assertEquals("tab" to 9L, ChatListModel.readReceipt(data, "tab"))
+        assertEquals(emptyList<Pair<String, Long>>(), ChatListModel.readReceipts(read, "new", now))
+        assertEquals(emptyList<Pair<String, Long>>(), ChatListModel.readReceipts(data, null, now))
+        // A chat without messages owes nothing: its creation time is no read receipt.
+        val fresh = data.copy(sessions = data.sessions + session("fresh", 0).copy(lastMessageAt = null))
+        assertEquals(emptyList<Pair<String, Long>>(), ChatListModel.readReceipts(fresh, "fresh", now))
+        // Viewing a Tab of a woken conversation also clears the conversation's wake-up, not its messages.
+        val wokenRoot = data.copy(sessions = data.sessions.map { if (it.id == "old") it.copy(snoozedUntil = 9_500, lastReadAt = 2) else it })
+        assertEquals(listOf("tab" to 9L, "old" to 9_500L), ChatListModel.readReceipts(wokenRoot, "tab", now))
+        assertEquals(listOf("tab" to 9L), ChatListModel.readReceipts(data, "tab", now))
     }
 
-    /** The runtime's own synthetic catalog (contract fixture `catalogStatusView`) renders in its order. */
+    @Test fun anOpenTabsUnreadOutputIsNotClearedByTheRootsLayoutRow() {
+        // The layout says "old" is read; its open Tab has unread output.
+        val tab = session("tab", 9).copy(parentSessionId = "old", lastReadAt = 1)
+        val data = snapshot().let { it.copy(sessions = it.sessions.map { s -> if (s.id == "tab") tab else s }) }
+        val old = ChatListModel.home(data, HomeGrouping.Status).flatMap { it.chats }.first { it.id == "old" }
+        assertEquals(ChatAttention.Unread, old.attention)
+        val closed = data.copy(sessions = data.sessions.map { if (it.id == "tab") tab.copy(isTabClosed = true) else it })
+        assertNull(ChatListModel.home(closed, HomeGrouping.Status).flatMap { it.chats }.first { it.id == "old" }.attention)
+    }
+
+    @Test fun anEmptyDefaultPinSectionIsNotShownButNamedOnesAre() {
+        fun pinned(rows: JSONArray, hidden: Int) = JSONObject(layoutJson.toString()).put("pinned", JSONArray()
+            .put(JSONObject().put("sectionId", JSONObject.NULL).put("name", JSONObject.NULL).put("rows", rows).put("hiddenCount", hidden))
+            .put(JSONObject().put("sectionId", "maint").put("name", "Maintenance").put("rows", JSONArray()).put("hiddenCount", 0)))
+        fun ids(layout: JSONObject) = home(HomeGrouping.Status, StatusViewJson.statusView(JSONObject().put("mine", layout).put("team", layout))).map { it.id }
+        assertEquals(listOf("pin-maint", "status-focus", "status-later"), ids(pinned(JSONArray(), 0)))
+        // Rows the scope hid keep the default section, which names them.
+        assertEquals("pinned", ids(pinned(JSONArray(), 1)).first())
+        assertEquals("pinned", ids(pinned(JSONArray().put(row("pin", "pinned")), 0)).first())
+    }
+
+    @Test fun aNewChatShowsAtTheTopOfFocusBeforeTheLayoutListsIt() {
+        val data = snapshot().let { it.copy(sessions = it.sessions + session("pending", 20).copy(lastMessageAt = null)) }
+        val focus = ChatListModel.home(data, HomeGrouping.Status).first { it.id == "status-focus" }
+        assertEquals("pending", focus.chats.first().id)
+        assertFalse(focus.chats.first().canManage)
+        // Pinned ones may be waiting for their section to be read, so they stay hidden; so do others' chats in My tasks.
+        val pinned = snapshot().let { it.copy(sessions = it.sessions + session("pending", 20).copy(pinned = true)) }
+        assertFalse(ChatListModel.home(pinned, HomeGrouping.Status).flatMap { it.chats }.any { it.id == "pending" })
+        val others = snapshot().let { it.copy(sessions = it.sessions + session("pending", 20).copy(userId = "someone")) }
+        assertFalse(ChatListModel.home(others, HomeGrouping.Status, owner = "me").flatMap { it.chats }.any { it.id == "pending" })
+    }
+
+    @Test fun statusActionsCarryTheWholeOpenedTreeAndUndoRestoresEachSession() {
+        val sessions = listOf(
+            session("root", 1), session("child", 2).copy(openedBySessionId = "root", snoozedUntil = 50_000),
+            session("grandchild", 3).copy(openedBySessionId = "child", settledAt = 4), session("gone", 4).copy(openedBySessionId = "root", archived = true),
+            session("tab", 5).copy(parentSessionId = "root"),
+        )
+        assertEquals(listOf("child", "grandchild"), ChatListModel.openedTree(sessions, "root").map { it.id })
+        val undo = ChatListModel.restore(sessions, listOf("root", "child", "grandchild"), StatusTier.Focus, now = 10_000)
+        assertEquals(listOf(StatusViewCommand.MoveToFocus("root", false), StatusViewCommand.Snooze("child", 50_000, false), StatusViewCommand.Settle("grandchild", false)), undo)
+        // A snooze that expired since is restored as Focus, never as a past wake-up the runtime would refuse.
+        assertEquals(listOf(StatusViewCommand.MoveToFocus("child", false)), ChatListModel.restore(sessions, listOf("child"), StatusTier.Later, now = 60_000))
+        // A root that was Settled by inactivity alone is settled again.
+        assertEquals(listOf(StatusViewCommand.Settle("root", false)), ChatListModel.restore(sessions, listOf("root"), StatusTier.Settled, now = 10_000))
+    }
+
+    @Test fun laterCountdownsMatchTheSharedFormatter() {
+        val minute = 60_000L; val hour = 60 * minute; val day = 24 * hour
+        // Expected values from the shared formatSnoozeCountdown (see runtime/test/status-view.test.mjs).
+        val cases = listOf(
+            0L to null, 30_000L to Countdown.Soon, minute to Countdown.Minutes(1), minute + 1 to Countdown.Minutes(2),
+            59 * minute to Countdown.Minutes(59), (59.5 * minute).toLong() to Countdown.Hours(1), hour to Countdown.Hours(1),
+            hour + 1 to Countdown.Hours(2), 3 * hour to Countdown.Hours(3), (23.5 * hour).toLong() to Countdown.Days(1),
+            (2.4 * day).toLong() to Countdown.Days(2), (2.6 * day).toLong() to Countdown.Days(3),
+        )
+        for ((left, expected) in cases) assertEquals("left=$left", expected, Countdown.of(1_000_000_000L + left, 1_000_000_000L))
+    }
+
+    @Test fun theStatusClockFollowsTheLatestLiveLayout() {
+        app.lody.android.runtime.StatusClock.reset()
+        assertEquals(1_000L, app.lody.android.runtime.StatusClock.now(1_000))
+        app.lody.android.runtime.StatusClock.observe(nowMs = 5_000, receivedAt = 4_000)
+        assertEquals(2_000L, app.lody.android.runtime.StatusClock.now(1_000))
+        // A layout without a clock instant (older runtime) leaves it alone.
+        app.lody.android.runtime.StatusClock.observe(nowMs = 0, receivedAt = 9_000)
+        assertEquals(2_000L, app.lody.android.runtime.StatusClock.now(1_000))
+        app.lody.android.runtime.StatusClock.reset()
+    }
+
+    @Test fun onlyTheExactServerTimeReadLeavesTheStreamGateway() {
+        val worker = "https://api.example.org"
+        assertTrue(app.lody.android.cloud.ServerTimeAccess.allows("https://api.example.org/api/time", "GET", worker))
+        assertTrue(app.lody.android.cloud.ServerTimeAccess.allows("https://api.example.org/api/time", "GET", "$worker/"))
+        for (url in listOf("https://api.example.org/api/time?x=1", "https://api.example.org/api/times", "https://evil.example.org/api/time", "https://api.example.org/api/other"))
+            assertFalse(url, app.lody.android.cloud.ServerTimeAccess.allows(url, "GET", worker))
+        assertFalse(app.lody.android.cloud.ServerTimeAccess.allows("https://api.example.org/api/time", "POST", worker))
+        assertFalse(app.lody.android.cloud.ServerTimeAccess.allows("http://api.example.org/api/time", "GET", "http://api.example.org"))
+    }
+
     @Test fun runtimeFixtureRendersInLayoutOrderForBothScopes() {
         val fixtures = JSONObject(java.io.File(System.getProperty("runtime.fixtures")).readText())
         val event = app.lody.android.runtime.RuntimeProtocol.event(fixtures.getJSONObject("catalogStatusView")) as app.lody.android.runtime.RuntimeEvent.CatalogUpdated
@@ -193,6 +280,54 @@ class StatusViewTest {
         assertNull(StatusMoves.drop(original, original, "new"))
         // Headers never move.
         assertEquals(original, StatusMoves.swap(original, "header/status-focus", ListSlot.rowKey("new")))
+    }
+
+    @Test fun aRowNeverMovesAboveTheFirstHeader() {
+        val original = slots()
+        // Onto the very first header: the row would belong to no section, so the swap is refused.
+        assertEquals(original, StatusMoves.swap(original, ListSlot.rowKey("pin"), "header/pinned"))
+        assertTrue(StatusMoves.swap(original, ListSlot.rowKey("new"), "header/pinned") === original)
+    }
+
+    @Test fun anEmptyFocusOffersALandingSlotThatFollowsItsRows() {
+        val empty = JSONObject(layoutJson.toString()).put("focus", JSONArray())
+        // Only sessions the layout lists, so none shows as a not-yet-read-back new chat.
+        val data = snapshot(StatusViewJson.statusView(JSONObject().put("mine", empty).put("team", empty))).let { it.copy(sessions = it.sessions.filter { s -> s.id in setOf("pin", "snoozed") }) }
+        val sections = ChatListModel.home(data, HomeGrouping.Status, today = LocalDate.parse("2026-11-01"), zone = ZoneOffset.UTC).map { it.copy(collapsed = false) }
+        val original = StatusMoves.slots(sections)
+        assertTrue(original.any { it is ListSlot.Gap })
+        // A Later row dragged onto the gap lands in Focus, and the gap leaves.
+        val moved = StatusMoves.settle(StatusMoves.swap(original, ListSlot.rowKey("snoozed"), "gap/status-focus"))
+        assertFalse(moved.any { it is ListSlot.Gap })
+        assertEquals(StatusViewCommand.Move("snoozed", StatusViewTarget.Focus, null), StatusMoves.drop(moved, original, "snoozed"))
+        // Dragged on into Later again, the gap comes back.
+        assertTrue(StatusMoves.settle(StatusMoves.swap(moved, ListSlot.rowKey("snoozed"), "header/status-later")).any { it is ListSlot.Gap })
+    }
+
+    @Test fun aDropUnderACollapsedSectionHeaderLandsAtItsTop() {
+        val withRows = JSONObject(layoutJson.toString()).put("pinned", JSONArray()
+            .put(JSONObject().put("sectionId", JSONObject.NULL).put("name", JSONObject.NULL).put("rows", JSONArray().put(row("pin", "pinned"))).put("hiddenCount", 0)))
+        val sections = home(HomeGrouping.Status, StatusViewJson.statusView(JSONObject().put("mine", withRows).put("team", withRows)))
+            .map { it.copy(collapsed = it.id == "pinned") }
+        val original = StatusMoves.slots(sections)
+        val moved = StatusMoves.swap(original, ListSlot.rowKey("new"), "header/status-focus")
+        assertEquals(StatusViewCommand.Move("new", StatusViewTarget.Pinned(null), "pin"), StatusMoves.drop(moved, original, "new"))
+    }
+
+    @Test fun aCancelledGestureNeverWritesAndAMovedPressIsNoMenu() {
+        val move = StatusViewCommand.Move("a", StatusViewTarget.Focus, null)
+        assertEquals(StatusMoves.Release.Revert, StatusMoves.release(ended = false, swapped = true, travelled = 200f, slop = 8f, command = move))
+        assertEquals(StatusMoves.Release.Revert, StatusMoves.release(ended = false, swapped = false, travelled = 0f, slop = 8f, command = null))
+        assertEquals(StatusMoves.Release.Menu, StatusMoves.release(ended = true, swapped = false, travelled = 3f, slop = 8f, command = null))
+        assertEquals(StatusMoves.Release.Revert, StatusMoves.release(ended = true, swapped = false, travelled = 40f, slop = 8f, command = null))
+        assertEquals(StatusMoves.Release.Commit, StatusMoves.release(ended = true, swapped = true, travelled = 40f, slop = 8f, command = move))
+    }
+
+    @Test fun aHeldDropIsReleasedWhenTheCatalogShowsItLanded() {
+        val original = slots()
+        val command = StatusViewCommand.Move("new", StatusViewTarget.Focus, "old")
+        assertFalse(StatusMoves.landed(original, command))
+        assertTrue(StatusMoves.landed(StatusMoves.swap(original, ListSlot.rowKey("new"), ListSlot.rowKey("old")), command))
     }
 
     @Test fun movesRespectTheRowsPermissions() {

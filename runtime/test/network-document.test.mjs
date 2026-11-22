@@ -12,7 +12,7 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 // The network document exactly as build.mjs bundles it for NetworkRuntime.html.
 async function bundle(entry) {
  const result = await build({entryPoints:[path.join(root,entry)],bundle:true,format:'esm',platform:'browser',target:'chrome100',write:false,
-  define:{LODY_MOBILE_STORAGE_SUFFIX:'""'},loader:{'.wasm':'binary'},
+  define:{LODY_MOBILE_STORAGE_SUFFIX:'""',LODY_MOBILE_WORKER_URL:'"https://worker.example.org"'},loader:{'.wasm':'binary'},
   plugins:[{name:'inline-loro-wasm',setup(b){b.onResolve({filter:/^loro-crdt(?:\/base64)?$/},()=>({path:path.join(root,'src/loro-wasm.mjs')}));}}]});
  return result.outputFiles[0].text;
 }
@@ -32,8 +32,10 @@ await import(process.argv[1]);
 // connect configures read access synchronously; its runtime start then waits on a native grant.
 void globalThis.androidDispatch({id:'connect',method:'connect',args:['fixture','https://gateway.example.org','user',false]});
 const response = await fetch('https://gateway.example.org/ds/lody/fixture%3Ameta');
+// The Status view clock's one read outside the gateway: the build's worker /api/time.
+const time = await (await fetch('https://worker.example.org/api/time')).text();
 const canParse = [URL.canParse('https://gateway.example.org/ds/lody/x'), URL.canParse('not a url'), URL.canParse('/ds/lody/x','https://gateway.example.org'), URL.canParse('/ds/lody/x')];
-console.log(JSON.stringify({installed:typeof AbortSignal.any, timeout:typeof AbortSignal.timeout, canParse, body:await response.text(), requests}));
+console.log(JSON.stringify({time, installed:typeof AbortSignal.any, timeout:typeof AbortSignal.timeout, canParse, body:await response.text(), requests}));
 process.exit(0);
 `;
 
@@ -54,7 +56,10 @@ test('the network document reads through its guarded fetch on a WebView without 
  // URL.canParse answers as the URL standard: absolute, invalid, relative with and without a base.
  assert.deepEqual(result.canParse, [true, false, true, false]);
  assert.equal(result.body, 'ok');
- assert.deepEqual(result.requests, [{url:'https://gateway.example.org/ds/lody/fixture%3Ameta',aborted:false}]);
+ assert.equal(result.time, 'ok');
+ // Only gateway reads and the time read reach the network; the runtime's own clock calibration
+ // (started by connect) may add time reads of its own.
+ assert.deepEqual([...new Set(result.requests.map(r=>r.url))].sort(), ['https://gateway.example.org/ds/lody/fixture%3Ameta','https://worker.example.org/api/time']);
 });
 
 test('the timeout fallback aborts with a TimeoutError after its delay, and only installs where missing',async t=>{
