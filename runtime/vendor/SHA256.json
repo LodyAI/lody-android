@@ -54,7 +54,7 @@
   "src/protocol/catalog.ts": "4efb59da677ab9a6e66508268c10d36f88e085287000a075005cedca3113be7f",
   "src/protocol/conversation-markdown.ts": "077684d2b79ce3b3a4b49d9b2355f6083e24b078fe7626c14a89f635bd942981",
   "src/protocol/lody-shared/pinned-sections.ts": "f358398b13acb207ebb05bc6600deb4df868630c941f5847cd139c1ae3a50e6c",
-  "src/protocol/lody-shared/provenance.json": "e0284f715c15b2e4d36eda79fb0fb4d36eac411bc668385df7089d81ab9b17bb",
+  "src/protocol/lody-shared/provenance.json": "711c77a752914ab0429ce237d5789f1b71150b43c757c8960ca339e1fb6efdfd",
   "src/protocol/lody-shared/README.md": "1533aa7173656395de49adfe70f56e489b2cc934e21b6f431e86b2881d6f6830",
   "src/protocol/lody-shared/session-sync-progress.ts": "f98f17bf3c596f77c85ff6d1ee8674b46d5d4cb0e4e573db37f2db13f6e934d5",
   "src/protocol/lody-shared/status-view/command.ts": "27dcab891ef457683f1da63f3df0edc7de983d65768460d14a98a2cce988beed",
