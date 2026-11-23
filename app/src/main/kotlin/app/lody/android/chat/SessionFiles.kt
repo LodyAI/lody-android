@@ -86,6 +86,7 @@ data class SessionFileRef(
 ) {
     val downloadable: Boolean get() = id.isNotEmpty() && (transport == null || transport == "r2")
     val markdown: Boolean get() = ProjectFiles.isMarkdown(fileName)
+    val video: Boolean get() = SessionFiles.isVideo(this)
 }
 
 /** A session file that could not be downloaded; [code] picks its message ([SessionFiles.message]). */
@@ -162,16 +163,39 @@ internal class SessionFileHttp {
 }
 
 internal object SessionFiles {
+    private val videoMimeByExtension = mapOf(
+        "mp4" to "video/mp4",
+        "m4v" to "video/mp4",
+        "mov" to "video/quicktime",
+        "webm" to "video/webm",
+        "mkv" to "video/x-matroska",
+        "avi" to "video/x-msvideo",
+        "ogv" to "video/ogg",
+    )
+
     /** The file's last path component; never empty, `.` or `..`. */
     fun safeName(fileName: String): String {
         val name = fileName.replace('\\', '/').substringAfterLast('/')
         return if (name.isEmpty() || name == "." || name == "..") "file" else name
     }
 
-    fun mimeType(file: SessionFileRef): String =
-        file.mimeType?.takeIf { '/' in it }
-            ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.fileName.substringAfterLast('.', "").lowercase())
+    fun isVideo(file: SessionFileRef): Boolean {
+        val declared = file.mimeType?.substringBefore(';')?.trim()?.lowercase()
+        if (declared != null && declared.startsWith("video/")) return true
+        val ext = file.fileName.substringAfterLast('.', "").lowercase()
+        return ext in videoMimeByExtension
+    }
+
+    fun mimeType(file: SessionFileRef): String {
+        val declared = file.mimeType?.substringBefore(';')?.trim()?.lowercase()
+        if (declared != null && '/' in declared && declared != "application/octet-stream") {
+            return declared
+        }
+        val ext = file.fileName.substringAfterLast('.', "").lowercase()
+        return videoMimeByExtension[ext]
+            ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
             ?: "application/octet-stream"
+    }
 
     /** UTF-8 text, or null when the bytes are not valid UTF-8 (the sheet then reports a failure). */
     fun text(bytes: ByteArray): String? = try {
@@ -235,8 +259,10 @@ class SessionFileOpener internal constructor(
         coroutines.launch {
             try {
                 val downloaded = download(file, SessionFiles.directory(context))
-                val view = Intent(Intent.ACTION_VIEW).setDataAndType(SessionFiles.uri(context, downloaded), SessionFiles.mimeType(file))
+                val uri = SessionFiles.uri(context, downloaded)
+                val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, SessionFiles.mimeType(file))
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                view.clipData = ClipData.newRawUri(downloaded.name, uri)
                 try { context.startActivity(Intent.createChooser(view, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 catch (_: ActivityNotFoundException) { toast(R.string.chat_file_no_app) }
             } catch (cancelled: CancellationException) { throw cancelled }
