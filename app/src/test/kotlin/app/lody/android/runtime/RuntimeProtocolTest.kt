@@ -5,6 +5,12 @@ import org.junit.Test
 import java.io.File
 class RuntimeProtocolTest {
  private val fixtures=JSONObject(File(System.getProperty("runtime.fixtures")).readText())
+ @Test fun sessionCatchUpCountsAndClearUseTheSmallRuntimeEvent() {
+  val progress = JSONObject("""{"type":"sessionHistoryProgress","sessionId":"s","progress":{"received":500,"total":1240}}""")
+  assertEquals(RuntimeEvent.SessionHistoryProgress("s", HistorySyncProgress(500, 1240)), RuntimeProtocol.event(progress))
+  progress.remove("progress")
+  assertEquals(RuntimeEvent.SessionHistoryProgress("s", null), RuntimeProtocol.event(progress))
+ }
  private fun operationMessages(items: String): List<SessionMessage> = (RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
   .put("session", """{"v":1,"status":"live","entries":[{"id":"event","role":"system","items":$items}]}""")) as RuntimeEvent.SessionUpdated).snapshot.messages
  @Test fun operationProgressAndRepliesSurviveTheNativeSessionBoundary() {

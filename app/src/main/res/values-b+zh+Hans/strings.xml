@@ -185,6 +185,8 @@
     <string name="chat_composer_placeholder">回复…</string>
     <string name="chat_composer_unavailable">正在连接对话…</string>
     <string name="chat_connection_connecting">正在连接</string>
+    <string name="chat_history_progress_reading">历史 %1$s / %2$s 条</string>
+    <string name="chat_history_progress_applying">应用历史 %1$s / %2$s 条</string>
     <string name="chat_connection_paused">连接已暂停，点击重新同步</string>
     <string name="chat_delivery_waiting_connection">等待连接…</string>
     <string name="chat_stop">停止</string>

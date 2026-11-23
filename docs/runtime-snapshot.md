@@ -21,6 +21,10 @@ Roost subscriptions use the shared owner's durable checkpoints over the existing
 RPC streams. The Android bridge accepts the scoped `historyToken` call and
 returns only the history proof minted by native for that workspace. The mirrored
 reader applies an exact-base delta or recovers from the persisted checkpoint.
+The shared reader emits `sessionHistoryProgress` with the staged and total
+record counts for a multi-page catch-up. Compose shows the counts above the
+composer and switches to Applying after the final page. An event without
+counts clears the previous display. These events carry no transcript data.
 
 The Status view runtime (lody-ios `status-view-runtime`, see PROVENANCE `statusView`)
 vendors the shared Lody layout, planner and golden vectors under

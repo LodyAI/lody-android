@@ -186,6 +186,8 @@
     <string name="chat_composer_placeholder">Reply…</string>
     <string name="chat_composer_unavailable">Waiting for the conversation to connect…</string>
     <string name="chat_connection_connecting">Connecting</string>
+    <string name="chat_history_progress_reading">History %1$s / %2$s</string>
+    <string name="chat_history_progress_applying">Applying %1$s / %2$s</string>
     <string name="chat_connection_paused">Connection paused, tap to resync</string>
     <string name="chat_delivery_waiting_connection">Waiting for connection…</string>
     <string name="chat_stop">Stop</string>

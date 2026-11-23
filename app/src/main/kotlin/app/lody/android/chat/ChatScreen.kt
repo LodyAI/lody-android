@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
@@ -68,6 +69,7 @@ import app.lody.android.home.AgentMark
 import app.lody.android.home.AppPreferences
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -138,6 +140,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     }
     var historyHasMore by remember(id, scope) { mutableStateOf(false) }
     var historyLoading by remember(id, scope) { mutableStateOf(false) }
+    var historySyncProgress by remember(id, scope) { mutableStateOf<HistorySyncProgress?>(null) }
     // User turns plus queued inputs, as the free-plan quota counts them (runtime `billableTurnCount`).
     var billableTurns by remember(id, scope) { mutableStateOf<Int?>(null) }
     var messages by remember(id, scope) { mutableStateOf(emptyList<SessionMessage>()) }
@@ -191,9 +194,10 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         val proseCache = mutableMapOf<String, Pair<String, MarkdownBlocks>>()
         // Web shows thoughts only for builtin DSH.
         val showThoughts = context.session?.cliType == "builtin" && context.session.agentType == "deepseek"
+        var renderedMessages: List<SessionMessage>? = null
         try {
             repository.observe(scope, id).conflate().collect { snapshot ->
-                entries = withContext(Dispatchers.Default) {
+                if (snapshot.messages !== renderedMessages) entries = withContext(Dispatchers.Default) {
                     val next = snapshot.messages.map { message ->
                         rendered[message.id]?.takeIf { it.first == message }?.second ?: when (message.role) {
                             "system" -> ChatEntry.Operations(message.id, message.operations, message.proposals)
@@ -241,12 +245,14 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                     proseCache.keys.retainAll { key -> snapshot.messages.any { key.startsWith(it.id + ":") } }
                     next
                 }
+                renderedMessages = snapshot.messages
                 messages = snapshot.messages
                 snapshotChoice = snapshot.composer
                 browserCandidate = snapshot.preview
                 usage = snapshot.usage
                 historyHasMore = snapshot.historyHasMore
                 historyLoading = snapshot.historyLoading
+                historySyncProgress = snapshot.historySyncProgress
                 billableTurns = snapshot.billableTurnCount
                 status = snapshot.status
                 sendReady = snapshot.sendReady
@@ -1243,6 +1249,9 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 color = LodyTheme.colors.textSecondary,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = LodySpacing.lg, vertical = LodySpacing.xs).testTag("session-free-turn-notice"),
             )
+            if (context.session?.isTabClosed != true && !creationUnconfirmed) {
+                historySyncProgress?.let { ChatHistorySyncProgress(it) }
+            }
             if (context.session?.isTabClosed != true) ChatComposer(
                 field,
                 usage = if (chosen && modelId != usage?.modelId) usage?.copy(quota = null) else usage,
@@ -1363,6 +1372,31 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
 /** Web's free-plan limits (`@lody/shared` billing): 30 user turns per session, noticed from 5 left. */
 internal const val FREE_SESSION_TURN_LIMIT = 30
 internal const val FREE_SESSION_TURN_WARNING_REMAINING = 5
+
+@Composable
+private fun ChatHistorySyncProgress(progress: HistorySyncProgress) {
+    val locale = LocalLocale.current.platformLocale
+    val format = remember(locale) { NumberFormat.getIntegerInstance(locale) }
+    val label = stringResource(
+        if (progress.received == progress.total) R.string.chat_history_progress_applying else R.string.chat_history_progress_reading,
+        format.format(progress.received),
+        format.format(progress.total),
+    )
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = TranscriptMargin, vertical = LodySpacing.xs)
+            .testTag("session-history-progress"),
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(LodySpacing.xxs),
+    ) {
+        Text(label, style = LodyTheme.typography.caption, color = LodyTheme.colors.textSecondary)
+        LinearProgressIndicator(
+            progress = { (progress.received.toDouble() / progress.total).toFloat() },
+            modifier = Modifier.width(112.dp).height(4.dp),
+            color = LodyTheme.colors.accentDefault,
+            trackColor = LodyTheme.colors.fillSecondary,
+        )
+    }
+}
 
 /** Copy for the runtime's billing refusals; nothing was written for any of them. */
 internal fun quotaFailure(reason: String?): Int? = when (reason) {

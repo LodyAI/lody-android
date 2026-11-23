@@ -1,9 +1,9 @@
 {
   "source": "LodyAI/lody-ios packages/cloud-runtime",
-  "commit": "643f0925e012cf15650a1a634b805ce4fd0b0daf",
+  "commit": "ae15b019fdf26758e17db33210aa0636bb51d1d0",
   "license": "AGPL-3.0-only",
   "path": "packages/cloud-runtime",
-  "export": "git -C apps/mobile/ios archive 643f0925e012cf15650a1a634b805ce4fd0b0daf packages/cloud-runtime",
+  "export": "git -C apps/mobile/ios archive ae15b019fdf26758e17db33210aa0636bb51d1d0 packages/cloud-runtime",
   "note": "Complete snapshot of the pinned iOS cloud-runtime package, excluding Roost authoring source and its generator. SHA256.json records every mirrored file. Earlier entries retain the source-update history.",
   "roostHistory": {
     "files": [
@@ -454,5 +454,19 @@
     "commit": "643f0925e012cf15650a1a634b805ce4fd0b0daf",
     "export": "git -C apps/mobile/ios archive 643f0925e012cf15650a1a634b805ce4fd0b0daf packages/cloud-runtime",
     "note": "Full package export of the Roost cutover after it integrated lody-ios main (which contains the previous iosMainSync commit 9478784). Combines the cutover's owner subscription, scoped history proofs, command readiness and permission readiness with main's quote spans and MCP selection. Dependencies and licenses are unchanged."
+  },
+  "roostHistoryProgress": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "ae15b019fdf26758e17db33210aa0636bb51d1d0",
+    "export": "git -C apps/mobile/ios archive ae15b019fdf26758e17db33210aa0636bb51d1d0 packages/cloud-runtime",
+    "upstream": {
+      "repository": "LodyAI/Lody",
+      "commit": "1fd5c4c3d200121e58e8fc790cf12769306b62a2",
+      "sources": [
+        "packages/components/src/lib/roost-session-bridge.ts",
+        "packages/components/src/lib/roost-history-cache.ts"
+      ]
+    },
+    "note": "Full package export carrying the shared reader and transient sessionHistoryProgress event. The export also contains the previously merged optional file diff scope in iOS. Android uses the existing default scope. Dependencies and licenses are unchanged."
   }
 }

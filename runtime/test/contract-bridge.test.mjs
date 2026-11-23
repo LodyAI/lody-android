@@ -87,6 +87,11 @@ test('contract bridge translates requests, events and native grant replies',asyn
  assert.equal(events.at(-1).sessionId,'s');
  globalThis.androidRuntimeMessage({type:'envelope',envelope:JSON.stringify({...event,gen:0})});
  assert.equal(events.length,1);
+ const progressEvent={...event,method:'sessionHistoryProgress',payload:{sessionId:'s',progress:{received:500,total:1240}}};
+ globalThis.androidRuntimeMessage({type:'envelope',envelope:JSON.stringify(progressEvent)});
+ assert.deepEqual(events.at(-1),{type:'sessionHistoryProgress',sessionId:'s',progress:{received:500,total:1240}});
+ globalThis.androidRuntimeMessage({type:'envelope',envelope:JSON.stringify({...progressEvent,payload:{sessionId:'s'}})});
+ assert.deepEqual(events.at(-1),{type:'sessionHistoryProgress',sessionId:'s'});
  const request={v:1,gen:1,kind:'request',id:'grant-1',method:'grant',payload:{}};
  globalThis.androidRuntimeMessage({type:'envelope',envelope:JSON.stringify(request)});
  assert.equal(events.at(-1).type,'grant');
