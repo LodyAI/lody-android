@@ -112,6 +112,7 @@ internal class ReadOnlyCloudRuntime(
                     if (intent.optString("workspaceId") != scope.workspaceId) return@withTimeoutOrNull null
                     when (val minted = tokens.mint(scope, request.operation, intent)) {
                         is String -> JSONObject().put("value", minted)
+                        is JSONObject -> JSONObject().put("value", minted)
                         is Int -> JSONObject().put("value", JSONObject().put("status", minted))
                         else -> null
                     }

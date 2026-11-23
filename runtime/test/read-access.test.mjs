@@ -76,6 +76,17 @@ test('workspace session reads are allowed while other workspaces and deletes are
  await assert.rejects(access.fetch('https://streams.example.org/ds/lody/workspace%3As%3Asession-1',{method:'DELETE',body:'write'}),/network_denied/);
 });
 
+test('published Roost history can be read only on the scoped gateway and workspace',async()=>{
+ const access=createReadAccess(async()=>new Response('published history'));access.configure(config);
+ const streamFor=workspace=>'https://streams.example.org/ds/lody-rh/'+encodeURIComponent(workspace+':rh:machine:session:'+('A'.repeat(43))+':root');
+ const headers={Authorization:'Bearer exact-history-permit'};
+ assert.equal(await (await access.fetch(streamFor('workspace')+'?direction=backward',{headers})).text(),'published history');
+ await assert.rejects(access.fetch(streamFor('workspace')) ,/network_denied/);
+ await assert.rejects(access.fetch(streamFor('other'),{headers}),/network_denied/);
+ await assert.rejects(access.fetch(streamFor('workspace')+'/bootstrap',{headers}),/network_denied/);
+ await assert.rejects(access.fetch(streamFor('workspace'),{method:'POST',headers,body:'write'}),/network_denied/);
+});
+
 test('creation permissions stay inside workspace and separate stream purposes', async()=>{
  const access=createReadAccess(async()=>new Response('ok'));access.configure(config);
  for(const [stream,method] of [['workspace:mf:m','POST'],['workspace:meta','POST'],['workspace:s:s1','PUT'],['workspace:s:s1','POST'],['workspace:rpc:req:m','POST'],['workspace:rpc:res:m:r','PUT'],['workspace:rpc:res:m:r','GET'],['workspace:wf:workspace','GET'],['workspace:wf:workspace','POST'],['workspace:wf:workspace','PUT'],['workspace:shortcut-index','GET'],['workspace:shortcut-index','POST'],['workspace:shortcut-index','PUT'],['workspace:shortcut:doc-1','GET'],['workspace:shortcut:doc-1','POST'],['workspace:shortcut:doc-1','PUT'],['shortcut-index:workspace:u1:private','GET'],['shortcut-index:workspace:u1:workspace','GET'],['shortcut-body:doc-1','GET']])assert.equal(await(await access.fetch('https://streams.example.org/ds/lody/'+encodeURIComponent(stream),{method})).text(),'ok');

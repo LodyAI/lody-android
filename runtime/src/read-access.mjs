@@ -12,11 +12,22 @@ export function createReadAccess(fetch, emit=()=>{}, {timeUrl}={}) {
   const gateway=new URL(value.gatewayBaseUrl);
   if(gateway.protocol!=='https:' || gateway.username || gateway.password || gateway.search || gateway.hash || gateway.port) throw Error('network_denied');
   if(!/^[a-zA-Z0-9_-]{1,128}$/.test(value.workspaceId)) throw Error('network_denied');
-  config={origin:gateway.origin,prefix:gateway.pathname.replace(/\/$/, '')+'/ds/lody/',workspace:value.workspaceId};
+  const streamPath=gateway.pathname.replace(/\/$/, '')+'/ds/';
+  config={origin:gateway.origin,prefix:streamPath+'lody/',roostPrefix:streamPath+'lody-rh/',workspace:value.workspaceId};
  }
  function allowed(request) {
   const url=new URL(request.url);
-  if(!config || !['GET','HEAD','POST','PUT'].includes(request.method) || url.origin!==config.origin || url.username || url.password || url.hash || !url.pathname.startsWith(config.prefix)) return false;
+  if(!config || !['GET','HEAD','POST','PUT'].includes(request.method) || url.origin!==config.origin || url.username || url.password || url.hash) return false;
+  if(url.pathname.startsWith(config.roostPrefix)) {
+   if(!['GET','HEAD'].includes(request.method) || !request.headers.get('Authorization')?.startsWith('Bearer ')) return false;
+   let stream;try{stream=decodeURIComponent(url.pathname.slice(config.roostPrefix.length))}catch{return false}
+   const [workspace,kind,machine,session,author,generation,...rest]=stream.split(':');
+   const id=/^[A-Za-z0-9_-]{1,256}$/;
+   return workspace===config.workspace && kind==='rh' && !rest.length &&
+    id.test(machine??'') && id.test(session??'') && /^[A-Za-z0-9_-]{43}$/.test(author??'') &&
+    (generation==='root' || /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(generation??''));
+  }
+  if(!url.pathname.startsWith(config.prefix)) return false;
   const parts=url.pathname.slice(config.prefix.length).split('/');
   if(parts.length>2 || (parts.length===2 && parts[1]!=='bootstrap')) return false;
   let stream;try{stream=decodeURIComponent(parts[0])}catch{return false}

@@ -67,8 +67,9 @@ coordinator and storage packaged in the browser module. With Developer Mode and
 the Roost History beta preference enabled, new conversations and Tabs use Roost
 on compatible owners and Loro on other owners. Session metadata stores the choice.
 
-Roost sessions use the owner machine's encrypted history RPC while Loro carries
-the control document and queue. The upstream coordinator persists pending inputs
+Roost sessions read the published Streams history with a short-lived
+session grant. The owner machine handles commands, and Loro carries the
+control document and queue. The upstream coordinator persists pending inputs
 in IndexedDB under the backend, account and workspace, recovers the original input after
 restart, and serializes inputs for a session. Sign-out does not clear the pending
 input database. Queue-to-guide conversion preserves the queue item when local input
@@ -80,7 +81,7 @@ have accepted it. The native transcript opens at the latest page and requests
 older pages when needed. The Android runtime test exercises the bundled production
 session module with a synthetic Streams peer.
 
-Roost reports a live session after both the control stream and owner history
+Roost reports a live session after both the control stream and published history
 are ready. A failed read only clears its own reader's readiness until it recovers.
 The composer takes command readiness from the runtime projection. A readable
 Roost window and a caught-up control stream allow Stop, Steer and permission

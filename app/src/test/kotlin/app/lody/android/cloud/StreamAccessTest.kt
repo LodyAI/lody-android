@@ -23,6 +23,17 @@ class StreamAccessTest {
   assertFalse(access.allows("https://streams.example.org/ds/lody/other%3As%3Asession-1","GET"))
   assertFalse(access.allows("https://streams.example.org/ds/lody/workspace%3As%3Asession-1","DELETE"))
  }
+ @Test fun permitsPublishedRoostHistoryReadsAndPreflightOnly() {
+  val origin = "https://streams.example.org"
+  val access = StreamAccess("workspace", origin)
+  val suffix = "%3Arh%3Amachine%3Asession%3A${"A".repeat(43)}%3Aroot"
+  val published = "$origin/ds/lody-rh/workspace$suffix"
+  assertTrue(access.allows("$published?direction=backward", "GET"))
+  assertTrue(access.allows(published, "OPTIONS"))
+  assertFalse(access.allows(published, "POST"))
+  assertFalse(access.allows("$published/bootstrap", "GET"))
+  assertFalse(access.allows("$origin/ds/lody-rh/other$suffix", "GET"))
+ }
  @Test fun permitsCreationAndProviderAppendsButNotOtherWorkspaceWrites() {
   val access=StreamAccess("workspace","https://streams.example.org")
   for ((stream,method) in listOf("workspace:mf:m" to "POST", "workspace:meta" to "POST", "workspace:s:s1" to "PUT", "workspace:s:s1" to "POST", "workspace:rpc:req:m" to "POST", "workspace:rpc:res:m:r" to "PUT", "workspace:rpc:res:m:r" to "GET", "workspace:wf:workspace" to "GET", "workspace:wf:workspace" to "POST", "workspace:wf:workspace" to "PUT", "workspace:shortcut-index" to "GET", "workspace:shortcut-index" to "POST", "workspace:shortcut-index" to "PUT", "workspace:shortcut:doc-1" to "GET", "workspace:shortcut:doc-1" to "POST", "workspace:shortcut:doc-1" to "PUT", "shortcut-index:workspace:u1:private" to "GET", "shortcut-index:workspace:u1:workspace" to "GET", "shortcut-body:doc-1" to "GET")) assertTrue(access.allows("https://streams.example.org/ds/lody/$stream",method))
