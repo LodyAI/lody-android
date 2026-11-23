@@ -6,10 +6,14 @@ import java.io.File
 class RuntimeProtocolTest {
  private val fixtures=JSONObject(File(System.getProperty("runtime.fixtures")).readText())
  @Test fun sessionCatchUpCountsAndClearUseTheSmallRuntimeEvent() {
-  val progress = JSONObject("""{"type":"sessionHistoryProgress","sessionId":"s","progress":{"received":500,"total":1240}}""")
-  assertEquals(RuntimeEvent.SessionHistoryProgress("s", HistorySyncProgress(500, 1240)), RuntimeProtocol.event(progress))
+  val progress = JSONObject("""{"type":"sessionSyncProgress","sessionId":"s","progress":{"kind":"history","received":500,"total":1240}}""")
+  assertEquals(RuntimeEvent.SessionSyncProgressChanged("s", SessionSyncProgress("history", 500, 1240)), RuntimeProtocol.event(progress))
+  progress.put("progress", JSONObject("""{"kind":"updates","received":512,"total":1024}"""))
+  assertEquals(RuntimeEvent.SessionSyncProgressChanged("s", SessionSyncProgress("updates", 512, 1024)), RuntimeProtocol.event(progress))
+  progress.put("progress", JSONObject("""{"kind":"bootstrap","received":512}"""))
+  assertEquals(RuntimeEvent.SessionSyncProgressChanged("s", SessionSyncProgress("bootstrap", 512, null)), RuntimeProtocol.event(progress))
   progress.remove("progress")
-  assertEquals(RuntimeEvent.SessionHistoryProgress("s", null), RuntimeProtocol.event(progress))
+  assertEquals(RuntimeEvent.SessionSyncProgressChanged("s", null), RuntimeProtocol.event(progress))
  }
  private fun operationMessages(items: String): List<SessionMessage> = (RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
   .put("session", """{"v":1,"status":"live","entries":[{"id":"event","role":"system","items":$items}]}""")) as RuntimeEvent.SessionUpdated).snapshot.messages

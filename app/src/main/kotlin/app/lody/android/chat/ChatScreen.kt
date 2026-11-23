@@ -140,7 +140,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     }
     var historyHasMore by remember(id, scope) { mutableStateOf(false) }
     var historyLoading by remember(id, scope) { mutableStateOf(false) }
-    var historySyncProgress by remember(id, scope) { mutableStateOf<HistorySyncProgress?>(null) }
+    var sessionSyncProgress by remember(id, scope) { mutableStateOf<SessionSyncProgress?>(null) }
     // User turns plus queued inputs, as the free-plan quota counts them (runtime `billableTurnCount`).
     var billableTurns by remember(id, scope) { mutableStateOf<Int?>(null) }
     var messages by remember(id, scope) { mutableStateOf(emptyList<SessionMessage>()) }
@@ -252,7 +252,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 usage = snapshot.usage
                 historyHasMore = snapshot.historyHasMore
                 historyLoading = snapshot.historyLoading
-                historySyncProgress = snapshot.historySyncProgress
+                sessionSyncProgress = snapshot.sessionSyncProgress
                 billableTurns = snapshot.billableTurnCount
                 status = snapshot.status
                 sendReady = snapshot.sendReady
@@ -1250,7 +1250,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 modifier = Modifier.fillMaxWidth().padding(horizontal = LodySpacing.lg, vertical = LodySpacing.xs).testTag("session-free-turn-notice"),
             )
             if (context.session?.isTabClosed != true && !creationUnconfirmed) {
-                historySyncProgress?.let { ChatHistorySyncProgress(it) }
+                sessionSyncProgress?.let { ChatSessionSyncProgress(it) }
             }
             if (context.session?.isTabClosed != true) ChatComposer(
                 field,
@@ -1374,14 +1374,24 @@ internal const val FREE_SESSION_TURN_LIMIT = 30
 internal const val FREE_SESSION_TURN_WARNING_REMAINING = 5
 
 @Composable
-private fun ChatHistorySyncProgress(progress: HistorySyncProgress) {
+private fun ChatSessionSyncProgress(progress: SessionSyncProgress) {
     val locale = LocalLocale.current.platformLocale
     val format = remember(locale) { NumberFormat.getIntegerInstance(locale) }
-    val label = stringResource(
-        if (progress.received == progress.total) R.string.chat_history_progress_applying else R.string.chat_history_progress_reading,
-        format.format(progress.received),
-        format.format(progress.total),
-    )
+    val total = progress.total
+    val received = format.format(progress.received)
+    val label = if (total != null) {
+        val applying = progress.received == total
+        val key = when (progress.kind) {
+            "history" -> if (applying) R.string.chat_history_progress_applying else R.string.chat_history_progress_reading
+            "chunks" -> if (applying) R.string.chat_sync_progress_applying_chunks else R.string.chat_sync_progress_reading_chunks
+            else -> if (applying) R.string.chat_sync_progress_applying_bytes else R.string.chat_sync_progress_reading_bytes
+        }
+        stringResource(key, received, format.format(total))
+    } else if (progress.received > 0) {
+        stringResource(R.string.chat_sync_progress_received_bytes, received)
+    } else {
+        stringResource(if (progress.kind == "bootstrap") R.string.chat_sync_progress_reading_session_data else R.string.chat_sync_progress_reading_updates)
+    }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = TranscriptMargin, vertical = LodySpacing.xs)
             .testTag("session-history-progress"),
@@ -1389,12 +1399,17 @@ private fun ChatHistorySyncProgress(progress: HistorySyncProgress) {
         verticalArrangement = Arrangement.spacedBy(LodySpacing.xxs),
     ) {
         Text(label, style = LodyTheme.typography.caption, color = LodyTheme.colors.textSecondary)
-        LinearProgressIndicator(
-            progress = { (progress.received.toDouble() / progress.total).toFloat() },
-            modifier = Modifier.width(112.dp).height(4.dp),
-            color = LodyTheme.colors.accentDefault,
-            trackColor = LodyTheme.colors.fillSecondary,
-        )
+        val track = Modifier.width(112.dp).height(4.dp)
+        if (total == null) {
+            LinearProgressIndicator(modifier = track, color = LodyTheme.colors.accentDefault, trackColor = LodyTheme.colors.fillSecondary)
+        } else {
+            LinearProgressIndicator(
+                progress = { (progress.received.toDouble() / total).toFloat() },
+                modifier = track,
+                color = LodyTheme.colors.accentDefault,
+                trackColor = LodyTheme.colors.fillSecondary,
+            )
+        }
     }
 }
 

@@ -187,6 +187,13 @@
     <string name="chat_connection_connecting">正在连接</string>
     <string name="chat_history_progress_reading">历史 %1$s / %2$s 条</string>
     <string name="chat_history_progress_applying">应用历史 %1$s / %2$s 条</string>
+    <string name="chat_sync_progress_reading_chunks">同步 %1$s / %2$s 块</string>
+    <string name="chat_sync_progress_applying_chunks">应用数据 %1$s / %2$s 块</string>
+    <string name="chat_sync_progress_reading_bytes">同步 %1$s / %2$s B</string>
+    <string name="chat_sync_progress_applying_bytes">应用数据 %1$s / %2$s B</string>
+    <string name="chat_sync_progress_received_bytes">同步 %1$s B</string>
+    <string name="chat_sync_progress_reading_session_data">读取会话数据</string>
+    <string name="chat_sync_progress_reading_updates">同步会话更新</string>
     <string name="chat_connection_paused">连接已暂停，点击重新同步</string>
     <string name="chat_delivery_waiting_connection">等待连接…</string>
     <string name="chat_stop">停止</string>

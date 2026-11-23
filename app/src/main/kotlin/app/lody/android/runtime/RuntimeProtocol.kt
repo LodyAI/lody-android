@@ -19,10 +19,10 @@ internal object RuntimeProtocol {
         "agentProviderOperationProgress" -> RuntimeEvent.ProviderProgress(message.getString("machineId"), message.getString("id"), message.getString("status"), (message.opt("percent") as? Number)?.toFloat()?.takeIf { it.isFinite() }?.coerceIn(0f, 100f))
         "machinePresence" -> RuntimeEvent.CreationChanged(message.optString("presence"))
         "creationOptionsChanged" -> RuntimeEvent.CreationChanged()
-        "sessionHistoryProgress" -> RuntimeEvent.SessionHistoryProgress(
+        "sessionSyncProgress" -> RuntimeEvent.SessionSyncProgressChanged(
             message.text("sessionId"),
             message.optJSONObject("progress")?.let {
-                HistorySyncProgress(it.nonnegative("received"), it.nonnegative("total"))
+                SessionSyncProgress(it.text("kind"), it.nonnegative("received"), if (it.has("total")) it.nonnegative("total") else null)
             },
         )
         "session" -> {
