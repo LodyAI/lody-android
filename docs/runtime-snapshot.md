@@ -51,6 +51,16 @@ Control requests and durable uploads each retain a 15-second budget, with
 The full iOS snapshot also carries Loro transcript windowing and explicit pending-input
 reconciliation; it does not replay history appends during recovery.
 
+Receive confirmation (lody-ios #179, PROVENANCE `receiveRevalidation`): `live`
+means the receive state is confirmed. Android's ProcessLifecycleOwner `onStart`
+sends `setActive(true)`, whose shared lifecycle handler calls `resumeSessions`; every
+retained session then fences reads started before the wake and stays `syncing`
+until a fresh non-long-poll read reaches the tail (Roost also renews its owner
+subscription lease). Received Loro updates waiting for a missing dependency keep the
+session `syncing`; bounded recovery ends `offline` with `pending_dependencies`, which
+the chat shows as the existing Paused pill with tap-to-reconnect. Loro snapshots carry
+no `controlReady`, so, as on iOS, Stop and permission answers follow `live`.
+
 Android bundles Loro through `runtime/src/loro-wasm.mjs`: both `loro-crdt` and
 `loro-crdt/base64` resolve to the official `loro-crdt/web` entry, with its WASM bytes
 inlined by esbuild and initialized asynchronously before dependent modules run.
