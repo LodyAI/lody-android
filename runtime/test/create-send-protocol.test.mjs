@@ -19,7 +19,7 @@ const runtime = await import(`data:text/javascript;base64,${Buffer.from(bundle.o
 const ok = (result = {}) => ({ ok: true, result });
 const args = { id: '22222222-2222-4222-8222-222222222222', sessionId: 's', machineId: 'm', userId: 'u', text: 'hello', cliType: 'builtin', agentType: 'codex', modelId: 'model' };
 
-async function fixture({ failAt, target, owner, subscribe, readControl, observe } = {}) {
+async function fixture({ failAt, target, owner, subscribe, readControl, observe, seed } = {}) {
   const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
   const locks = new Map();
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: { request(name, { signal }, work) {
@@ -30,6 +30,7 @@ async function fixture({ failAt, target, owner, subscribe, readControl, observe 
   globalThis.indexedDB = new IDBFactory();
   globalThis.IDBKeyRange = IDBKeyRange;
   const doc = new LoroDoc(), calls = [], replies = new Map();
+  seed?.(doc);
   globalThis.__androidStream = class {
     constructor({ url }) { this.url = decodeURIComponent(url); }
     async bootstrap() { return ok({ snapshotOffset: '1', nextOffset: '1', upToDate: true, snapshot: { body: doc.export({ mode: 'snapshot' }) }, updates: [] }); }
@@ -57,14 +58,15 @@ async function fixture({ failAt, target, owner, subscribe, readControl, observe 
         } };
       }
     }
-    async readOnce({ signal } = {}) {
+    async readOnce(options = {}) {
+      const { signal } = options;
       if (this.url.includes(':rpc:res:')) {
         const request = replies.get(this.url.split('/ds/lody/')[1]);
         const result = owner ? await owner(request, signal) : { result: { accepted: true } };
         return ok({ nextOffset: '1', payload: { body: new TextEncoder().encode(JSON.stringify({ id: request.id, ...result })) } });
       }
       if (this.url.endsWith(':s:s')) {
-        const read = readControl?.();
+        const read = readControl?.(options);
         if (read) return read;
       }
       return new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }));
@@ -113,6 +115,99 @@ for (const [failure, expected] of [[undefined, 'accepted'], ['history', 'unknown
     } finally { f.close(); }
   });
 }
+
+/** Control-stream reads of session `s`, answered by the test; late replies are still delivered after abort. */
+function controlReads() {
+  const calls = [];
+  let waiting;
+  return {
+    read(options) {
+      const reply = Promise.withResolvers();
+      const call = { options, reply: reply.resolve };
+      calls.push(call);
+      waiting?.resolve(call);
+      waiting = undefined;
+      return reply.promise;
+    },
+    next() { waiting = Promise.withResolvers(); return waiting.promise; },
+    get latest() { return calls.at(-1); },
+  };
+}
+const framed = (bytes) => {
+  const body = new Uint8Array(4 + bytes.length);
+  new DataView(body.buffer).setUint32(0, bytes.length);
+  body.set(bytes, 4);
+  return { body };
+};
+const tail = (nextOffset, bytes) => ok({ nextOffset, upToDate: true, closed: false, ...(bytes ? { payload: framed(bytes) } : {}) });
+const appendTurn = (doc, id, finished = true) => {
+  const from = doc.version();
+  doc.getList('history').push({ id, role: 'assistant', finished, items: [] });
+  doc.commit();
+  return doc.export({ mode: 'update', from });
+};
+
+test('Android keeps a conversation Syncing while a received update waits for its dependency, and Stop still works', { timeout: 5_000 }, async (t) => {
+  const reads = controlReads();
+  let latest;
+  const f = await fixture({
+    seed: (doc) => appendTurn(doc, 'running', false),
+    owner: async () => ({ result: { success: true } }),
+    readControl: reads.read,
+    observe(event) { if (event.session) latest = JSON.parse(event.session); },
+  });
+  t.after(() => f.close());
+  const deliver = async (nextOffset, bytes) => {
+    const before = reads.latest ?? await reads.next();
+    const next = reads.next();
+    before.reply(tail(nextOffset, bytes));
+    await next;
+    await f.reopen();
+  };
+  assert.equal(latest.status, 'live');
+  const dependency = appendTurn(f.doc, 'earlier');
+  const dependent = appendTurn(f.doc, 'later');
+  await deliver('2', dependent);
+  assert.equal(latest.status, 'syncing', 'a stream tail with unapplied updates is not confirmed');
+  assert.deepEqual(latest.entries.map((entry) => entry.id), ['running']);
+  // The runtime still accepts Stop; Loro snapshots carry no controlReady, so the UI follows status (as on iOS).
+  const stop = await runtime.controlTurn({ action: 'stop', sessionId: 's', machineId: 'm', turnId: 'running' });
+  assert.equal(stop.state, 'stopped');
+  await deliver('3', dependency);
+  assert.equal(latest.status, 'live');
+  assert.deepEqual(latest.entries.map((entry) => entry.id), ['running', 'earlier', 'later']);
+});
+
+test('Android foreground resume keeps a conversation Syncing until a read started after resume reaches the tail', { timeout: 5_000 }, async (t) => {
+  const reads = controlReads();
+  let latest, onEvent;
+  const f = await fixture({
+    seed: (doc) => appendTurn(doc, 'old', false),
+    readControl: reads.read,
+    observe(event) { if (event.session) { latest = JSON.parse(event.session); onEvent?.(latest); } },
+  });
+  t.after(() => f.close());
+  const before = reads.latest ?? await reads.next();
+  const until = (status) => new Promise((resolve) => {
+    if (latest.status === status) resolve();
+    else onEvent = (value) => { if (value.status === status) resolve(); };
+  });
+  // setActive(true) from ProcessLifecycleOwner reaches the shared lifecycle handler, which calls resumeSessions.
+  runtime.resumeSessions();
+  assert.equal(before.options.signal.aborted, true, 'resume fences the read started before it');
+  await until('syncing');
+  // A late reply to the pre-resume read cannot confirm or change the transcript.
+  const fresh = reads.next();
+  before.reply(tail('2', appendTurn(f.doc, 'stale')));
+  const check = await fresh;
+  assert.equal(check.options.live, undefined, 'the resume check is not a long-poll');
+  await f.reopen();
+  assert.equal(latest.status, 'syncing');
+  const confirmed = until('live');
+  check.reply(tail('1'));
+  await confirmed;
+  assert.deepEqual(latest.entries.map((entry) => entry.id), ['old']);
+});
 
 test('Android Roost waits for control-stream recovery even after owner history catches up', { timeout: 8_000 }, async (t) => {
   const blocked = Promise.withResolvers();
