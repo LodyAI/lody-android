@@ -219,16 +219,24 @@ class ChatRepository(
     fun observe(scope: RuntimeScope, id: String): Flow<SessionSnapshot> = channelFlow {
         var latest = SessionSnapshot(id, "syncing", emptyList())
         suspend fun status(value: String) {
-            latest = latest.copy(status = value, sendReady = false, controlReady = false)
+            latest = latest.copy(status = value, sendReady = false, controlReady = false, sessionSyncProgress = null)
             send(latest)
         }
         val events = launch(start = CoroutineStart.UNDISPATCHED) {
             owner.events.collect { emission ->
-                val event = emission.event as? RuntimeEvent.SessionUpdated ?: return@collect
-                if (emission.scope == scope && emission.generation == owner.state.value.status.generation && event.snapshot.id == id) {
-                    latest = event.snapshot
-                    send(latest)
+                if (emission.scope != scope || emission.generation != owner.state.value.status.generation) return@collect
+                latest = when (val event = emission.event) {
+                    is RuntimeEvent.SessionUpdated -> {
+                        if (event.snapshot.id != id) return@collect
+                        event.snapshot.copy(sessionSyncProgress = latest.sessionSyncProgress)
+                    }
+                    is RuntimeEvent.SessionSyncProgressChanged -> {
+                        if (event.id != id || event.progress == latest.sessionSyncProgress) return@collect
+                        latest.copy(sessionSyncProgress = event.progress)
+                    }
+                    else -> return@collect
                 }
+                send(latest)
             }
         }
         try {

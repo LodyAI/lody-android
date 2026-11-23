@@ -186,6 +186,15 @@
     <string name="chat_composer_placeholder">Reply…</string>
     <string name="chat_composer_unavailable">Waiting for the conversation to connect…</string>
     <string name="chat_connection_connecting">Connecting</string>
+    <string name="chat_history_progress_reading">History %1$s / %2$s</string>
+    <string name="chat_history_progress_applying">Applying %1$s / %2$s</string>
+    <string name="chat_sync_progress_reading_chunks">Syncing %1$s / %2$s chunks</string>
+    <string name="chat_sync_progress_applying_chunks">Applying %1$s / %2$s chunks</string>
+    <string name="chat_sync_progress_reading_bytes">Syncing %1$s / %2$s B</string>
+    <string name="chat_sync_progress_applying_bytes">Applying %1$s / %2$s B</string>
+    <string name="chat_sync_progress_received_bytes">Syncing %1$s B</string>
+    <string name="chat_sync_progress_reading_session_data">Reading session data</string>
+    <string name="chat_sync_progress_reading_updates">Syncing session updates</string>
     <string name="chat_connection_paused">Connection paused, tap to resync</string>
     <string name="chat_delivery_waiting_connection">Waiting for connection…</string>
     <string name="chat_stop">Stop</string>

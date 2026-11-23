@@ -5,6 +5,26 @@ import org.junit.Test
 import java.io.File
 class RuntimeProtocolTest {
  private val fixtures=JSONObject(File(System.getProperty("runtime.fixtures")).readText())
+ @Test fun sessionCatchUpCountsAndClearUseTheSmallRuntimeEvent() {
+  val progress = JSONObject("""{"type":"sessionSyncProgress","sessionId":"s","progress":{"kind":"history","received":500,"total":1240}}""")
+  assertEquals(RuntimeEvent.SessionSyncProgressChanged("s", SessionSyncProgress("history", 500, 1240)), RuntimeProtocol.event(progress))
+  progress.put("progress", JSONObject("""{"kind":"updates","received":512,"total":1024}"""))
+  assertEquals(RuntimeEvent.SessionSyncProgressChanged("s", SessionSyncProgress("updates", 512, 1024)), RuntimeProtocol.event(progress))
+  progress.put("progress", JSONObject("""{"kind":"bootstrap","received":512}"""))
+  assertEquals(RuntimeEvent.SessionSyncProgressChanged("s", SessionSyncProgress("bootstrap", 512, null)), RuntimeProtocol.event(progress))
+  progress.remove("progress")
+  assertEquals(RuntimeEvent.SessionSyncProgressChanged("s", null), RuntimeProtocol.event(progress))
+ }
+ // WebViewCloudRuntime recovers the whole runtime when decoding throws, so a bad count must decode, not throw.
+ @Test fun malformedSyncProgressEventIsIgnoredWithoutRestartingTheRuntime() {
+  for (bad in listOf("""{"kind":"history","received":1300,"total":1240}""", """{"kind":"history","received":5}""",
+   """{"kind":"other","received":1}""", """{"kind":"updates","received":-1}""", """{"kind":"updates","received":"1"}""",
+   """{"kind":"bootstrap","received":1.5}""", """{"kind":"history","received":1,"total":0}""")) {
+   val event = JSONObject().put("type", "sessionSyncProgress").put("sessionId", "s").put("progress", JSONObject(bad))
+   assertEquals(bad, RuntimeEvent.SessionSyncProgressChanged("s", null), RuntimeProtocol.event(event))
+  }
+  assertNull(RuntimeProtocol.event(JSONObject("""{"type":"sessionSyncProgress","progress":{"kind":"history","received":1,"total":2}}""")))
+ }
  private fun operationMessages(items: String): List<SessionMessage> = (RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
   .put("session", """{"v":1,"status":"live","entries":[{"id":"event","role":"system","items":$items}]}""")) as RuntimeEvent.SessionUpdated).snapshot.messages
  @Test fun operationProgressAndRepliesSurviveTheNativeSessionBoundary() {

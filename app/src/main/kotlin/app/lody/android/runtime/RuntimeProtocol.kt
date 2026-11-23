@@ -19,6 +19,10 @@ internal object RuntimeProtocol {
         "agentProviderOperationProgress" -> RuntimeEvent.ProviderProgress(message.getString("machineId"), message.getString("id"), message.getString("status"), (message.opt("percent") as? Number)?.toFloat()?.takeIf { it.isFinite() }?.coerceIn(0f, 100f))
         "machinePresence" -> RuntimeEvent.CreationChanged(message.optString("presence"))
         "creationOptionsChanged" -> RuntimeEvent.CreationChanged()
+        // Like iOS: a malformed count clears the display; it never restarts the runtime.
+        "sessionSyncProgress" -> (message.opt("sessionId") as? String)?.takeIf { it.isNotEmpty() }?.let { id ->
+            RuntimeEvent.SessionSyncProgressChanged(id, message.optJSONObject("progress")?.let(::syncProgress))
+        }
         "session" -> {
             val envelope = JSONObject(message.getString("session"))
             require(envelope.getInt("v") == 1)
@@ -423,6 +427,13 @@ internal object RuntimeProtocol {
             })
     }
     private fun JSONObject.text(key: String) = get(key) as String
+    private fun syncProgress(value: JSONObject): SessionSyncProgress? {
+        fun count(key: String) = (value.opt(key) as? Number)?.takeIf { it is Int || it is Long }?.toLong()
+        val kind = value.opt("kind") as? String ?: return null
+        val received = count("received") ?: return null
+        val total = if (value.has("total")) count("total") ?: return null else null
+        return if (SessionSyncProgress.valid(kind, received, total)) SessionSyncProgress(kind, received, total) else null
+    }
     private fun JSONObject.nonnegative(key: String): Long {
         val value = get(key)
         require(value is Int || value is Long)

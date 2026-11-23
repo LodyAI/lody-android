@@ -443,6 +443,15 @@ data class RunChoice(
     val configOptionValues: Map<String, Any> = emptyMap(),
     val agentRoleId: String? = null, val roleKnown: Boolean = false,
 )
+data class SessionSyncProgress(val kind: String, val received: Long, val total: Long?) {
+    init { require(valid(kind, received, total)) }
+    companion object {
+        fun valid(kind: String, received: Long, total: Long?) =
+            kind in setOf("history", "bootstrap", "updates", "chunks") && received >= 0 &&
+                if (total == null) kind == "bootstrap" || kind == "updates" else total > 0 && received <= total
+    }
+}
+
 /** [preview]: the session's managed web preview candidate, null without one. */
 data class SessionSnapshot(
     val id: String,
@@ -457,6 +466,7 @@ data class SessionSnapshot(
     val billableTurnCount: Int? = null,
     val sendReady: Boolean = status == "live",
     val controlReady: Boolean = status == "live",
+    val sessionSyncProgress: SessionSyncProgress? = null,
 )
 sealed interface RuntimeEvent {
     data class ProvidersChanged(val machineId: String) : RuntimeEvent
@@ -465,6 +475,7 @@ sealed interface RuntimeEvent {
     data class ProviderRefreshProgress(val machineId: String, val id: String, val modelName: String, val index: Int, val total: Int) : RuntimeEvent
     data class CreationChanged(val key: String = "") : RuntimeEvent
     data class SessionUpdated(val snapshot: SessionSnapshot) : RuntimeEvent
+    data class SessionSyncProgressChanged(val id: String, val progress: SessionSyncProgress?) : RuntimeEvent
     data class CatalogUpdated(val snapshot: CatalogSnapshot) : RuntimeEvent
     data class Synced(val revision: Long, val streams: Int) : RuntimeEvent
     data class SyncFailed(val reason: String) : RuntimeEvent
