@@ -30,6 +30,14 @@ when the runtime applies the data or abandons the read. Intermediate counts
 arrive at most every 100 ms. A malformed count clears the display; it never
 restarts the runtime.
 
+A 410 session read (history retired below the cursor) re-bootstraps into the
+same Loro document while the session shows `syncing`, then resumes after the
+expired offset. Recoveries without a successful read in between are bounded;
+the last ends `offline` with `cursor_expired`, which the conversation shows as
+Paused with the existing tap-to-reconnect. A missing, deleted or fenced stream
+also ends `offline` at once instead of retrying. The 32 MiB / 100-page session
+budget applies per sync window, so long live sessions never reach it.
+
 The Status view runtime (lody-ios `status-view-runtime`, see PROVENANCE `statusView`)
 vendors the shared Lody layout, planner and golden vectors under
 `src/protocol/lody-shared`; `runtime/test/status-view.test.mjs` runs every vector against
