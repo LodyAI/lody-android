@@ -12,13 +12,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalView
 import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
+import android.os.SystemClock
+import android.view.MotionEvent
+import androidx.compose.ui.layout.positionOnScreen
 import app.lody.android.home.HomeBottomBar
+import app.lody.android.home.SectionTitle
 import app.lody.android.home.HomeTab
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.lody.android.diagnostics.ComposerMotionProbeActivity
@@ -117,6 +122,44 @@ class ControlBoundsTest {
                 assertTrue("Home bar uses max(nav=$navigation, cutout=$cutout) without accumulating padding: expected $expectedHeight, got $actualHeight",
                     laidOut.await(5, TimeUnit.SECONDS))
             }
+        }
+    }
+
+    /** A pin section's ⋯ menu must not make its label taller than a status tier's label. */
+    @Test fun sectionMenuKeepsGroupLabelHeightAndOpens() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val laidOut = CountDownLatch(2)
+        val opened = CountDownLatch(1)
+        val heights = IntArray(2)
+        var menuCenter = floatArrayOf(0f, 0f)
+        ActivityScenario.launch(ComposerMotionProbeActivity::class.java).use { scenario ->
+            scenario.onActivity { activity -> activity.setContent {
+                LodyTheme {
+                    val density = LocalDensity.current
+                    fun bounds(index: Int) = Modifier.onGloballyPositioned {
+                        heights[index] = it.size.height
+                        if (index == 1) {
+                            val origin = it.positionOnScreen()
+                            val inset = with(density) { (LodySpacing.xs + 24.dp).toPx() }
+                            menuCenter = floatArrayOf(origin.x + it.size.width - inset, origin.y + it.size.height / 2f)
+                        }
+                        laidOut.countDown()
+                    }
+                    Column {
+                        Box(bounds(0)) { SectionTitle("Focus", collapsed = true, count = 3) }
+                        Box(bounds(1)) {
+                            SectionTitle("Pinned", collapsed = true, count = 3, menu = { SideEffect { opened.countDown() } })
+                        }
+                    }
+                }
+            } }
+            assertTrue("Both labels laid out", laidOut.await(5, TimeUnit.SECONDS))
+            assertEquals("A label with a menu keeps the plain label height", heights[0], heights[1])
+            val down = SystemClock.uptimeMillis()
+            for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                instrumentation.sendPointerSync(MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, menuCenter[0], menuCenter[1], 0))
+            }
+            assertTrue("The label menu opens", opened.await(5, TimeUnit.SECONDS))
         }
     }
 

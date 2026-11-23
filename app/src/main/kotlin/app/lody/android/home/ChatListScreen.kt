@@ -1652,7 +1652,7 @@ private val ProjectSource.label: Int
 // MARK: - Rows
 
 @Composable
-private fun SectionTitle(
+internal fun SectionTitle(
     text: String,
     repository: String? = null,
     collapsed: Boolean? = null,
@@ -1694,7 +1694,11 @@ private fun SectionTitle(
             if (count != null) Text(count.toString(), style = LodyTheme.typography.footnote.copy(fontFeatureSettings = "tnum"), color = LodyTheme.colors.textTertiary)
             if (collapsed != null) Glyph(LodyIcons.Forward, LodyTheme.colors.textSecondary, FamilyChevron, Modifier.rotate(angle))
         }
-        if (menu != null) Box(Modifier.padding(top = LodySpacing.sm)) {
+        // The menu is centred on the text line without adding height, so labels with and without
+        // a menu keep the same spacing; its button keeps its full touch target.
+        if (menu != null) Box(
+            Modifier.padding(top = LodySpacing.lg, bottom = LodySpacing.xs).height(0.dp).wrapContentHeight(unbounded = true),
+        ) {
             IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(LodySize.controlMd)) {
                 Icon(LodyIcons.More, stringResource(R.string.status_section_actions), tint = LodyTheme.colors.iconSecondary, modifier = Modifier.size(LodyIconSize.sm))
             }
