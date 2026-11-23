@@ -26,7 +26,9 @@ reader applies an exact-base delta or recovers from the persisted checkpoint.
 the shared runtime. Compose shows both above the composer. It displays
 received bytes while a Loro bootstrap's total is unknown and switches to
 Applying when the read is complete. A count-free event clears the display
-when the runtime applies the data or abandons the read.
+when the runtime applies the data or abandons the read. Intermediate counts
+arrive at most every 100 ms. A malformed count clears the display; it never
+restarts the runtime.
 
 The Status view runtime (lody-ios `status-view-runtime`, see PROVENANCE `statusView`)
 vendors the shared Lody layout, planner and golden vectors under
