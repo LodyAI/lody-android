@@ -444,10 +444,11 @@ data class RunChoice(
     val agentRoleId: String? = null, val roleKnown: Boolean = false,
 )
 data class SessionSyncProgress(val kind: String, val received: Long, val total: Long?) {
-    init {
-        require(kind in setOf("history", "bootstrap", "updates", "chunks"))
-        require(received >= 0)
-        require(if (total == null) kind == "bootstrap" || kind == "updates" else total > 0 && received <= total)
+    init { require(valid(kind, received, total)) }
+    companion object {
+        fun valid(kind: String, received: Long, total: Long?) =
+            kind in setOf("history", "bootstrap", "updates", "chunks") && received >= 0 &&
+                if (total == null) kind == "bootstrap" || kind == "updates" else total > 0 && received <= total
     }
 }
 
