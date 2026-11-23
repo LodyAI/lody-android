@@ -1,9 +1,9 @@
 {
   "source": "LodyAI/lody-ios packages/cloud-runtime",
-  "commit": "60c4ab1845362e6ad6845324b89d3766f3a1d09e",
+  "commit": "f137ecd36ae7db8c2ef39835c0de05a5d21124ca",
   "license": "AGPL-3.0-only",
   "path": "packages/cloud-runtime",
-  "export": "git -C apps/mobile/ios archive 60c4ab1845362e6ad6845324b89d3766f3a1d09e packages/cloud-runtime",
+  "export": "git -C apps/mobile/ios archive f137ecd36ae7db8c2ef39835c0de05a5d21124ca packages/cloud-runtime",
   "note": "Complete snapshot of the pinned iOS cloud-runtime package, excluding Roost authoring source and its generator. SHA256.json records every mirrored file. Earlier entries retain the source-update history.",
   "roostHistory": {
     "files": [
@@ -459,5 +459,10 @@
     "commit": "60c4ab1845362e6ad6845324b89d3766f3a1d09e",
     "publicSource": "755e2191aa88d920b392d4b297edc0f6e56a7e19",
     "note": "Ordinary Roost session views and exports use the published Streams reader. The native historyToken broker supplies an exact-session read grant. The snapshot carries the verified browser module and the matching bridge contract."
+  },
+  "roostCloudReplicaReview": {
+    "commit": "f137ecd36ae7db8c2ef39835c0de05a5d21124ca",
+    "export": "git -C apps/mobile/ios archive f137ecd36ae7db8c2ef39835c0de05a5d21124ca packages/cloud-runtime",
+    "note": "Review fixes on the shared runtime: the published replica is used only when session metadata carries its binding (owner RPC otherwise), share capture syncs the replica forward first, a caught-up checkpoint that differs from the window reloads it, a tail long-poll ending is a re-poll, and binding observers follow the current meta replica. The Roost browser module, licenses and dependencies are unchanged."
   }
 }

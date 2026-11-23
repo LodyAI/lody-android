@@ -68,7 +68,8 @@ the Roost History beta preference enabled, new conversations and Tabs use Roost
 on compatible owners and Loro on other owners. Session metadata stores the choice.
 
 Roost sessions read the published Streams history with a short-lived
-session grant. The owner machine handles commands, and Loro carries the
+session grant once their metadata carries the published binding; until then
+the owner RPC remains the reader. The owner machine handles commands, and Loro carries the
 control document and queue. The upstream coordinator persists pending inputs
 in IndexedDB under the backend, account and workspace, recovers the original input after
 restart, and serializes inputs for a session. Sign-out does not clear the pending
