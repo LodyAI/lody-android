@@ -35,17 +35,45 @@ import app.lody.android.runtime.SystemNotice
  * colour in a conversation). A warning, failure or script opens its detail in place; a fork
  * origin opens the conversation it came from through [navigate].
  */
+/**
+ * What a failure row may offer (iOS `ChatErrorCell`): Retry on the latest recoverable failure
+ * ([retryItemId]), and Sign in on an authentication failure when the session's agent can start
+ * the machine's sign-in flow ([signIn]).
+ */
+class FailureActions(
+    val retryItemId: String? = null,
+    val retryEnabled: Boolean = false,
+    val retrying: Boolean = false,
+    val retry: () -> Unit = {},
+    val signIn: (() -> Unit)? = null,
+)
+
 @Composable
-internal fun SystemNoticeCards(notices: List<SystemNotice>, navigate: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun SystemNoticeCards(notices: List<SystemNotice>, navigate: (String) -> Unit, modifier: Modifier = Modifier, failures: FailureActions? = null) {
     Column(modifier.fillMaxWidth().padding(horizontal = TranscriptMargin), verticalArrangement = Arrangement.spacedBy(LodySpacing.sm)) {
         notices.forEach { notice ->
             when (notice) {
-                is SystemNotice.Failure -> NoticeRow(
-                    LodyIcons.Alert, stringResource(R.string.chat_notice_failed), danger = true,
-                    summary = notice.message?.lineSequence()?.firstOrNull()?.trim(),
-                    detail = listOfNotNull(notice.reason, notice.code, notice.message).joinToString("\n\n").ifEmpty { null },
-                    id = notice.itemId,
-                )
+                is SystemNotice.Failure -> {
+                    val retry = failures?.takeIf { it.retryItemId == notice.itemId }
+                    val signIn = failures?.signIn?.takeIf { notice.reason == "acp_auth_required" }
+                    NoticeRow(
+                        LodyIcons.Alert, stringResource(ChatFailures.title(notice.reason, notice.code)), danger = notice.reason != "acp_provider_overloaded",
+                        summary = ChatFailures.summary(notice.reason, notice.code)?.let { stringResource(it) } ?: ChatFailures.message(notice.message)
+                            ?: stringResource(R.string.chat_error_summary),
+                        detail = listOfNotNull(notice.reason, notice.code, notice.message).joinToString("\n\n").ifEmpty { null },
+                        id = notice.itemId,
+                        actions = if (retry == null && signIn == null) null else ({
+                            Row(horizontalArrangement = Arrangement.spacedBy(LodySpacing.sm)) {
+                                if (retry != null) app.lody.android.designsystem.LodyTextButton(onClick = retry.retry, enabled = retry.retryEnabled && !retry.retrying) {
+                                    Text(stringResource(if (retry.retrying) R.string.chat_error_retrying else R.string.chat_error_retry))
+                                }
+                                if (signIn != null) app.lody.android.designsystem.LodyTextButton(onClick = signIn) {
+                                    Text(stringResource(R.string.chat_error_sign_in))
+                                }
+                            }
+                        }),
+                    )
+                }
                 is SystemNotice.Warning -> {
                     val (label, guidance) = warningCopy(notice.source)
                     NoticeRow(
@@ -102,6 +130,7 @@ private fun NoticeRow(
     running: Boolean = false,
     initiallyOpen: Boolean = false,
     onClick: (() -> Unit)? = null,
+    actions: (@Composable () -> Unit)? = null,
 ) {
     val colors = LodyTheme.colors
     var open by rememberSaveable(id) { mutableStateOf(initiallyOpen) }
@@ -124,6 +153,7 @@ private fun NoticeRow(
                 if (open && detail != null) SelectionContainer {
                     Text(detail, style = LodyTheme.typography.codeSmall, color = colors.textSecondary)
                 }
+                actions?.invoke()
             }
         }
     }

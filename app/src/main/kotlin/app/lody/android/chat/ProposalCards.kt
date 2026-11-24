@@ -70,14 +70,20 @@ typealias ProposalInspector = suspend (ProposalCard) -> ProposalInspection
  * schedule through [inspect] and applies only while that is still the revision it was written for.
  */
 @Composable
-fun ProposalCards(proposals: List<ProposalCard>, meId: String?, decide: ProposalDecider?, modifier: Modifier = Modifier, inspect: ProposalInspector? = null) {
+fun ProposalCards(
+    proposals: List<ProposalCard>, meId: String?, decide: ProposalDecider?, modifier: Modifier = Modifier, inspect: ProposalInspector? = null,
+    /** Opens a schedule's editor (a created or updated schedule, or the one an edit targets). */
+    openSchedule: ((String) -> Unit)? = null,
+    /** Bumped when the conversation returns to the screen: edits read their schedule again. */
+    reads: Int = 0,
+) {
     Column(modifier.fillMaxWidth().padding(horizontal = TranscriptMargin), verticalArrangement = Arrangement.spacedBy(LodySpacing.sm)) {
-        proposals.forEach { ProposalCardView(it, meId, decide, inspect) }
+        proposals.forEach { ProposalCardView(it, meId, decide, inspect, openSchedule, reads) }
     }
 }
 
 @Composable
-private fun ProposalCardView(card: ProposalCard, meId: String?, decide: ProposalDecider?, inspect: ProposalInspector?) {
+private fun ProposalCardView(card: ProposalCard, meId: String?, decide: ProposalDecider?, inspect: ProposalInspector?, openSchedule: ((String) -> Unit)?, rereads: Int) {
     val colors = LodyTheme.colors
     val scope = rememberCoroutineScope()
     var pending by remember(card.entryId, card.itemId) { mutableStateOf(false) }
@@ -87,7 +93,7 @@ private fun ProposalCardView(card: ProposalCard, meId: String?, decide: Proposal
     var reads by remember(card.entryId, card.itemId) { mutableStateOf(0) }
     // A decision recorded elsewhere (or by this card) ends any failure shown for it.
     LaunchedEffect(card.outcome) { if (card.decided) failure = null }
-    LaunchedEffect(card.entryId, card.itemId, card.decided, reads) {
+    LaunchedEffect(card.entryId, card.itemId, card.decided, reads, rereads) {
         if (!card.isEdit || card.decided || inspect == null) return@LaunchedEffect
         try { live = inspect(card) }
         catch (error: CancellationException) { throw error }
@@ -142,10 +148,23 @@ private fun ProposalCardView(card: ProposalCard, meId: String?, decide: Proposal
         note?.let {
             Text(it, style = LodyTheme.typography.footnote, color = if (failure != null) colors.dangerDefault else colors.textSecondary)
         }
+        val scheduleId = card.scheduleId
+        if (card.decided && openSchedule != null && scheduleId != null && card.outcome in setOf("created", "applied")) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                LodyTextButton(onClick = { openSchedule(scheduleId) }) {
+                    Text(stringResource(R.string.chat_proposal_open), color = colors.textPrimary)
+                }
+            }
+        }
         if (!card.decided && decide != null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 LodyTextButton(onClick = { submit(false) }, enabled = canDismiss && !pending) {
                     Text(stringResource(R.string.chat_proposal_dismiss), color = colors.textPrimary)
+                }
+                if (card.isEdit && openSchedule != null && scheduleId != null) {
+                    LodyTextButton(onClick = { openSchedule(scheduleId) }) {
+                        Text(stringResource(R.string.chat_proposal_open), color = colors.textPrimary)
+                    }
                 }
                 Spacer(Modifier.width(LodySpacing.sm))
                 LodyButton(

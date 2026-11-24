@@ -168,6 +168,12 @@ fun ChatTranscript(
     decideProposal: ProposalDecider? = null,
     /** Reads an edit proposal's live schedule; null where there is no runtime. */
     inspectProposal: ProposalInspector? = null,
+    /** Opens a schedule's editor from a proposal card; null where the host has none. */
+    openSchedule: ((String) -> Unit)? = null,
+    /** Bumped when the conversation returns to the screen, so edit proposals read their schedule again. */
+    proposalReads: Int = 0,
+    /** Retry and sign-in for failure rows; null where there is no runtime. */
+    failureActions: FailureActions? = null,
     /** Answers a permission request; null where there is no runtime or the session cannot take an answer. */
     respondPermission: PermissionResponder? = null,
 ) {
@@ -298,7 +304,7 @@ fun ChatTranscript(
             transcriptRows(
                 entries, open, toggle, details, openTasks, openFiles, actions,
                 relatedSessions, navigateSession, onForgetPending, onRetryPending, retryablePendingIds, meId, decideProposal,
-                inspectProposal, respondPermission,
+                inspectProposal, openSchedule, proposalReads, failureActions, respondPermission,
             )
         }
         // A small stable end anchor avoids enormous scroll offsets and measuring the
@@ -361,6 +367,9 @@ private fun LazyListScope.transcriptRows(
     meId: String?,
     decideProposal: ProposalDecider?,
     inspectProposal: ProposalInspector?,
+    openSchedule: ((String) -> Unit)?,
+    proposalReads: Int,
+    failureActions: FailureActions?,
     respondPermission: PermissionResponder?,
 ) {
         entries.forEach { entry ->
@@ -368,10 +377,10 @@ private fun LazyListScope.transcriptRows(
                 is ChatEntry.Operations -> {
                     if (entry.events.isNotEmpty()) item(key = entry.id, contentType = "operations") { OperationCards(entry.events, relatedSessions, navigateSession) }
                     if (entry.proposals.isNotEmpty()) item(key = "${entry.id}#proposals", contentType = "proposals") {
-                        ProposalCards(entry.proposals, meId, decideProposal, Modifier.animateItem().padding(bottom = LodySpacing.md), inspectProposal)
+                        ProposalCards(entry.proposals, meId, decideProposal, Modifier.animateItem().padding(bottom = LodySpacing.md), inspectProposal, openSchedule, proposalReads)
                     }
                     if (entry.notices.isNotEmpty()) item(key = "${entry.id}#notices", contentType = "notices") {
-                        SystemNoticeCards(entry.notices, navigateSession, Modifier.animateItem().padding(bottom = LodySpacing.md))
+                        SystemNoticeCards(entry.notices, navigateSession, Modifier.animateItem().padding(bottom = LodySpacing.md), failureActions)
                     }
                 }
                 is ChatEntry.User -> item(key = entry.id, contentType = "user") {

@@ -80,6 +80,7 @@ class SystemCardsDeviceTest {
 
     @Test fun editProposalsFollowTheLiveScheduleAndApplyIntoAReceipt() {
         val decisions = mutableListOf<Pair<String, Boolean>>()
+        val opened = mutableListOf<String>()
         ActivityScenario.launch(CreateSessionProbeActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
                 activity.setContent { LodyTheme {
@@ -89,6 +90,7 @@ class SystemCardsDeviceTest {
                         meId = "me",
                         decideProposal = { card, accept -> decisions += card.itemId to accept; if (card.itemId == "pending") outcome = if (accept) "applied" else "dismissed" },
                         inspectProposal = { card -> inspection(card.itemId) },
+                        openSchedule = { opened += it },
                     )
                 } }
             }
@@ -102,33 +104,51 @@ class SystemCardsDeviceTest {
             assertFalse("A teammate cannot apply", button("Apply", 2).isEnabled)
             assertFalse("A teammate cannot ignore", button("Dismiss", 2).isEnabled)
             capture("edit-proposals")
+            assertTrue(button("Open", 0).performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            waitFor("Open names the edited schedule") { opened == listOf("daily-review") }
             assertTrue(button("Apply", 0).performAction(AccessibilityNodeInfo.ACTION_CLICK))
             text("Scheduled task updated")
             assertEquals(listOf("pending" to true), decisions)
+            // The receipt keeps Open; the other two edits still offer theirs beside Apply.
+            assertEquals(3, nodes().count { it.text?.toString() == "Open" })
             capture("edit-applied")
         }
     }
 
     @Test fun systemNoticesRenderAndOpenTheirDetail() {
         val opened = mutableListOf<String>()
+        val actions = mutableListOf<String>()
         ActivityScenario.launch(CreateSessionProbeActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
                 activity.setContent { LodyTheme {
+                    var retrying by remember { mutableStateOf(false) }
                     ChatTranscript(listOf(ChatEntry.Operations("system", emptyList(), notices = listOf(
                         SystemNotice.ForkOrigin("fork", "source", "Fix the login redirect"),
                         SystemNotice.ResumedHistory("resume", true),
                         SystemNotice.Warning("warn", "sessionStopTimedOut", "SIGTERM sent; still running."),
+                        SystemNotice.Failure("auth", "acp_auth_required", null, "Authentication required"),
                         SystemNotice.Failure("failed", "agent_disconnected", null, "socket closed"),
                         SystemNotice.WorktreeScript("script", "setup", "completed", listOf(SystemNotice.ScriptStep("pnpm install", "completed", "Done in 2.1s"))),
-                    ))), navigateSession = { opened += it })
+                    ))), navigateSession = { opened += it }, failureActions = FailureActions(
+                        retryItemId = "failed", retryEnabled = true, retrying = retrying,
+                        retry = { actions += "retry"; retrying = true }, signIn = { actions += "signIn" },
+                    ))
                 } }
             }
             text("This conversation was forked from Fix the login redirect")
             text("(History truncated due to length)")
             text("Stopping took too long")
-            text("The agent couldn’t run this turn")
+            text("Agent disconnected")
+            text("Agent authentication required")
+            text("Sign in to the agent on your computer, then continue.")
             text("worktree setup")
             capture("system-notices")
+            assertEquals("Only the latest recoverable failure offers Retry", 1, nodes().count { it.text?.toString() == "Retry" })
+            assertTrue(button("Retry").performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            text("Retrying…")
+            assertFalse("Retry is fenced while its turn is pending", button("Retrying…").isEnabled)
+            assertTrue(button("Sign in").performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            waitFor("Retry then Sign in reach the host") { actions == listOf("retry", "signIn") }
             assertTrue(button("This conversation was forked from Fix the login redirect").performAction(AccessibilityNodeInfo.ACTION_CLICK))
             waitFor("Fork origin opens its source") { opened == listOf("source") }
             assertTrue(button("worktree setup").performAction(AccessibilityNodeInfo.ACTION_CLICK))
@@ -136,6 +156,38 @@ class SystemCardsDeviceTest {
             assertTrue(button("Stopping took too long").performAction(AccessibilityNodeInfo.ACTION_CLICK))
             text("SIGTERM sent; still running.")
             capture("system-notices-open")
+        }
+    }
+
+    @Test fun openShowsTheProposedScheduleInItsEditor() {
+        val item = app.lody.android.runtime.ScheduleItem(
+            "daily-review", "Daily review", "me", true, "m1", "Studio", true, "codex", "Codex", "codex", true, false,
+            daily, "new_session", state = app.lody.android.runtime.ScheduleState("running", "runsAt"), createdAt = 1, updatedAt = 1,
+        )
+        val service = object : app.lody.android.schedules.ScheduleService {
+            override suspend fun list(scope: app.lody.android.runtime.RuntimeScope) = app.lody.android.runtime.ScheduleList(listOf(item), "UTC", mapOf("m1" to "UTC"), setOf("m1"))
+            override suspend fun detail(scope: app.lody.android.runtime.RuntimeScope, scheduleId: String) =
+                app.lody.android.runtime.ScheduleDetail(item, "Summarize open tasks for the team.")
+            override suspend fun command(scope: app.lody.android.runtime.RuntimeScope, request: app.lody.android.runtime.ScheduleCommandRequest) = request.scheduleId
+        }
+        ActivityScenario.launch(CreateSessionProbeActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                activity.setContent { LodyTheme {
+                    var open by remember { mutableStateOf<String?>(null) }
+                    androidx.compose.foundation.layout.Box {
+                        ChatTranscript(listOf(ChatEntry.Operations("system", emptyList(), listOf(edit("applied", "applied")))), meId = "me",
+                            decideProposal = { _, _ -> }, openSchedule = { open = it })
+                        open?.let { id ->
+                            app.lody.android.schedules.ScheduleEditorOverlay(service, app.lody.android.runtime.RuntimeScope("me", "w"), id, null, null,
+                                onClose = { open = null }, onOpenSession = {})
+                        }
+                    }
+                } }
+            }
+            text("Scheduled task updated")
+            assertTrue(button("Open").performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            text("Summarize open tasks for the team.")
+            capture("edit-open-editor")
         }
     }
 }

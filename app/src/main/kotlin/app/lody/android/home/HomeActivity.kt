@@ -15,6 +15,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.mutableIntStateOf
+import app.lody.android.schedules.ScheduleEditorOverlay
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -193,7 +195,19 @@ class HomeActivity : ComponentActivity() {
                     ) { destination ->
                         val id = destination.takeUnless { it == "create" || it == "home" }
                         if (id != null && workspace != null) {
-                            ChatScreen(repository, RuntimeScope(user.id, workspace.id), id, chatContext(catalog, id, selectedTitle, user).copy(readOnly = members[user.id]?.readOnly == true), onBack = { selectedId = null }, onSelectTab = { selectedId = it; selectedTitle = "" }, creation = submissions[id]?.takeIf { it.scope == activeScope }, persistDraft = workspace.contentMode == WorkspaceContentMode.PLAINTEXT, statusView = statusView)
+                            val chatScope = RuntimeScope(user.id, workspace.id)
+                            // A proposal card's Open: that schedule's editor over the conversation, which stays composed underneath.
+                            var openSchedule by rememberSaveable(id) { mutableStateOf<String?>(null) }
+                            var scheduleClosed by remember(id) { mutableIntStateOf(0) }
+                            Box(Modifier.fillMaxSize()) {
+                                ChatScreen(repository, chatScope, id, chatContext(catalog, id, selectedTitle, user).copy(readOnly = members[user.id]?.readOnly == true), onBack = { selectedId = null }, onSelectTab = { selectedId = it; selectedTitle = "" }, creation = submissions[id]?.takeIf { it.scope == activeScope }, persistDraft = workspace.contentMode == WorkspaceContentMode.PLAINTEXT, statusView = statusView,
+                                    onOpenSchedule = { openSchedule = it }, proposalRefresh = scheduleClosed)
+                                openSchedule?.let { editing ->
+                                    ScheduleEditorOverlay(app.schedules, chatScope, editing, catalog.snapshot, creator,
+                                        onClose = { openSchedule = null; scheduleClosed += 1 },
+                                        onOpenSession = { openSchedule = null; scheduleClosed += 1; selectedId = it; selectedTitle = "" })
+                                }
+                            }
                         } else if (destination == "create" && workspace != null) {
                             // Like web, new session is its own full screen over Home; back returns.
                             BackHandler { creating = false }
