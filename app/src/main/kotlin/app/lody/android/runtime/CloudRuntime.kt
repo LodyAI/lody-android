@@ -119,6 +119,8 @@ sealed interface RuntimeCommand {
      * `decideProposal`); the outcome is recorded in history. A write, never retried here.
      */
     data class DecideProposal(val sessionId: String, val entryId: String, val itemId: String, val accept: Boolean) : RuntimeCommand
+    /** Reads what an undecided edit proposal would change in the live schedule (upstream `inspectProposal`); a read. */
+    data class InspectProposal(val sessionId: String, val entryId: String, val itemId: String) : RuntimeCommand
     /**
      * Answers a permission request (a plan approval) in the watched session with one of its
      * options (upstream `respondPermission`); answers [RuntimeResult.PermissionAnswered]. A write,
@@ -152,8 +154,9 @@ sealed interface RuntimeResult {
     data class Schedule(val value: app.lody.android.runtime.ScheduleDetail) : RuntimeResult
     /** The schedule a command wrote. */
     data class ScheduleWritten(val scheduleId: String) : RuntimeResult
-    /** A proposal's recorded outcome (`saved` / `created` / `dismissed`). */
+    /** A proposal's recorded outcome (`saved` / `created` / `applied` / `dismissed`). */
     data class ProposalDecided(val outcome: String, val scheduleId: String? = null) : RuntimeResult
+    data class ProposalInspected(val value: ProposalInspection) : RuntimeResult
     /** A permission answer's state: `accepted`, `stale` (the request is gone) or `conflict` (answered elsewhere). */
     data class PermissionAnswered(val state: String) : RuntimeResult
     data class Created(val value: CreationReceipt) : RuntimeResult
@@ -309,6 +312,8 @@ data class SessionMessage(
     val inputRetryable: Boolean = false,
     /** An Agent's Role or schedule proposals (system entries), decided with [RuntimeCommand.DecideProposal]. */
     val proposals: List<ProposalCard> = emptyList(),
+    /** Web's other system rows: failures, warnings, fork origin, resumed history, worktree scripts. */
+    val notices: List<SystemNotice> = emptyList(),
 )
 
 /**

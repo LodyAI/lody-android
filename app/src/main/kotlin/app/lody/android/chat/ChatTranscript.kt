@@ -94,10 +94,11 @@ enum class Delivery { Waiting, Sending, Sent, Queued, Seen, Failed, Unknown }
 sealed interface ChatEntry {
     val id: String
 
-    /** A system entry: operation receipts and the Agent's Role / schedule proposals. */
+    /** A system entry: operation receipts, the Agent's Role / schedule proposals and web's other system rows. */
     data class Operations(
         override val id: String, val events: List<app.lody.android.runtime.OperationEvent>,
         val proposals: List<app.lody.android.runtime.ProposalCard> = emptyList(),
+        val notices: List<app.lody.android.runtime.SystemNotice> = emptyList(),
     ) : ChatEntry
 
     data class User(
@@ -165,6 +166,8 @@ fun ChatTranscript(
     meId: String? = null,
     /** Decides an Agent's proposal; null where there is no runtime. */
     decideProposal: ProposalDecider? = null,
+    /** Reads an edit proposal's live schedule; null where there is no runtime. */
+    inspectProposal: ProposalInspector? = null,
     /** Answers a permission request; null where there is no runtime or the session cannot take an answer. */
     respondPermission: PermissionResponder? = null,
 ) {
@@ -295,7 +298,7 @@ fun ChatTranscript(
             transcriptRows(
                 entries, open, toggle, details, openTasks, openFiles, actions,
                 relatedSessions, navigateSession, onForgetPending, onRetryPending, retryablePendingIds, meId, decideProposal,
-                respondPermission,
+                inspectProposal, respondPermission,
             )
         }
         // A small stable end anchor avoids enormous scroll offsets and measuring the
@@ -357,6 +360,7 @@ private fun LazyListScope.transcriptRows(
     retryablePendingIds: Set<String>,
     meId: String?,
     decideProposal: ProposalDecider?,
+    inspectProposal: ProposalInspector?,
     respondPermission: PermissionResponder?,
 ) {
         entries.forEach { entry ->
@@ -364,7 +368,10 @@ private fun LazyListScope.transcriptRows(
                 is ChatEntry.Operations -> {
                     if (entry.events.isNotEmpty()) item(key = entry.id, contentType = "operations") { OperationCards(entry.events, relatedSessions, navigateSession) }
                     if (entry.proposals.isNotEmpty()) item(key = "${entry.id}#proposals", contentType = "proposals") {
-                        ProposalCards(entry.proposals, meId, decideProposal, Modifier.animateItem().padding(bottom = LodySpacing.md))
+                        ProposalCards(entry.proposals, meId, decideProposal, Modifier.animateItem().padding(bottom = LodySpacing.md), inspectProposal)
+                    }
+                    if (entry.notices.isNotEmpty()) item(key = "${entry.id}#notices", contentType = "notices") {
+                        SystemNoticeCards(entry.notices, navigateSession, Modifier.animateItem().padding(bottom = LodySpacing.md))
                     }
                 }
                 is ChatEntry.User -> item(key = entry.id, contentType = "user") {

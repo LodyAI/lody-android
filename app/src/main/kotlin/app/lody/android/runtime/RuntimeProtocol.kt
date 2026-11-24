@@ -29,8 +29,10 @@ internal object RuntimeProtocol {
                 if (role == "system") {
                     val operations = rawItems.flatMap(OperationEvents::parse)
                     val proposals = rawItems.mapNotNull { ProposalEvents.parse(entry.text("id"), it) }
-                    return@mapNotNull if (operations.isEmpty() && proposals.isEmpty()) null else SessionMessage(
+                    val notices = rawItems.mapNotNull(SystemNoticeEvents::parse)
+                    return@mapNotNull if (operations.isEmpty() && proposals.isEmpty() && notices.isEmpty()) null else SessionMessage(
                         id = entry.text("id"), role = role, text = "", streaming = false, operations = operations, proposals = proposals,
+                        notices = notices,
                     )
                 }
                 val text = rawItems.mapNotNull { item ->
@@ -329,11 +331,12 @@ internal object RuntimeProtocol {
                 )
             }
             "system_notice" -> {
-                val name = item.optString("name")
-                val message = item.optJSONObject("meta")?.optString("message").orEmpty()
-                // Agent warnings and unnamed placeholders are not part of the conversation (iOS too).
-                if (name.isEmpty() || name == "agent_warning") null
-                else TurnItem.Notice(id, message.ifBlank { name }, failure = name == "chat_failed")
+                // A notice folded into a turn reads as one line; web renders no unknown, unnamed or proposal notice there.
+                when (val notice = SystemNoticeEvents.parse(item)) {
+                    is SystemNotice.Failure -> TurnItem.Notice(id, notice.message ?: notice.reason ?: "chat_failed", failure = true)
+                    is SystemNotice.Warning -> TurnItem.Notice(id, notice.message, failure = false)
+                    else -> null
+                }
             }
             else -> null
         }

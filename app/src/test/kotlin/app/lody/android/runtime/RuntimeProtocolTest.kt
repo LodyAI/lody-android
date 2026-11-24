@@ -49,6 +49,40 @@ class RuntimeProtocolTest {
   assertEquals("Finished", events[3].cards.single().reply)
   assertTrue(operationMessages("""[{"type":"unknown"},{"type":"operation_completion"}]""").isEmpty())
  }
+ @Test fun systemRowsCarryEditProposalsAndWebNoticesAndDropUnknownOnes() {
+  val message = operationMessages("""[
+   {"itemId":"edit","type":"system_notice","name":"schedule_edit_proposal","proposal":{"kind":"schedule_edit","proposalId":"p1","scheduleId":"sched","title":"Nightly","patch":{"title":"Morning","rule":{"kind":"weekdays","hour":8,"minute":0}},"baseActivityId":"a1","outcome":"applied"}},
+   {"itemId":"fork","type":"system_notice","name":"session_fork_origin","meta":{"sourceSessionId":"source","sourceTitle":"Fix login"}},
+   {"itemId":"resume","type":"system_notice","name":"resume_from_external_chat_history","meta":{"truncated":true}},
+   {"itemId":"warn","type":"system_notice","name":"agent_warning","meta":{"source":"sessionStopTimedOut","message":"still running"}},
+   {"itemId":"empty-warn","type":"system_notice","name":"agent_warning","meta":{}},
+   {"itemId":"failed","type":"system_notice","name":"chat_failed","meta":{"reason":"agent_disconnected","message":"socket closed"}},
+   {"itemId":"script","type":"worktree_script","phase":"setup","status":"failed","steps":[{"command":"pnpm build","status":"failed","output":"error"}]},
+   {"itemId":"bad-script","type":"worktree_script","phase":"teardown","status":"failed","steps":[]},
+   {"itemId":"broken","type":"system_notice","name":"schedule_edit_proposal","meta":{}},
+   {"itemId":"future","type":"system_notice","name":"future_notice","meta":{"message":"hidden"}}
+  ]""").single()
+  val edit = message.proposals.single()
+  assertTrue(edit.isEdit)
+  assertEquals("applied", edit.outcome)
+  assertEquals("sched", edit.scheduleId)
+  assertEquals(ScheduleEditPatch("Morning", null, ScheduleRule("weekdays", hour = 8, minute = 0)), edit.patch)
+  assertEquals(listOf(
+   SystemNotice.ForkOrigin("fork", "source", "Fix login"),
+   SystemNotice.ResumedHistory("resume", true),
+   SystemNotice.Warning("warn", "sessionStopTimedOut", "still running"),
+   SystemNotice.Failure("failed", "agent_disconnected", null, "socket closed"),
+   SystemNotice.WorktreeScript("script", "setup", "failed", listOf(SystemNotice.ScriptStep("pnpm build", "failed", "error"))),
+  ), message.notices)
+  assertTrue(operationMessages("""[{"itemId":"future","type":"system_notice","name":"future_notice"}]""").isEmpty())
+ }
+ @Test fun anEditInspectionKeepsItsReasonAndDiff() {
+  val live = ProposalInspection.parse(JSONObject("""{"state":"stale","isOwner":true,"currentTitle":"Nightly","currentRule":{"kind":"daily","hour":9,"minute":30,"timeZone":"UTC"},"timeZone":"UTC","promptDiff":[{"kind":"del","text":"a"},{"kind":"add","text":"b"},{"kind":"future","text":"c"}]}"""))
+  assertEquals("stale", live.state)
+  assertEquals(ScheduleRule("daily", hour = 9, minute = 30, timeZone = "UTC"), live.currentRule)
+  assertEquals(listOf(PromptDiffLine("del", "a"), PromptDiffLine("add", "b")), live.promptDiff)
+  assertNull(ProposalInspection.parse(JSONObject("""{"state":"unavailable","isOwner":false,"timeZone":"UTC"}""")).promptDiff)
+ }
  @Test fun usageProjectionPrefersContextThenFiveHours() {
   fun usage(json: String): SessionUsage? = (RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
    .put("session", """{"v":1,"status":"live","entries":[],"usage":$json}""")) as RuntimeEvent.SessionUpdated).snapshot.usage

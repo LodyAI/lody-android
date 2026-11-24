@@ -112,6 +112,10 @@ open class WebViewRuntime internal constructor(
             val value = ScheduleJson.checked(call("decideProposal", JSONArray().put(request), CommandDeadline.WRITE))
             RuntimeResult.ProposalDecided(value.optString("outcome"), value.optString("scheduleId").ifEmpty { null })
         }
+        is RuntimeCommand.InspectProposal -> {
+            val request = JSONObject().put("sessionId", command.sessionId).put("entryId", command.entryId).put("itemId", command.itemId)
+            RuntimeResult.ProposalInspected(ProposalInspection.parse(ScheduleJson.checked(call("inspectProposal", JSONArray().put(request)))))
+        }
         is RuntimeCommand.RespondPermission -> {
             val answers = command.answers?.let { values ->
                 JSONObject().apply { values.forEach { (key, value) -> put(key, if (value is List<*>) JSONArray(value) else value) } }

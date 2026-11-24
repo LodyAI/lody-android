@@ -117,6 +117,7 @@ export function contractBridge(runtime, emit) {
   androidEmulatorControl:args=>invoke('androidEmulatorControl',args),
   // An Agent's Role or schedule proposal: save / create or dismiss it and record the outcome.
   decideProposal:args=>invoke('decideProposal',args),
+  inspectProposal:args=>invoke('inspectProposal',args),
   shortcutCloud,
   machineToken,
   grant(value){

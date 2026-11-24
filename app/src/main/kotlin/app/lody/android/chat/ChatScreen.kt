@@ -196,7 +196,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 entries = withContext(Dispatchers.Default) {
                     val next = snapshot.messages.map { message ->
                         rendered[message.id]?.takeIf { it.first == message }?.second ?: when (message.role) {
-                            "system" -> ChatEntry.Operations(message.id, message.operations, message.proposals)
+                            "system" -> ChatEntry.Operations(message.id, message.operations, message.proposals, message.notices)
                             "user" -> ChatEntry.User(
                                 message.id, message.text,
                                 TurnIdentity("", time = turnTime(message.timestamp)),
@@ -1150,6 +1150,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                         loadDiff = { entryId, path -> repository.turnDiff(scope, id, entryId, path) },
                         meId = context.me?.id,
                         decideProposal = { card, accept -> repository.decideProposal(scope, id, card.entryId, card.itemId, accept) },
+                        inspectProposal = { card -> repository.inspectProposal(scope, id, card.entryId, card.itemId) },
                         // An open conversation takes an answer once commands are ready, including during a Roost history reconnect; otherwise the approval just waits.
                         respondPermission = if (controlReady && context.session?.isTabClosed != true) ({ entryId, itemId, requestId, optionId, answers ->
                             repository.respondPermission(scope, id, entryId, itemId, requestId, optionId, answers)

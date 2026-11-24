@@ -169,7 +169,12 @@ Agent Role and schedule proposals in system entries (`ProposalEvents`) render as
 `ProposalCards` after the entry's receipts: the proposed fields, then Dismiss and
 Save / Create through the `decideProposal` bridge command. Only the requesting member
 decides a Role proposal; decided proposals read as receipts, and failures stay on the
-card for an explicit retry. See the [decision](../../../.agents/notes/implemented/feature/2026-11-11-mobile-proposal-cards.md). Files the Agent shares (`TurnItem.File`) show as
+card for an explicit retry. A schedule edit proposal reads its live schedule through
+`inspectProposal` (current and proposed values, the prompt's line diff) and applies
+only while that schedule is the revision the Agent read and the viewer owns it; Android
+has no Open into Schedules from a card. System entries also render web's other rows
+(`SystemNoticeCards`): failures, agent warnings and worktree scripts open their detail
+in place, a fork origin opens its source conversation, and unknown notices are hidden. See the [decision](../../../.agents/notes/implemented/feature/2026-11-11-mobile-proposal-cards.md). Files the Agent shares (`TurnItem.File`) show as
 never-folded `AgentFileCard`s with name, type and size; Android has no session-file
 download yet, so they do not open.
 The relation sheet groups each root and its contained Tabs on one horizontal row.
