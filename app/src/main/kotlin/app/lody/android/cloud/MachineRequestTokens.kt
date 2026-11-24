@@ -14,7 +14,7 @@ import org.json.JSONObject
 internal class MachineRequestTokens(private val http: GitHubHttp = GitHubHttpClient(retryOnConnectionFailure = false)) {
     class Failure(code: String) : Exception(code)
 
-    /** Returns the token, or the HTTP status for a preview refusal. */
+    /** Returns a proof or grant, or the HTTP status for a preview or Roost grant refusal. */
     suspend fun mint(credential: Credential, scope: RuntimeScope, operation: String, intent: JSONObject): Any {
         if (intent.optString("workspaceId") != scope.workspaceId) throw Failure("workspace_changed")
         val cloudHistory = operation == "historyToken" && intent.opt("cloudHistory") == true
@@ -42,6 +42,7 @@ internal class MachineRequestTokens(private val http: GitHubHttp = GitHubHttpCli
         val (status, body) = http.request("POST", "${BackendEnvironment.site}/api/$path", credential.token, payload)
         if (status !in 200..299) {
             if (operation == "previewToken") return status
+            if (cloudHistory) return JSONObject().put("status", status)
             throw Failure("history_token_denied")
         }
         val response = JSONObject(body)

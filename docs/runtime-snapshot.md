@@ -67,10 +67,12 @@ coordinator and storage packaged in the browser module. With Developer Mode and
 the Roost History beta preference enabled, new conversations and Tabs use Roost
 on compatible owners and Loro on other owners. Session metadata stores the choice.
 
-Roost sessions read the published Streams history with a short-lived
-session grant once their metadata carries the published binding; until then
-the owner RPC remains the reader. The owner machine handles commands, and Loro carries the
-control document and queue. The upstream coordinator persists pending inputs
+Roost sessions start with owner RPC while their history is unpublished. The
+shared reader follows publication in an open session and switches to Streams
+after applying the captured tail. It uses a short-lived, exact-session grant.
+Sharing from Streams captures a complete history through a fixed tail offset.
+The owner machine handles commands, and Loro carries the control document and
+queue. The upstream coordinator persists pending inputs
 in IndexedDB under the backend, account and workspace, recovers the original input after
 restart, and serializes inputs for a session. Sign-out does not clear the pending
 input database. Queue-to-guide conversion preserves the queue item when local input
@@ -82,8 +84,9 @@ have accepted it. The native transcript opens at the latest page and requests
 older pages when needed. The Android runtime test exercises the bundled production
 session module with a synthetic Streams peer.
 
-Roost reports a live session after both the control stream and published history
-are ready. A failed read only clears its own reader's readiness until it recovers.
+Roost reports a live session after the control stream and the active history
+reader are ready. After publication, Streams provides the history checkpoint.
+An access refusal clears history readiness and stops retries for that binding.
 The composer takes command readiness from the runtime projection. A readable
 Roost window and a caught-up control stream allow Stop, Steer and permission
 answers while the history subscription reconnects. Send also needs the history metadata.
