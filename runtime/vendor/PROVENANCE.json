@@ -468,11 +468,14 @@
   },
   "createTabHealthGate": {
     "repository": "LodyAI/lody-ios",
-    "commit": "36c9359d2dc9a1d21c88e7ea5fb5eae8b9bc386c",
+    "commit": "50e16cfa4c30f84484a3f277c10e9492267591a5",
     "pullRequest": "https://github.com/LodyAI/lody-ios/pull/185",
     "files": [
+      "contract/runtime-contract.json",
+      "src/contract/sessions.ts",
+      "src/runtime/create-session.ts",
       "src/runtime/handlers/sessions.ts"
     ],
-    "note": "createTab checks only meta and the target machine's health and returns { state: 'rejected' } instead of throwing metadata_not_ready when an unrelated machine stream is unhealthy, matching createSession. Mirrored verbatim from iOS; dependencies, contract and licenses are unchanged."
+    "note": "createSession accepts optional parentSessionId (and CreatedSession carries parentSessionId) so a local draft Tab creates its shared-directory session on first send (copying project, repoFullName, baseBranch and projectRun from the root session). createTab also checks only meta and target machine health. Mirrored verbatim from iOS; dependencies and licenses are unchanged."
   }
 }

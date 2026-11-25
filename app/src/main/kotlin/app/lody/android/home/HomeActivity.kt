@@ -168,6 +168,8 @@ class HomeActivity : ComponentActivity() {
                     }
                 }
                 val statusView = remember(repository, activeScope) { activeScope?.let { scope -> RuntimeStatusViewService(repository, scope) } }
+                // Local unsent Tab (Web draftTabs): kept in memory until the first message creates the session.
+                var draftTab by remember(user?.id, catalog.workspace?.id) { mutableStateOf<CatalogSession?>(null) }
                 val creator = app.creation
                 val screens = rememberSaveableStateHolder()
                 // The repository restores the cached workspace; a first sign-in picks the first one.
@@ -199,9 +201,22 @@ class HomeActivity : ComponentActivity() {
                             // A proposal card's Open: that schedule's editor over the conversation, which stays composed underneath.
                             var openSchedule by rememberSaveable(id) { mutableStateOf<String?>(null) }
                             var scheduleClosed by remember(id) { mutableIntStateOf(0) }
+                            val activeDraft = draftTab?.takeIf { it.id == id }
                             Box(Modifier.fillMaxSize()) {
-                                ChatScreen(repository, chatScope, id, chatContext(catalog, id, selectedTitle, user).copy(readOnly = members[user.id]?.readOnly == true), onBack = { selectedId = null }, onSelectTab = { selectedId = it; selectedTitle = "" }, creation = submissions[id]?.takeIf { it.scope == activeScope }, persistDraft = workspace.contentMode == WorkspaceContentMode.PLAINTEXT, statusView = statusView,
-                                    onOpenSchedule = { openSchedule = it }, proposalRefresh = scheduleClosed)
+                                ChatScreen(
+                                    repository, chatScope, id,
+                                    chatContext(catalog, id, selectedTitle, user, activeDraft).copy(readOnly = members[user.id]?.readOnly == true),
+                                    onBack = { if (draftTab?.id == id) draftTab = null; selectedId = null },
+                                    onSelectTab = { if (draftTab?.id == id) draftTab = null; selectedId = it; selectedTitle = "" },
+                                    creation = submissions[id]?.takeIf { it.scope == activeScope },
+                                    persistDraft = workspace.contentMode == WorkspaceContentMode.PLAINTEXT,
+                                    statusView = statusView,
+                                    onOpenSchedule = { openSchedule = it },
+                                    proposalRefresh = scheduleClosed,
+                                    isDraftTab = activeDraft != null,
+                                    onNewTab = { draft -> draftTab = draft; selectedId = draft.id; selectedTitle = draft.title },
+                                    onSubmitDraftTab = { request -> draftTab = null; app.submissions.submit(chatScope, request); selectedTitle = request.text.take(200) },
+                                )
                                 openSchedule?.let { editing ->
                                     ScheduleEditorOverlay(app.schedules, chatScope, editing, catalog.snapshot, creator,
                                         onClose = { openSchedule = null; scheduleClosed += 1 },
@@ -290,17 +305,18 @@ private fun uiState(auth: AuthState, catalog: CatalogState): ChatListUiState {
 }
 
 /** The conversation's header and sending context from the catalog (title, project · branch). */
-private fun chatContext(catalog: CatalogState, id: String, title: String, user: app.lody.android.auth.Account): app.lody.android.chat.ChatContext {
+private fun chatContext(catalog: CatalogState, id: String, title: String, user: app.lody.android.auth.Account, draftTab: CatalogSession? = null): app.lody.android.chat.ChatContext {
     val snapshot = catalog.snapshot
-    val session = snapshot?.sessions?.firstOrNull { it.id == id }
+    val session = snapshot?.sessions?.firstOrNull { it.id == id } ?: draftTab
+    val allSessions = if (draftTab != null && snapshot?.sessions?.none { it.id == draftTab.id } == true) snapshot.sessions + draftTab else snapshot?.sessions.orEmpty()
     val project = snapshot?.projects?.firstOrNull { it.id == session?.projectId && !it.id.endsWith(":unassigned") }
     val subtitle = listOfNotNull(project?.name, session?.branchName).joinToString(" · ")
     val repository = project?.repoFullName ?: session?.projectId?.removePrefix("github:")?.takeIf { session.projectId.startsWith("github:") }
     return app.lody.android.chat.ChatContext(
         session?.title?.ifBlank { null } ?: title, subtitle, session, user,
         relatedSessions = snapshot?.sessions.orEmpty(),
-        closedTabs = session?.let { app.lody.android.chat.DirectoryTabs.closed(it, snapshot.sessions) }.orEmpty(),
-        tabs = session?.let { app.lody.android.chat.DirectoryTabs.sessions(it, snapshot.sessions) }.orEmpty(),
+        closedTabs = session?.let { app.lody.android.chat.DirectoryTabs.closed(it, allSessions) }.orEmpty(),
+        tabs = session?.let { app.lody.android.chat.DirectoryTabs.sessions(it, allSessions) }.orEmpty(),
         repository = repository.orEmpty(),
         repositories = (listOfNotNull(repository?.takeIf { it.isNotEmpty() }) + project?.repositories.orEmpty()).distinctBy { it.lowercase() },
         machineName = session?.let { snapshot?.machineNames?.get(it.machineId) }.orEmpty(),
