@@ -12,7 +12,7 @@
   "licenses/noble-curves-2.4.0-LICENSE.txt": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
   "licenses/noble-hashes-2.4.0-LICENSE.txt": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
   "package.json": "ba0d36f480209893806f837e3a9e239bd9be9995c9d6a254a206b0435e959125",
-  "README.md": "bd7c2b6c4e6d0b90430a2b900f889cddc7a46c0f3284db9859c8456736dbab4f",
+  "README.md": "437f15f9b002f6f3949138be2b5df07c805854f6487295e90ada1888abe112bd",
   "scripts/build.mjs": "09dde6d6b5a75dc5ffced507d17778396b9556f379f679d1c37e38cf3fdb4652",
   "scripts/contract-swift.mjs": "56bd7a0b5bdebad44faafbd0cf712c0c5981a8afbaf5c5958d83345db6a6af44",
   "scripts/contract.mjs": "d393d98565db65f7738a6a786b6d8764131f914fc60d8fd70c550d34928e208b",
@@ -147,7 +147,7 @@
   "src/runtime/status-view.ts": "9bb31710d243f531a3c782d2f3a9c777f33709ec09ab598623efd18215ab5bec",
   "src/runtime/upstream-roost-history.ts": "24a02c43b64e3365b4536508280f26689a92f81595a72b21927a0167f821ba7a",
   "src/runtime/upstream-roost.d.ts": "efaebd975c227d0a5760e9ff81a1c157d6ca121ea493c311929ea45a3d9823d3",
-  "src/runtime/upstream-roost.js": "30b0281bd58e2a1dc6902c2c80fa0968b99b5ba04c607df0c9ff4a61c22a5254",
+  "src/runtime/upstream-roost.js": "861c2a4faf5c38c6343630b5238cdb49b7ed123374004b9d961a274aead79802",
   "src/runtime/url-can-parse.ts": "1279dcaed2adc8812caae5359ad77995bbb98e1856a3c43ada6be95b55a6d1f1",
   "tsconfig.json": "b3cdc3632cd4c48e21040f29bb967ddda7a02e40aa50b71d47c82dfa7c2d3e09"
 }

@@ -532,9 +532,9 @@
     "note": "Mirrors the scoped history start hint on reopen and its authoritative Loro/Roost window reconstruction. Dependencies and licenses are unchanged."
   },
   "roostPublishedAdmission": {
-    "commit": "0f1f6f0813206fb8ff668dd257bf1b60b57b438b",
-    "publicSource": "d66d72d2b2609058eb827d4f7758d39162c47853",
-    "export": "git -C apps/mobile/ios archive 0f1f6f0813206fb8ff668dd257bf1b60b57b438b packages/cloud-runtime",
-    "note": "Separate Streams generation recovery from machine authorization. Start the published read without a cached machine capability or publication hint. Project the exact authorization-required state through the native envelope."
+    "commit": "6ea73a582878b7c890967a8c12d77763228def72",
+    "publicSource": "51de5de4f4c1387eeba5b6e45ea04463ebaeeb08",
+    "export": "git -C apps/mobile/ios archive 6ea73a582878b7c890967a8c12d77763228def72 packages/cloud-runtime",
+    "note": "Separate Streams generation recovery from machine authorization. Start the published read without a cached machine capability or publication hint. Project the exact authorization-required state through the native envelope. A local replica quota error permits a fresh machine-authorized read."
   }
 }
