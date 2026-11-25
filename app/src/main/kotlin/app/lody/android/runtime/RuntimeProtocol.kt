@@ -175,7 +175,7 @@ internal object RuntimeProtocol {
             it.name.equals(value.optString("source"), ignoreCase = true)
         } ?: return null
         val phase = RoostHistorySync.Phase.entries.firstOrNull {
-            it.name.equals(value.optString("phase"), ignoreCase = true)
+            it.wireValue == value.optString("phase")
         } ?: return null
         return RoostHistorySync(
             source, phase,

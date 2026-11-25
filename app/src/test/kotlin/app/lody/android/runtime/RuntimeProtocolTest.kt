@@ -91,6 +91,14 @@ class RuntimeProtocolTest {
   assertEquals(RoostHistorySync(RoostHistorySync.Source.Streams, RoostHistorySync.Phase.Retrying, 503, true), event.snapshot.historySync)
   assertEquals(24, event.snapshot.historyStart)
  }
+ @Test fun roostHistoryRequiringMachineAuthorizationShowsItsOwnPhase() {
+  val event = RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
+   .put("session", """{"v":1,"status":"syncing","entries":[],"historySync":{
+    "source":"streams","phase":"owner-required"
+   }}""")) as RuntimeEvent.SessionUpdated
+  assertEquals(RoostHistorySync(RoostHistorySync.Source.Streams, RoostHistorySync.Phase.OwnerRequired, null, false), event.snapshot.historySync)
+  assertFalse(event.snapshot.controlReady)
+ }
  @Test fun usageProjectionPrefersContextThenFiveHours() {
   fun usage(json: String): SessionUsage? = (RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
    .put("session", """{"v":1,"status":"live","entries":[],"usage":$json}""")) as RuntimeEvent.SessionUpdated).snapshot.usage

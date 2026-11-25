@@ -190,6 +190,7 @@
     <string name="chat_history_sync_machine">History from the target machine</string>
     <string name="chat_history_sync_streams">History from Lody Streams</string>
     <string name="chat_history_sync_checking">Checking cloud history</string>
+    <string name="chat_history_sync_owner_required">The target machine must confirm access to this history</string>
     <string name="chat_history_sync_pending">Waiting for cloud publication</string>
     <string name="chat_history_sync_syncing">Syncing cloud history</string>
     <string name="chat_history_sync_unconfirmed">Cloud history unconfirmed, retrying</string>

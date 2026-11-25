@@ -70,11 +70,11 @@ coordinator and storage packaged in the browser module. With Developer Mode and
 the Roost History beta preference enabled, new conversations and Tabs use Roost
 on compatible owners and Loro on other owners. Session metadata stores the choice.
 
-Roost sessions start with owner RPC while their history is unpublished. The
-shared reader follows publication in an open session and switches to Streams
-after applying the captured tail. A timed-out owner RPC can discover published
-history before metadata arrives. The open reader retries temporary Streams
-failures. It uses a short-lived, exact-session grant.
+Roost sessions request an exact-session Streams grant first. Pending
+publication, a request for machine authorization, or temporary service failure
+can use a fresh machine-authorized read. The open reader follows publication and
+retries Streams while the machine serves. It applies a replacement generation
+through a captured tail before switching the page back to Streams.
 Sharing from Streams captures a complete history through a fixed tail offset.
 The owner machine handles commands, and Loro carries the control document and
 queue. The upstream coordinator persists pending inputs

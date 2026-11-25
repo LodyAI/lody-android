@@ -455,7 +455,16 @@ data class RoostHistorySync(
     val newerVersionPending: Boolean,
 ) {
     enum class Source { Machine, Streams }
-    enum class Phase { Idle, Checking, Pending, Syncing, Ready, Retrying, Refused }
+    enum class Phase(val wireValue: String) {
+        Idle("idle"),
+        Checking("checking"),
+        Pending("pending"),
+        OwnerRequired("owner-required"),
+        Syncing("syncing"),
+        Ready("ready"),
+        Retrying("retrying"),
+        Refused("refused"),
+    }
 }
 
 /** [preview]: the session's managed web preview candidate, null without one. */

@@ -1510,6 +1510,7 @@ private fun historySyncLabel(sync: RoostHistorySync): String {
         RoostHistorySync.Phase.Idle, RoostHistorySync.Phase.Ready -> null
         RoostHistorySync.Phase.Checking -> stringResource(R.string.chat_history_sync_checking)
         RoostHistorySync.Phase.Pending -> stringResource(R.string.chat_history_sync_pending)
+        RoostHistorySync.Phase.OwnerRequired -> stringResource(R.string.chat_history_sync_owner_required)
         RoostHistorySync.Phase.Syncing -> stringResource(R.string.chat_history_sync_syncing)
         RoostHistorySync.Phase.Retrying -> when (httpStatus) {
             403 -> stringResource(R.string.chat_history_sync_unconfirmed)

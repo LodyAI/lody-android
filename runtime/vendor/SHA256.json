@@ -105,7 +105,7 @@
   "src/runtime/handlers/content.ts": "7c551d661c1b61518db0c53d1568d36ee6795f859ba7b4202a2438adeedc175a",
   "src/runtime/handlers/context.ts": "08ce9eb69ccfbed21864ca388b50015fea421356f90dc6b5a993016bdc0a2f98",
   "src/runtime/handlers/debug.ts": "7f6b37e33c9dfd2b24b22769376d7cdc2a1e10504fcac0b4ce7f85546c09fbd9",
-  "src/runtime/handlers/lifecycle.ts": "5a7e5436605eddd8dcab06219c6f59ec8d113c834127993998de85346924fcbd",
+  "src/runtime/handlers/lifecycle.ts": "3fca45711cf7b0d5e08157cfb3abaf81bd17881d39638404ac5894eb363da525",
   "src/runtime/handlers/mentions.ts": "262c2a89ea815e22ac350a3363994acee1c9f8a69ab2fcbba0da957975be0904",
   "src/runtime/handlers/projects.ts": "e473cd10a85297ec8fc4faef0f9792cf96d006b9288d5e8074ce3d12545197e1",
   "src/runtime/handlers/proposals.ts": "37f243d1e8a9d0c74f6f9b92766ce3099ef7844c4477171f818bd3a904385d4a",
@@ -146,8 +146,8 @@
   "src/runtime/sharing/session-share-package.ts": "d18f795c2c4c41ea531251b79567722f69d1637a926469b30ea0ce1a6b8ff5f0",
   "src/runtime/status-view.ts": "9bb31710d243f531a3c782d2f3a9c777f33709ec09ab598623efd18215ab5bec",
   "src/runtime/upstream-roost-history.ts": "24a02c43b64e3365b4536508280f26689a92f81595a72b21927a0167f821ba7a",
-  "src/runtime/upstream-roost.d.ts": "90a54ca24c2708c10be60b67b8b2e0e913a6acc60ced73f61a52c6c1a8d91553",
-  "src/runtime/upstream-roost.js": "6c42e3bafceec1a4ca7589afb2781b5abfa99e120020404ad7828e8fa743724f",
+  "src/runtime/upstream-roost.d.ts": "efaebd975c227d0a5760e9ff81a1c157d6ca121ea493c311929ea45a3d9823d3",
+  "src/runtime/upstream-roost.js": "30b0281bd58e2a1dc6902c2c80fa0968b99b5ba04c607df0c9ff4a61c22a5254",
   "src/runtime/url-can-parse.ts": "1279dcaed2adc8812caae5359ad77995bbb98e1856a3c43ada6be95b55a6d1f1",
   "tsconfig.json": "b3cdc3632cd4c48e21040f29bb967ddda7a02e40aa50b71d47c82dfa7c2d3e09"
 }
