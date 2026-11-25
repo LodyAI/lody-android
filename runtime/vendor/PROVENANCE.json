@@ -465,5 +465,17 @@
       "src/runtime/project.ts"
     ],
     "note": "Agent schedule edit proposals (web schedule_edit_proposal, LodyAI/Lody#3181): the proposal projection, inspectProposal (live schedule, prompt diff, stale/deleted/owner/machine/Agent reasons) and the applied outcome of decideProposal with the Web per-card activity id. System notice summaries also carry agent_warning source, fork origin and resumed-history meta, and worktree_script items project their phase, status and step output tails. Mirrored verbatim from the iOS source in the same change; dependencies and licenses are unchanged."
+  },
+  "createTabHealthGate": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "50e16cfa4c30f84484a3f277c10e9492267591a5",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/185",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/sessions.ts",
+      "src/runtime/create-session.ts",
+      "src/runtime/handlers/sessions.ts"
+    ],
+    "note": "createSession accepts optional parentSessionId (and CreatedSession carries parentSessionId) so a local draft Tab creates its shared-directory session on first send (copying project, repoFullName, baseBranch and projectRun from the root session). createTab also checks only meta and target machine health. Mirrored verbatim from iOS; dependencies and licenses are unchanged."
   }
 }

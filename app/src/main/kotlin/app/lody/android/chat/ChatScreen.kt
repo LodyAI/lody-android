@@ -121,6 +121,10 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     onOpenSchedule: ((String) -> Unit)? = null,
     /** Bumped by the host when its schedule editor closes, so edit proposals read their schedule again. */
     proposalRefresh: Int = 0,
+    /** Local unsent Tab (Web draftTabs): skips remote observation and creates the Tab on first send. */
+    isDraftTab: Boolean = false,
+    onNewTab: ((CatalogSession) -> Unit)? = null,
+    onSubmitDraftTab: ((CreateRequest) -> Unit)? = null,
 ) {
     BackHandler(onBack = onBack)
     var retry by remember(id, scope) { mutableIntStateOf(0) }
@@ -187,8 +191,8 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     val workedFormat = stringResource(R.string.chat_worked_for)
     val durationSeconds = stringResource(R.string.message_seconds)
     val durationMinutes = stringResource(R.string.message_minutes_seconds)
-    LaunchedEffect(scope, id, retry, creation?.state) {
-        if (creation?.state in setOf("sending", "rejected")) return@LaunchedEffect
+    LaunchedEffect(scope, id, retry, creation?.state, isDraftTab) {
+        if (isDraftTab || creation?.state in setOf("sending", "rejected")) return@LaunchedEffect
         val repair = QuickJsMarkdownRepair.fromAssets(appContext)
         val rendered = mutableMapOf<String, Pair<SessionMessage, ChatEntry>>()
         // Prose items keep their Markdown while their text is unchanged, so a streaming turn
@@ -323,16 +327,18 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         quotaLocked -> stringResource(R.string.chat_free_turn_limit, FREE_SESSION_TURN_LIMIT)
         else -> (FREE_SESSION_TURN_LIMIT - (quotaTurns ?: 0)).let { pluralStringResource(R.plurals.chat_free_turns_remaining, it, it) }
     }
-    val canEdit = context.session?.isTabClosed != true && context.session?.archived != true && !creationUnconfirmed && session?.cliType != null && session.agentType != null && !quotaLocked
+    var submittingDraft by remember(id, scope) { mutableStateOf(false) }
+    val canEdit = context.session?.isTabClosed != true && context.session?.archived != true && !creationUnconfirmed && session?.cliType != null && session.agentType != null && !quotaLocked && (!isDraftTab || !context.readOnly)
     val outboxSending = outboxRecord?.blocksInput == true
-    val canSend = canEdit && !outboxSending
     // The composer's run config (web's mobile run-config chip): the session's provider choices,
-    // read once the conversation is live. Until the reader changes it the chip shows the latest
-    // turn's config from the snapshot and sends nothing (upstream keeps it); the first change
-    // copies that config and from then on the whole choice rides on each turn (iOS `hydrated`).
+    // read once the conversation is live (or immediately for a local draft Tab).
     var options by remember(id, scope) { mutableStateOf<CreationOptions?>(null) }
-    LaunchedEffect(scope, id, session?.projectId, status == "live") {
-        if (session == null || status != "live") return@LaunchedEffect
+    val resolvedAgentConfigId = session?.agentConfigId ?: session?.let { s ->
+        options?.agents?.firstOrNull { it.machineId == s.machineId && it.cliType == s.cliType && it.agentType == s.agentType }?.id
+    }
+    val canSend = canEdit && !outboxSending && !submittingDraft && (!isDraftTab || resolvedAgentConfigId != null)
+    LaunchedEffect(scope, id, session?.projectId, status == "live" || isDraftTab) {
+        if (session == null || (status != "live" && !isDraftTab)) return@LaunchedEffect
         // A plain chat's `<machine>:unassigned` project is not a real project (the runtime
         // rejects it): read the workspace-wide options, as the new-chat page does for chats.
         // A multi-repository project's session reads them workspace-wide, as a plain chat.
@@ -404,8 +410,8 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     // agent config; the agent itself never changes here. The picked Role (or explicit None)
     // holds until a newer turn lands with its own Role.
     var roles by remember(scope) { mutableStateOf<List<AgentRole>?>(null) }
-    LaunchedEffect(scope, status == "live") {
-        if (status != "live" || roles != null) return@LaunchedEffect
+    LaunchedEffect(scope, status == "live" || isDraftTab) {
+        if ((status != "live" && !isDraftTab) || roles != null) return@LaunchedEffect
         try { roles = repository.roles(scope) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { /* No Role row until the list loads; turns inherit meanwhile. */ }
@@ -483,55 +489,53 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             dismissButton = { TextButton(onClick = { forgetId = null }) { Text(stringResource(R.string.sign_in_cancel)) } })
     }
 
-    var creatingTab by remember(id, scope) { mutableStateOf(false) }
-    var attemptedTab by rememberSaveable(id, scope.workspaceId) { mutableStateOf<String?>(null) }
-    // A new Tab starts as "New chat"; "New Tab conversation" is only the action's label.
+    // A new Tab starts as a local draft ("New chat") and creates its session on first send (matching Web).
     val newTabTitle = stringResource(R.string.chat_new_tab_title)
-    val tabFailure = stringResource(R.string.chat_tab_creation_failed)
-    val tabUnknown = stringResource(R.string.chat_tab_creation_unknown)
     var changingTab by remember(id, scope) { mutableStateOf<String?>(null) }
     val tabChangeFailure = stringResource(R.string.chat_tab_change_failed)
     val changeTab: (String, Boolean) -> Unit = { target, closed ->
         if (changingTab == null) {
-            changingTab = target
             val index = context.tabs.indexOfFirst { it.id == target }
             val next = context.tabs.getOrNull(index + 1) ?: context.tabs.getOrNull(index - 1)
-            coroutines.launch {
-                try {
-                    repository.setTabClosed(scope, target, closed)
-                    if (!closed && target != id) onSelectTab(target)
-                    else if (closed && target == id && next != null) onSelectTab(next.id)
-                } catch (cancelled: CancellationException) { throw cancelled }
-                catch (_: Exception) { snackbar.showSnackbar(tabChangeFailure) }
-                finally { changingTab = null }
+            if (isDraftTab && target == id && closed) {
+                if (next != null) onSelectTab(next.id) else onBack()
+            } else {
+                changingTab = target
+                coroutines.launch {
+                    try {
+                        repository.setTabClosed(scope, target, closed)
+                        if (!closed && target != id) onSelectTab(target)
+                        else if (closed && target == id && next != null) onSelectTab(next.id)
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { snackbar.showSnackbar(tabChangeFailure) }
+                    finally { changingTab = null }
+                }
             }
         }
     }
 
     val createTab = {
-        if (!creatingTab) {
-            creatingTab = true
-            coroutines.launch {
-                if (attemptedTab != null) {
-                    onSelectTab(attemptedTab!!)
-                } else {
-                    val target = UUID.randomUUID().toString()
-                    attemptedTab = target
-                    try {
-                        val result = repository.createTab(scope, id, target, newTabTitle)
-                        when (result.state) {
-                            "created" -> { attemptedTab = null; onSelectTab(target) }
-                            "rejected" -> {
-                                attemptedTab = null
-                                // A Tab is a session: the free-plan session quota names its own refusal.
-                                snackbar.showSnackbar(quotaFailure(result.reason)?.let { appContext.getString(it) } ?: tabFailure)
-                            }
-                            else -> snackbar.showSnackbar(tabUnknown)
-                        }
-                    } catch (cancelled: CancellationException) { throw cancelled }
-                    catch (_: Exception) { snackbar.showSnackbar(tabUnknown) }
-                }
-                creatingTab = false
+        val current = context.session
+        if (current != null && !current.archived && !context.readOnly && onNewTab != null) {
+            val rootId = DirectoryTabs.root(current, context.relatedSessions)
+            val owner = context.relatedSessions.firstOrNull { it.id == rootId } ?: current
+            if (!owner.archived) {
+                onNewTab(CatalogSession(
+                    id = UUID.randomUUID().toString(),
+                    machineId = owner.machineId,
+                    projectId = owner.projectId,
+                    title = newTabTitle,
+                    status = "idle",
+                    archived = false,
+                    pinned = false,
+                    createdAt = Instant.now().toString(),
+                    branchName = owner.branchName,
+                    userId = context.me?.id ?: owner.userId,
+                    parentSessionId = rootId,
+                    cliType = owner.cliType,
+                    agentType = owner.agentType,
+                    agentConfigId = owner.agentConfigId,
+                ))
             }
         }
     }
@@ -585,8 +589,40 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     val sendText: (String, List<PendingAttachment>, List<MessageQuoteCard>) -> Unit = sendText@{ text, files, cards ->
         if (!canSend || (text.isEmpty() && files.isEmpty() && cards.isEmpty()) || session == null) return@sendText
         val turnId = UUID.randomUUID().toString()
-        val shown = files.map { MessageAttachment(it.name, it.image) }
         val (shownText, shownRefs) = mentions.shown(text)
+        if (isDraftTab && onSubmitDraftTab != null) {
+            val agentConfigId = resolvedAgentConfigId ?: return@sendText
+            val parentId = session.parentSessionId ?: return@sendText
+            val baseRequest = CreateRequest(
+                sessionId = id, turnId = turnId, projectId = session.projectId, machineId = session.machineId,
+                agentConfigId = agentConfigId, text = text, branch = null, worktree = false,
+                modelId = modelId, modeId = modeId, effort = effort,
+                agentRoleId = activeRole?.role?.id,
+                configOptionValues = if (chosen) chosenOptions else emptyMap(),
+                displayText = shownText, displayReferences = shownRefs,
+                parentSessionId = parentId,
+            )
+            if (files.isEmpty()) {
+                onSubmitDraftTab(baseRequest)
+            } else {
+                submittingDraft = true
+                coroutines.launch {
+                    val blocks = try {
+                        application.attachments.upload(scope, id, files)
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) {
+                        submittingDraft = false
+                        if (prompt.isEmpty() && attachments.isEmpty()) { prompt = text; attachments = files }
+                        snackbar.showSnackbar(uploadFailed)
+                        return@launch
+                    }
+                    submittingDraft = false
+                    onSubmitDraftTab(baseRequest.copy(attachments = blocks))
+                }
+            }
+            return@sendText
+        }
+        val shown = files.map { MessageAttachment(it.name, it.image) }
         application.sessionOutbox.submit(
             SessionOutbox.Record(
                 scope = scope,
@@ -696,10 +732,11 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         else if (kept.size < merged.size) coroutines.launch { snackbar.showSnackbar(attachLimit) }
     }
     // @ references (iOS `ChatMentionPanel`, Notion-style): every category is read once the
-    // conversation is live; a trigger at the caret opens the panel docked on the keyboard.
-    LaunchedEffect(scope, id, status == "live", session?.cliType, session?.agentType) {
-        if (session == null || status != "live") return@LaunchedEffect
-        mentions.load(scope) { category -> repository.mentions(scope, category, session) }
+    // conversation is live (or from its parent session for a local draft Tab).
+    val mentionSession = if (isDraftTab) context.relatedSessions.firstOrNull { it.id == session?.parentSessionId } ?: session else session
+    LaunchedEffect(scope, id, status == "live" || isDraftTab, mentionSession?.id, mentionSession?.cliType, mentionSession?.agentType) {
+        if (mentionSession == null || (status != "live" && !isDraftTab)) return@LaunchedEffect
+        mentions.load(scope) { category -> repository.mentions(scope, category, mentionSession) }
     }
     val resolver = appContext.contentResolver
     val photoPicker = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -730,7 +767,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     // Bumped when a merge state read after Ready for review lands, so the bar recomposes.
     var mergeObserved by remember(scope, id) { mutableIntStateOf(0) }
     val hasRelations = remember(id, context.relatedSessions) { SessionRelations.rows(id, context.relatedSessions).isNotEmpty() }
-    val bar = session?.let {
+    val bar = session?.takeUnless { isDraftTab }?.let {
         mergeObserved // read so a landed merge state recomposes the bar
         SessionInfoBar.of(prUpdates.apply(it), context.repository, busy = running || !canSend)
     }
@@ -1173,7 +1210,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 val top = headerRoom
                 if (context.session?.isTabClosed == true || all.isEmpty()) {
                     Box(Modifier.fillMaxSize().padding(top = top), contentAlignment = Alignment.Center) {
-                        Text(stringResource(if (context.session?.isTabClosed == true) R.string.chat_tabs_all_closed else if (status == "live") R.string.chat_empty else if (status == "offline") R.string.chat_offline else R.string.chat_loading), style = LodyTheme.typography.body, color = colors.textSecondary)
+                        Text(stringResource(if (context.session?.isTabClosed == true) R.string.chat_tabs_all_closed else if (isDraftTab || status == "live") R.string.chat_empty else if (status == "offline") R.string.chat_offline else R.string.chat_loading), style = LodyTheme.typography.body, color = colors.textSecondary)
                     }
                 } else {
                     // The transcript scrolls under the floating header.
@@ -1210,17 +1247,17 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                         }) else null,
                     ) }
                 }
-                ChatHeader(context.title, context.tabs, context.closedTabs, id, creatingTab, changingTab, onBack, onSelectTab, createTab, changeTab, context.machineName, machineOnline, loadMachine,
-                    onBrowseFiles = if (ProjectFiles.browsable(context.session, creationUnconfirmed)) ({ browsingFiles = true }) else null,
-                    previews = previewMenu.takeIf { context.session?.isTabClosed != true && !creationUnconfirmed },
-                    status = statusMenu)
+                ChatHeader(context.title, context.tabs, context.closedTabs, id, false, changingTab, onBack, onSelectTab, createTab, changeTab, context.machineName, machineOnline, loadMachine,
+                    onBrowseFiles = if (!isDraftTab && ProjectFiles.browsable(context.session, creationUnconfirmed)) ({ browsingFiles = true }) else null,
+                    previews = previewMenu.takeIf { !isDraftTab && context.session?.isTabClosed != true && !creationUnconfirmed },
+                    status = statusMenu.takeUnless { isDraftTab })
                 if (creationNotice != null) {
                     Text(creationNotice,
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = top).padding(horizontal = TranscriptMargin),
                         style = LodyTheme.typography.footnote, color = colors.textSecondary)
                 }
                 val connectionSlot = when {
-                    context.session?.isTabClosed == true || creationUnconfirmed -> null
+                    context.session?.isTabClosed == true || creationUnconfirmed || isDraftTab -> null
                     status == "offline" -> "paused"
                     status != "live" && connectingShown -> "connecting"
                     else -> null

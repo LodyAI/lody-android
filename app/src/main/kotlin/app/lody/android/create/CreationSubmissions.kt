@@ -15,6 +15,7 @@ class CreationSubmissions(
         val session get() = CatalogSession(
             request.sessionId, request.machineId, request.projectId ?: "${request.machineId}:unassigned",
             (request.displayText ?: request.text).take(200), "idle", false, false, at,
+            parentSessionId = request.parentSessionId,
         )
     }
     private val mutable = MutableStateFlow<Map<String, Submission>>(emptyMap())
