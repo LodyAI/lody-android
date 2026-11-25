@@ -71,7 +71,7 @@ class ChatRepositoryTest {
         var readable: SessionSnapshot? = null
         val shown = mutableListOf<SessionSnapshot>()
         val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            ChatRepository(owner).observe(scope, "s").collect { raw ->
+            ChatRepository(owner).observe(scope, "s") { readable?.historyStart }.collect { raw ->
                 shown += raw.shown(readable)
                 if (raw.readable) readable = raw
             }
@@ -79,7 +79,7 @@ class ChatRepositoryTest {
         runCurrent()
         assertEquals("A first open without data still shows loading", emptyList<SessionMessage>(), shown.last().messages)
         val hello = SessionMessage("u", "user", "hello", false)
-        val loaded = SessionSnapshot("s", "live", listOf(hello), historyHasMore = true)
+        val loaded = SessionSnapshot("s", "live", listOf(hello), historyHasMore = true, historyStart = 6)
         fake.emitted.emit(RuntimeEmission(1, RuntimeEvent.SessionUpdated(loaded)))
         runCurrent(); assertEquals(loaded, shown.last())
         fake.mutable.value = fake.mutable.value.copy(phase = RuntimePhase.SUSPENDED)
@@ -87,6 +87,7 @@ class ChatRepositoryTest {
         // Foreground with a replaced runtime: the reopened replica starts empty and syncing.
         fake.mutable.value = RuntimeStatus(phase = RuntimePhase.READY, generation = 2)
         runCurrent()
+        assertEquals(RuntimeCommand.WatchSession("s", historyStart = 6), fake.commands.last())
         fake.emitted.emit(RuntimeEmission(2, RuntimeEvent.SessionUpdated(SessionSnapshot("s", "syncing", emptyList()))))
         runCurrent()
         assertEquals("syncing", shown.last().status)

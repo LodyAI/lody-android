@@ -202,7 +202,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         // Web shows thoughts only for builtin DSH.
         val showThoughts = context.session?.cliType == "builtin" && context.session.agentType == "deepseek"
         try {
-            repository.observe(scope, id).conflate().collect { received ->
+            repository.observe(scope, id) { readableSnapshot?.historyStart }.conflate().collect { received ->
                 val snapshot = received.shown(readableSnapshot)
                 if (received.readable) readableSnapshot = received
                 entries = withContext(Dispatchers.Default) {

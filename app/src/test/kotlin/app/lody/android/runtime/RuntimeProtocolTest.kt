@@ -205,10 +205,12 @@ class RuntimeProtocolTest {
   assertNotNull(RuntimeProtocol.event(frame))
  }
  @Test fun sessionHistoryPageStateIsProjected() {
-  val frame=JSONObject().put("type","session").put("sessionId","s").put("session", """{"v":1,"status":"live","entries":[],"historyHasMore":true,"historyLoading":true}""")
+  val frame=JSONObject().put("type","session").put("sessionId","s").put("historyStart",24)
+   .put("session", """{"v":1,"status":"live","entries":[],"historyHasMore":true,"historyLoading":true}""")
   val snapshot=(RuntimeProtocol.event(frame) as RuntimeEvent.SessionUpdated).snapshot
   assertTrue(snapshot.historyHasMore)
   assertTrue(snapshot.historyLoading)
+  assertEquals(24,snapshot.historyStart)
  }
  @Test fun sessionCommandsCanBeReadyDuringHistorySync() {
   val frame=JSONObject().put("type","session").put("sessionId","s").put("session",
