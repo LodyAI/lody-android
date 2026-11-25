@@ -141,6 +141,7 @@ internal object RuntimeProtocol {
                 billableTurnCount = (envelope.opt("billableTurnCount") as? Number)?.toInt()?.takeIf { it >= 0 },
                 sendReady = (envelope.opt("sendReady") as? Boolean) ?: (status == "live"),
                 controlReady = (envelope.opt("controlReady") as? Boolean) ?: (status == "live"),
+                historyStart = (message.opt("historyStart") as? Number)?.toInt()?.takeIf { it >= 0 },
             ))
         }
         "catalog" -> {

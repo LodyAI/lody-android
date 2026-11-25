@@ -477,5 +477,18 @@
       "src/runtime/handlers/sessions.ts"
     ],
     "note": "createSession accepts optional parentSessionId (and CreatedSession carries parentSessionId) so a local draft Tab creates its shared-directory session on first send (copying project, repoFullName, baseBranch and projectRun from the root session). createTab also checks only meta and target machine health. Mirrored verbatim from iOS; dependencies and licenses are unchanged."
+  },
+  "resumeTranscriptWindow": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "45ebdc168b0bdf9e6d7973f4709ebfb4e267214a",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/187",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/lifecycle.ts",
+      "src/contract/session-events.ts",
+      "src/runtime/handlers/lifecycle.ts",
+      "src/runtime/session.ts"
+    ],
+    "note": "Mirrors the scoped history start hint on reopen and its authoritative Loro/Roost window reconstruction. Dependencies and licenses are unchanged."
   }
 }

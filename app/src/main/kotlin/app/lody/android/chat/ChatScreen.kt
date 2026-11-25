@@ -150,6 +150,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     // User turns plus queued inputs, as the free-plan quota counts them (runtime `billableTurnCount`).
     var billableTurns by remember(id, scope) { mutableStateOf<Int?>(null) }
     var messages by remember(id, scope) { mutableStateOf(emptyList<SessionMessage>()) }
+    var readableSnapshot by remember(id, scope) { mutableStateOf<SessionSnapshot?>(null) }
     // The latest user turn's run config, from the session snapshot (iOS `composerJSON`).
     var usage by remember(id, scope) { mutableStateOf<app.lody.android.runtime.SessionUsage?>(null) }
     var snapshotChoice by remember(id, scope) { mutableStateOf<RunChoice?>(null) }
@@ -201,7 +202,9 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         // Web shows thoughts only for builtin DSH.
         val showThoughts = context.session?.cliType == "builtin" && context.session.agentType == "deepseek"
         try {
-            repository.observe(scope, id).conflate().collect { snapshot ->
+            repository.observe(scope, id) { readableSnapshot?.historyStart }.conflate().collect { received ->
+                val snapshot = received.shown(readableSnapshot)
+                if (received.readable) readableSnapshot = received
                 entries = withContext(Dispatchers.Default) {
                     val next = snapshot.messages.map { message ->
                         rendered[message.id]?.takeIf { it.first == message }?.second ?: when (message.role) {

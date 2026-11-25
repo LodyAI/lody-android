@@ -65,7 +65,7 @@ sealed interface RuntimeCommand {
     data object WorkspacePlan : RuntimeCommand
     /** The free-plan turn quota alone (upstream `checkTurnQuota`), before attachments upload; answers [RuntimeResult.Sent]. Read only. */
     data class TurnQuota(val sessionId: String, val billing: org.json.JSONObject? = null) : RuntimeCommand
-    data class WatchSession(val id: String) : RuntimeCommand
+    data class WatchSession(val id: String, val historyStart: Int? = null) : RuntimeCommand
     data class LoadOlderSession(val id: String) : RuntimeCommand
     data class RetryPendingInput(val sessionId: String, val inputId: String) : RuntimeCommand
     data class ForgetPendingInput(val sessionId: String, val inputId: String) : RuntimeCommand
@@ -462,6 +462,7 @@ data class SessionSnapshot(
     val billableTurnCount: Int? = null,
     val sendReady: Boolean = status == "live",
     val controlReady: Boolean = status == "live",
+    val historyStart: Int? = null,
 )
 sealed interface RuntimeEvent {
     data class ProvidersChanged(val machineId: String) : RuntimeEvent

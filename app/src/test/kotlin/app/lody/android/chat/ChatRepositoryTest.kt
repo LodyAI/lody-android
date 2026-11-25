@@ -63,4 +63,43 @@ class ChatRepositoryTest {
         assertEquals(RuntimeCommand.CloseSession("s"),fake.commands.last())
         owner.clear()
     }
+    @Test fun aShownTranscriptSurvivesForegroundResubscribeUntilReadableAgain() = runTest {
+        val scope = RuntimeScope("account", "workspace")
+        val fake = Fake(scope)
+        val owner = RuntimeOwner({ fake }, StandardTestDispatcher(testScheduler))
+        owner.activate(scope); runCurrent()
+        var readable: SessionSnapshot? = null
+        val shown = mutableListOf<SessionSnapshot>()
+        val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            ChatRepository(owner).observe(scope, "s") { readable?.historyStart }.collect { raw ->
+                shown += raw.shown(readable)
+                if (raw.readable) readable = raw
+            }
+        }
+        runCurrent()
+        assertEquals("A first open without data still shows loading", emptyList<SessionMessage>(), shown.last().messages)
+        val hello = SessionMessage("u", "user", "hello", false)
+        val loaded = SessionSnapshot("s", "live", listOf(hello), historyHasMore = true, historyStart = 6)
+        fake.emitted.emit(RuntimeEmission(1, RuntimeEvent.SessionUpdated(loaded)))
+        runCurrent(); assertEquals(loaded, shown.last())
+        fake.mutable.value = fake.mutable.value.copy(phase = RuntimePhase.SUSPENDED)
+        runCurrent(); assertEquals("offline", shown.last().status); assertEquals(listOf(hello), shown.last().messages)
+        // Foreground with a replaced runtime: the reopened replica starts empty and syncing.
+        fake.mutable.value = RuntimeStatus(phase = RuntimePhase.READY, generation = 2)
+        runCurrent()
+        assertEquals(RuntimeCommand.WatchSession("s", historyStart = 6), fake.commands.last())
+        fake.emitted.emit(RuntimeEmission(2, RuntimeEvent.SessionUpdated(SessionSnapshot("s", "syncing", emptyList()))))
+        runCurrent()
+        assertEquals("syncing", shown.last().status)
+        assertFalse(shown.last().sendReady || shown.last().controlReady)
+        assertEquals(listOf(hello), shown.last().messages)
+        assertTrue(shown.last().historyHasMore)
+        val reply = SessionMessage("a", "assistant", "new", false)
+        val caughtUp = SessionSnapshot("s", "live", listOf(hello, reply))
+        fake.emitted.emit(RuntimeEmission(2, RuntimeEvent.SessionUpdated(caughtUp)))
+        runCurrent(); assertEquals(caughtUp, shown.last())
+        val other = SessionSnapshot("t", "syncing", emptyList())
+        assertEquals("Another conversation never shows this transcript", other, other.shown(caughtUp))
+        job.cancelAndJoin(); owner.clear()
+    }
 }

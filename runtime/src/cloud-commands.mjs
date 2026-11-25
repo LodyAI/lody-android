@@ -10,11 +10,11 @@ export function cloudCommands(runtime, access, stopSessions) {
    // A read-only member (viewer) is offered no Status view, pin or section writes by the runtime.
    return runtime.start(workspaceId,userId,Boolean(userId),workspaceReadOnly===true);
   },
-  watchSession(id) {
+  watchSession(id,historyStart) {
    if(!connected)throw Error('not_connected');
    if(typeof id!=='string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(id))throw Error('invalid_session');
    stopSessions();selected=id;
-   return runtime.session(id);
+   return runtime.session(id,historyStart);
   },
   closeSession(id) {
    if(selected===id){stopSessions();selected=undefined;}

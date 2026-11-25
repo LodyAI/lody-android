@@ -42,6 +42,7 @@ import app.lody.android.create.CreateSessionScreen
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.activity.compose.BackHandler
+import app.lody.android.runtime.CatalogSession
 import app.lody.android.runtime.RuntimeScope
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment

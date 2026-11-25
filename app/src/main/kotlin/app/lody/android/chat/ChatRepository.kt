@@ -220,7 +220,7 @@ class ChatRepository(
     suspend fun send(scope: RuntimeScope, request: SendTextRequest): RuntimeResult.Sent =
         owner.use(scope) { it.execute(RuntimeCommand.SendText(request)) as RuntimeResult.Sent }
 
-    fun observe(scope: RuntimeScope, id: String): Flow<SessionSnapshot> = channelFlow {
+    fun observe(scope: RuntimeScope, id: String, historyStart: () -> Int? = { null }): Flow<SessionSnapshot> = channelFlow {
         var latest = SessionSnapshot(id, "syncing", emptyList())
         suspend fun status(value: String) {
             latest = latest.copy(status = value, sendReady = false, controlReady = false)
@@ -245,7 +245,7 @@ class ChatRepository(
                 while (currentCoroutineContext().isActive) {
                     try {
                         status("syncing")
-                        owner.use(scope) { it.execute(RuntimeCommand.WatchSession(id)) }
+                        owner.use(scope) { it.execute(RuntimeCommand.WatchSession(id, historyStart())) }
                         break
                     } catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { status("offline"); delay(2_000) }
@@ -261,3 +261,9 @@ class ChatRepository(
         }
     }.conflate()
 }
+
+val SessionSnapshot.readable: Boolean get() = status == "live" || controlReady
+
+fun SessionSnapshot.shown(readable: SessionSnapshot?): SessionSnapshot =
+    if (this.readable || readable == null || readable.id != id) this
+    else readable.copy(status = status, sendReady = false, controlReady = false)
