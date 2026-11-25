@@ -699,6 +699,11 @@
     <string name="settings_developer_mode">开发者模式</string>
     <string name="settings_roost_history">Roost 历史记录（测试）</string>
     <string name="settings_roost_history_hint">新会话在所选电脑支持时使用 Roost；已有会话保留原有历史记录。</string>
+    <string name="settings_test_notification">发送测试通知</string>
+    <string name="settings_test_notification_hint">检查通知权限、渠道、图标和点击跳转</string>
+    <string name="settings_test_notification_blocked">Lody 的通知已被系统关闭，请到系统设置里打开。</string>
+    <string name="settings_test_notification_title">Lody 测试通知</string>
+    <string name="settings_test_notification_body">能看到这条，说明图标和通知渠道都正常。</string>
     <string name="settings_workspace_named">工作区 · %1$s</string>
     <string name="settings_workspace_general">通用</string>
     <string name="settings_workspace_hint">工作区设置与切换</string>

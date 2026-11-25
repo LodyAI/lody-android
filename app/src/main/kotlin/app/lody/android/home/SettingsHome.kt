@@ -1,5 +1,6 @@
 package app.lody.android.home
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,7 +14,12 @@ import androidx.compose.ui.res.stringResource
 import app.lody.android.R
 import app.lody.android.auth.Workspace
 import app.lody.android.designsystem.*
+import app.lody.android.notifications.lodyNotificationsBlocked
+import app.lody.android.notifications.postLodyNotification
 import app.lody.android.runtime.RoostPreferences
+
+/** Replaces any previous test notification instead of stacking a new one per tap. */
+private const val TEST_NOTIFICATION_ID = 1001
 
 /** iOS SettingsSections ordering, with platform-native sheets for account/workspace selection. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -21,6 +27,8 @@ import app.lody.android.runtime.RoostPreferences
 internal fun SettingsHome(state: ChatListUiState, padding: PaddingValues, onSelectWorkspace: (Workspace) -> Unit, onSignOut: () -> Unit, onAgents: () -> Unit, onPreferences: () -> Unit, onRoles: () -> Unit, onShortcuts: () -> Unit, onGitHub: () -> Unit, onProjects: () -> Unit, onDeferred: () -> Unit) {
     var sheet by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val notificationTitle = stringResource(R.string.settings_test_notification_title)
+    val notificationBody = stringResource(R.string.settings_test_notification_body)
     var developer by remember { mutableStateOf(RoostPreferences.developer(context)) }
     var roost by remember { mutableStateOf(RoostPreferences.experiment(context)) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
@@ -69,6 +77,14 @@ internal fun SettingsHome(state: ChatListUiState, padding: PaddingValues, onSele
                                 roost = it
                                 RoostPreferences.setExperiment(context, it)
                             })
+                        })
+                    SettingsLine(stringResource(R.string.settings_test_notification), LodyIcons.Bell,
+                        subtitle = stringResource(R.string.settings_test_notification_hint), onClick = {
+                            if (lodyNotificationsBlocked(context)) {
+                                Toast.makeText(context, R.string.settings_test_notification_blocked, Toast.LENGTH_LONG).show()
+                            } else {
+                                postLodyNotification(context, TEST_NOTIFICATION_ID, notificationTitle, notificationBody)
+                            }
                         })
                 }
             }
