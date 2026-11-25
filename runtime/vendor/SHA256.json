@@ -12,7 +12,7 @@
   "licenses/noble-curves-2.4.0-LICENSE.txt": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
   "licenses/noble-hashes-2.4.0-LICENSE.txt": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
   "package.json": "ba0d36f480209893806f837e3a9e239bd9be9995c9d6a254a206b0435e959125",
-  "README.md": "d825799a53161b65928900144310144739755a152a77283fc40238a569e8e9cb",
+  "README.md": "bd7c2b6c4e6d0b90430a2b900f889cddc7a46c0f3284db9859c8456736dbab4f",
   "scripts/build.mjs": "09dde6d6b5a75dc5ffced507d17778396b9556f379f679d1c37e38cf3fdb4652",
   "scripts/contract-swift.mjs": "56bd7a0b5bdebad44faafbd0cf712c0c5981a8afbaf5c5958d83345db6a6af44",
   "scripts/contract.mjs": "d393d98565db65f7738a6a786b6d8764131f914fc60d8fd70c550d34928e208b",
@@ -145,9 +145,9 @@
   "src/runtime/sharing/session-share-export.ts": "0b6ffd9e8e5e4caa27ea6af7bc1bf947ec8401bc98564f9373200b51b0e6e13a",
   "src/runtime/sharing/session-share-package.ts": "d18f795c2c4c41ea531251b79567722f69d1637a926469b30ea0ce1a6b8ff5f0",
   "src/runtime/status-view.ts": "9bb31710d243f531a3c782d2f3a9c777f33709ec09ab598623efd18215ab5bec",
-  "src/runtime/upstream-roost-history.ts": "202953a3acd5f3a0a78b1ff9f3667a19b042bd486703a517a2ded1430b0974c8",
-  "src/runtime/upstream-roost.d.ts": "f9f5e8cd7d3387bad89d3f2c6d8de4b8be70f3daeab80685cc44531de6c925e2",
-  "src/runtime/upstream-roost.js": "97c510ef726b6738ad57e78bebbb74a6c5b1e8ab2edd617bf58c6b57acb65bc1",
+  "src/runtime/upstream-roost-history.ts": "24a02c43b64e3365b4536508280f26689a92f81595a72b21927a0167f821ba7a",
+  "src/runtime/upstream-roost.d.ts": "90a54ca24c2708c10be60b67b8b2e0e913a6acc60ced73f61a52c6c1a8d91553",
+  "src/runtime/upstream-roost.js": "6c42e3bafceec1a4ca7589afb2781b5abfa99e120020404ad7828e8fa743724f",
   "src/runtime/url-can-parse.ts": "1279dcaed2adc8812caae5359ad77995bbb98e1856a3c43ada6be95b55a6d1f1",
   "tsconfig.json": "b3cdc3632cd4c48e21040f29bb967ddda7a02e40aa50b71d47c82dfa7c2d3e09"
 }

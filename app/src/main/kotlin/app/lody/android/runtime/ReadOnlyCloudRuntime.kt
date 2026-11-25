@@ -99,25 +99,31 @@ internal class ReadOnlyCloudRuntime(
             runCatching { runtime.call("shortcutCloudReply", JSONArray().put(request.requestId).put(value ?: JSONObject.NULL)) }
         }
     }
-    /**
-     * Answers a machine proof request exactly once: `{value: token}`, `{value: {status}}` for an HTTP
-     * refusal, or null on any failure, a foreign workspace or the deadline (under JS's 60 s).
-     */
+    /** Delivers the scoped proof or the native transport outcome to the current generation. */
     private fun mint(request: RuntimeEvent.MachineTokenRequested, generation: Long) {
         val tokens = machineRequestTokens
         lifetime?.launch {
-            val value: JSONObject? = if (tokens == null) null else withTimeoutOrNull(if (request.operation == "historyToken") 10_000 else 55_000) {
-                try {
-                    val intent = JSONObject(request.intent)
-                    if (intent.optString("workspaceId") != scope.workspaceId) return@withTimeoutOrNull null
-                    when (val minted = tokens.mint(scope, request.operation, intent)) {
-                        is String -> JSONObject().put("value", minted)
-                        is JSONObject -> JSONObject().put("value", minted)
-                        is Int -> JSONObject().put("value", JSONObject().put("status", minted))
-                        else -> null
-                    }
-                } catch (cancelled: CancellationException) { throw cancelled }
-                catch (_: Exception) { null }
+            val intent = runCatching { JSONObject(request.intent) }.getOrNull()
+            val value = if (tokens == null || intent == null || intent.optString("workspaceId") != scope.workspaceId) {
+                null
+            } else {
+                val budget = if (request.operation == "historyToken") 10_000L else 55_000L
+                val reply = withTimeoutOrNull(budget) {
+                    try { Result.success(tokens.mint(scope, request.operation, intent)) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) { Result.failure(error) }
+                }
+                val cloudHistory = request.operation == "historyToken" && intent.opt("cloudHistory") == true
+                val minted = if (reply == null && cloudHistory) {
+                    JSONObject().put("failure", "transport")
+                } else {
+                    reply?.getOrNull()
+                }
+                when (minted) {
+                    is String, is JSONObject -> JSONObject().put("value", minted)
+                    is Int -> JSONObject().put("value", JSONObject().put("status", minted))
+                    else -> null
+                }
             }
             if (state.value.generation != generation) return@launch
             runCatching { runtime.call("machineTokenReply", JSONArray().put(request.requestId).put(value ?: JSONObject.NULL)) }

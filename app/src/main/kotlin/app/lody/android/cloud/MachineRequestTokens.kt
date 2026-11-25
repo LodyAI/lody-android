@@ -6,6 +6,8 @@ import app.lody.android.chat.GitHubHttp
 import app.lody.android.chat.GitHubHttpClient
 import app.lody.android.runtime.RuntimeScope
 import org.json.JSONObject
+import java.io.IOException
+import javax.net.ssl.SSLException
 
 /**
  * Preview and history proofs are minted for the verified account in the current workspace.
@@ -14,7 +16,7 @@ import org.json.JSONObject
 internal class MachineRequestTokens(private val http: GitHubHttp = GitHubHttpClient(retryOnConnectionFailure = false)) {
     class Failure(code: String) : Exception(code)
 
-    /** Returns a proof or grant, or the HTTP status for a preview or Roost grant refusal. */
+    /** Returns a scoped proof, an issued grant, or its typed transport or HTTP outcome. */
     suspend fun mint(credential: Credential, scope: RuntimeScope, operation: String, intent: JSONObject): Any {
         if (intent.optString("workspaceId") != scope.workspaceId) throw Failure("workspace_changed")
         val cloudHistory = operation == "historyToken" && intent.opt("cloudHistory") == true
@@ -39,7 +41,12 @@ internal class MachineRequestTokens(private val http: GitHubHttp = GitHubHttpCli
             else -> throw Failure("invalid_operation")
         }
         val payload = if (cloudHistory) JSONObject(intent.toString()).apply { remove("cloudHistory") } else intent
-        val (status, body) = http.request("POST", "${BackendEnvironment.site}/api/$path", credential.token, payload)
+        val (status, body) = try {
+            http.request("POST", "${BackendEnvironment.site}/api/$path", credential.token, payload)
+        } catch (error: IOException) {
+            if (!cloudHistory || error is SSLException) throw error
+            return JSONObject().put("failure", "transport")
+        }
         if (status !in 200..299) {
             if (operation == "previewToken") return status
             if (cloudHistory) return JSONObject().put("status", status)

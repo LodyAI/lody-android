@@ -513,10 +513,10 @@
     "note": "The conversation uses the runtime's selected source, publication state, and read failure. The snapshot also includes current-directory Tab drafts from main."
   },
   "roostCloudMachineRecovery": {
-    "commit": "dcb0c6cfa6baac232d00f45c397ad171b7326766",
-    "publicSource": "3b277493440d7065eda76622b1551c71ff49e2f9",
-    "export": "git -C apps/mobile/ios archive dcb0c6cfa6baac232d00f45c397ad171b7326766 packages/cloud-runtime",
-    "note": "After HTTP 503, a recovered Streams window resumes reads waiting on the machine. A source change expires earlier replies and paging cursors. The machine can take over after an authorized exact-session read."
+    "commit": "e519abce63b2513dda474894f3433e692bca5b15",
+    "publicSource": "601e98611a32321379a68e386dd6d7f360bf9268",
+    "export": "git -C apps/mobile/ios archive e519abce63b2513dda474894f3433e692bca5b15 packages/cloud-runtime",
+    "note": "Streams starts with the exact-session grant. Pending publication and transport failures can use a freshly authorized machine read. Restoring Streams switches pending reads and expires old replies and paging cursors."
   },
   "resumeTranscriptWindow": {
     "repository": "LodyAI/lody-ios",
