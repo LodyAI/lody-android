@@ -261,3 +261,9 @@ class ChatRepository(
         }
     }.conflate()
 }
+
+val SessionSnapshot.readable: Boolean get() = status == "live" || controlReady
+
+fun SessionSnapshot.shown(readable: SessionSnapshot?): SessionSnapshot =
+    if (this.readable || readable == null || readable.id != id) this
+    else readable.copy(status = status, sendReady = false, controlReady = false)
