@@ -1154,4 +1154,6 @@
     <plurals name="status_tier_count">
         <item quantity="other">%d 个对话</item>
     </plurals>
+    <string name="preferences_usage_sharing">分享应用使用数据，帮助改进 Lody</string>
+    <string name="preferences_sharing_retry">未能确认设置，轻点重试。</string>
 </resources>

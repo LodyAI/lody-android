@@ -1171,4 +1171,6 @@
         <item quantity="one">%d conversation</item>
         <item quantity="other">%d conversations</item>
     </plurals>
+    <string name="preferences_usage_sharing">Share app usage data to help improve Lody</string>
+    <string name="preferences_sharing_retry">Could not confirm the setting. Tap to retry.</string>
 </resources>
