@@ -147,7 +147,7 @@
   "src/runtime/status-view.ts": "9bb31710d243f531a3c782d2f3a9c777f33709ec09ab598623efd18215ab5bec",
   "src/runtime/upstream-roost-history.ts": "c3b3234cc83fc9c58c53c30f6e717e8d2cfc8885d8239686b7305b8bffc6fad2",
   "src/runtime/upstream-roost.d.ts": "f48563eb5eb65d86240538cf31e26b33da3ffbc22b81c041d410804bd9bf7a72",
-  "src/runtime/upstream-roost.js": "151935f63e36cb9a4e4f0de78d52a299435f7e397234f796bef80e16557678f6",
+  "src/runtime/upstream-roost.js": "059e0bde1583b15e28f08ef5f24116891011dfdd09e79c240e707c29a57142cb",
   "src/runtime/url-can-parse.ts": "1279dcaed2adc8812caae5359ad77995bbb98e1856a3c43ada6be95b55a6d1f1",
   "tsconfig.json": "b3cdc3632cd4c48e21040f29bb967ddda7a02e40aa50b71d47c82dfa7c2d3e09"
 }

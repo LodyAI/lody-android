@@ -1,9 +1,9 @@
 {
   "source": "LodyAI/lody-ios packages/cloud-runtime",
-  "commit": "9740921203ba05289c2e26d7fbfce463148b9b38",
+  "commit": "8e71edc59b9516b7b60c745c8bb306d8ad4a5b98",
   "license": "AGPL-3.0-only",
   "path": "packages/cloud-runtime",
-  "export": "git -C apps/mobile/ios archive 9740921203ba05289c2e26d7fbfce463148b9b38 packages/cloud-runtime",
+  "export": "git -C apps/mobile/ios archive 8e71edc59b9516b7b60c745c8bb306d8ad4a5b98 packages/cloud-runtime",
   "note": "Complete snapshot of the pinned iOS cloud-runtime package, excluding Roost authoring source and its generator. SHA256.json records every mirrored file. Earlier entries retain the source-update history.",
   "roostHistory": {
     "files": [
@@ -489,9 +489,9 @@
     "note": "The shared route retries temporary Streams catch-up failures in an open session. The mobile owner RPC supplies transport failure provenance so a timeout can discover published history."
   },
   "roostCloudReplicaMetadata": {
-    "commit": "9740921203ba05289c2e26d7fbfce463148b9b38",
-    "publicSource": "ad9407f172778d7529ab7c49abf50c924eab1f5b",
-    "export": "git -C apps/mobile/ios archive 9740921203ba05289c2e26d7fbfce463148b9b38 packages/cloud-runtime",
-    "note": "The shared reader allows live intake between directory pages while retaining a coherent metadata observation. Native metadata refreshes stay coalesced."
+    "commit": "8e71edc59b9516b7b60c745c8bb306d8ad4a5b98",
+    "publicSource": "2d2dc07c3caef29c1daad92d4c019f3e3b8e8463",
+    "export": "git -C apps/mobile/ios archive 8e71edc59b9516b7b60c745c8bb306d8ad4a5b98 packages/cloud-runtime",
+    "note": "The shared reader retries discovery before it has a publication binding and allows live intake between directory pages. Native metadata refreshes stay coalesced."
   }
 }
