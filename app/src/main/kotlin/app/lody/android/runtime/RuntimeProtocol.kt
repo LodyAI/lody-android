@@ -141,6 +141,7 @@ internal object RuntimeProtocol {
                 billableTurnCount = (envelope.opt("billableTurnCount") as? Number)?.toInt()?.takeIf { it >= 0 },
                 sendReady = (envelope.opt("sendReady") as? Boolean) ?: (status == "live"),
                 controlReady = (envelope.opt("controlReady") as? Boolean) ?: (status == "live"),
+                historySync = envelope.optJSONObject("historySync")?.let(::historySync),
             ))
         }
         "catalog" -> {
@@ -167,6 +168,19 @@ internal object RuntimeProtocol {
         "shortcutCloud" -> RuntimeEvent.ShortcutCloudRequested(message.getString("requestId"), message.getString("operation"), message.getString("args"))
         "machineToken" -> RuntimeEvent.MachineTokenRequested(message.getString("requestId"), message.getString("operation"), message.getString("intent"))
         else -> null
+    }
+    private fun historySync(value: JSONObject): RoostHistorySync? {
+        val source = RoostHistorySync.Source.entries.firstOrNull {
+            it.name.equals(value.optString("source"), ignoreCase = true)
+        } ?: return null
+        val phase = RoostHistorySync.Phase.entries.firstOrNull {
+            it.name.equals(value.optString("phase"), ignoreCase = true)
+        } ?: return null
+        return RoostHistorySync(
+            source, phase,
+            (value.opt("httpStatus") as? Number)?.toInt()?.takeIf { it in 100..599 },
+            value.optBoolean("newerVersionPending"),
+        )
     }
     fun schema(message: JSONObject): RuntimeResult.Schema {
         val trials = message.getJSONObject("creationOptionsTrial")

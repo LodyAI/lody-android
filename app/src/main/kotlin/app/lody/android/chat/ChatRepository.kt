@@ -223,7 +223,7 @@ class ChatRepository(
     fun observe(scope: RuntimeScope, id: String): Flow<SessionSnapshot> = channelFlow {
         var latest = SessionSnapshot(id, "syncing", emptyList())
         suspend fun status(value: String) {
-            latest = latest.copy(status = value, sendReady = false, controlReady = false)
+            latest = latest.copy(status = value, sendReady = false, controlReady = false, historySync = null)
             send(latest)
         }
         val events = launch(start = CoroutineStart.UNDISPATCHED) {

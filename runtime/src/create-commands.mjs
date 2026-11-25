@@ -130,9 +130,11 @@ export function createCommands(runtime, sendTurn, identity) {
    const attachments=input.attachments??[];
    if(!Array.isArray(attachments) || attachments.length>16 || attachments.some(block=>!block || typeof block!=='object' || !['image','file'].includes(block.type)) || JSON.stringify(attachments).length>64000 || (!input.text.trim() && !attachments.length))throw Error('invalid_creation');
    if(attempted.has(input.sessionId))throw Error('already_attempted');
+   // A shared-directory Tab (`parentSessionId`) copies its directory context from meta in the runtime.
+   const parentSessionId=typeof input.parentSessionId==='string' && input.parentSessionId ? input.parentSessionId : undefined;
    // A multi-repository project (`group:<uuid>`): workspace-wide agents; the runtime reads the
    // group fresh, checks its computer and writes its frozen run (web Project group).
-   const group=typeof input.projectId==='string' && input.projectId.startsWith('group:') ? input.projectId.slice(6) : undefined;
+   const group=!parentSessionId && typeof input.projectId==='string' && input.projectId.startsWith('group:') ? input.projectId.slice(6) : undefined;
    if(group!==undefined && !uuid.test(group))throw Error('invalid_creation');
    const pinned=input.configOptionValues;
    if(pinned!==undefined && (!pinned || typeof pinned!=='object' || Array.isArray(pinned) || Object.keys(pinned).length>64 || Object.entries(pinned).some(([k,v])=>!k || k.length>128 || !['string','boolean'].includes(typeof v) || (typeof v==='string' && v.length>128))))throw Error('invalid_creation');
@@ -140,7 +142,7 @@ export function createCommands(runtime, sendTurn, identity) {
    let scope, agent, capability, role;
    try {
     scope=identity();
-    const available=await options(group===undefined?input.projectId:undefined);
+    const available=await options(parentSessionId || group!==undefined?undefined:input.projectId);
     agent=available.agents.find(a=>a.id===input.agentConfigId && a.machineId===input.machineId);
     if(!agent)throw Error('agent_unavailable');
     capability=available.capabilities.find(c=>c.machineId===agent.machineId && c.agentConfigId===agent.id) ?? available.capabilities.find(c=>c.machineId===agent.machineId && !c.agentConfigId && c.cliType===agent.cliType && c.agentType===agent.agentType);
@@ -164,7 +166,7 @@ export function createCommands(runtime, sendTurn, identity) {
    try {
     let result;
     try {
-     result=await runtime.createSession({billingEntitlement:billing,workspaceId:scope.workspaceId,userId:scope.userId,preferRoost:input.preferRoost===true,sessionId:input.sessionId,machineId:agent.machineId,agentConfigId:agent.id,...(group===undefined?{projectId:input.projectId}:{projectGroupId:group}),branch:group===undefined?input.branch:undefined,useWorktree:input.worktree===true,title:input.text.trim().slice(0,200),...(role?{agentRoleId:role.id,agentRoleRevision:role.revision}:{})});
+     result=await runtime.createSession({billingEntitlement:billing,workspaceId:scope.workspaceId,userId:scope.userId,preferRoost:input.preferRoost===true,sessionId:input.sessionId,machineId:agent.machineId,agentConfigId:agent.id,...(parentSessionId?{parentSessionId}:group===undefined?{projectId:input.projectId,branch:input.branch,useWorktree:input.worktree===true}:{projectGroupId:group}),title:input.text.trim().slice(0,200),...(role?{agentRoleId:role.id,agentRoleRevision:role.revision}:{})});
     } catch(error) {
      // The shared channel answers these before its handler runs, so no write was attempted.
      if(['invalid_params','unsupported_method'].includes(error?.message))return {state:'rejected',sessionId:input.sessionId};

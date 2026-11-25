@@ -21,6 +21,9 @@ Roost subscriptions use the shared owner's durable checkpoints over the existing
 RPC streams. The Android bridge accepts the scoped `historyToken` call and
 returns only the history proof minted by native for that workspace. The mirrored
 reader applies an exact-base delta or recovers from the persisted checkpoint.
+The session envelope carries the selected history source and publication status.
+The chat connection status shows authorized pending publications, read failures,
+and when Streams is serving the previous version while a replacement is pending.
 
 The Status view runtime (lody-ios `status-view-runtime`, see PROVENANCE `statusView`)
 vendors the shared Lody layout, planner and golden vectors under

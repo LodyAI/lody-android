@@ -83,6 +83,13 @@ class RuntimeProtocolTest {
   assertEquals(listOf(PromptDiffLine("del", "a"), PromptDiffLine("add", "b")), live.promptDiff)
   assertNull(ProposalInspection.parse(JSONObject("""{"state":"unavailable","isOwner":false,"timeZone":"UTC"}""")).promptDiff)
  }
+ @Test fun roostHistorySourceAndNewerPendingPublicationReachTheConversation() {
+  val event = RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
+   .put("session", """{"v":1,"status":"live","entries":[],"historySync":{
+    "source":"streams","phase":"retrying","httpStatus":503,"newerVersionPending":true
+   }}""")) as RuntimeEvent.SessionUpdated
+  assertEquals(RoostHistorySync(RoostHistorySync.Source.Streams, RoostHistorySync.Phase.Retrying, 503, true), event.snapshot.historySync)
+ }
  @Test fun usageProjectionPrefersContextThenFiveHours() {
   fun usage(json: String): SessionUsage? = (RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
    .put("session", """{"v":1,"status":"live","entries":[],"usage":$json}""")) as RuntimeEvent.SessionUpdated).snapshot.usage

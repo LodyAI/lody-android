@@ -23,13 +23,23 @@ import app.lody.android.runtime.*
 @Composable
 internal fun OperationCards(events: List<OperationEvent>, sessions: List<CatalogSession>, navigate: (String) -> Unit) {
     val colors = LodyTheme.colors
+    val quoter = LocalMessageQuoter.current
     var savedReply by remember { mutableStateOf<OperationCard?>(null) }
     savedReply?.let { card ->
         ModalBottomSheet(onDismissRequest = { savedReply = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.bgBase) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(TranscriptMargin), verticalArrangement = Arrangement.spacedBy(LodySpacing.sm)) {
                 Text(stringResource(R.string.chat_operation_full_reply), style = LodyTheme.typography.caption, color = colors.textSecondary)
                 if (card.replyTruncated) Text(stringResource(R.string.chat_operation_reply_truncated), color = colors.textSecondary)
-                SelectionContainer { MarkdownBlock(card.reply.orEmpty()) }
+                if (quoter != null) {
+                    CompositionLocalProvider(
+                        LocalMessageQuoter provides { text -> savedReply = null; quoter(text) },
+                        LocalTranscriptSelection provides null,
+                    ) {
+                        QuotableSelection { MarkdownBlock(card.reply.orEmpty()) }
+                    }
+                } else {
+                    SelectionContainer { MarkdownBlock(card.reply.orEmpty()) }
+                }
             }
         }
     }

@@ -55,6 +55,7 @@ internal object CreationJson {
         put("machineId", value.machineId); put("agentConfigId", value.agentConfigId); put("text", value.text)
         put("branch", value.branch); put("worktree", value.worktree); put("modelId", value.modelId); put("modeId", value.modeId); put("effort", value.effort)
         value.agentRoleId?.let { put("agentRoleId", it) }
+        value.parentSessionId?.let { put("parentSessionId", it) }
         if (value.configOptionValues.isNotEmpty()) put("configOptionValues", JSONObject(value.configOptionValues))
     }
 

@@ -62,6 +62,8 @@ data class CreateRequest(
     val displayText: String? = null,
     /** The chips' ranges in [displayText]. */
     val displayReferences: List<MessageReference> = emptyList(),
+    /** Root conversation of a shared-directory Tab; the runtime copies its directory context from meta. */
+    val parentSessionId: String? = null,
 )
 
 /** What one machine target of an Agent Role pins (runtime listing; secrets never cross). */
