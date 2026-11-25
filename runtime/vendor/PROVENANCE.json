@@ -513,9 +513,9 @@
     "note": "The conversation uses the runtime's selected source, publication state, and read failure. The snapshot also includes current-directory Tab drafts from main."
   },
   "roostCloudMachineRecovery": {
-    "commit": "8b341e1b715d61dd535f6a8be0cd709341e00542",
-    "publicSource": "a852a316fd9fbb70461eda252208781d2822f4c1",
-    "export": "git -C apps/mobile/ios archive 8b341e1b715d61dd535f6a8be0cd709341e00542 packages/cloud-runtime",
+    "commit": "dcb0c6cfa6baac232d00f45c397ad171b7326766",
+    "publicSource": "3b277493440d7065eda76622b1551c71ff49e2f9",
+    "export": "git -C apps/mobile/ios archive dcb0c6cfa6baac232d00f45c397ad171b7326766 packages/cloud-runtime",
     "note": "After HTTP 503, a recovered Streams window resumes reads waiting on the machine. A source change expires earlier replies and paging cursors. The machine can take over after an authorized exact-session read."
   },
   "resumeTranscriptWindow": {
