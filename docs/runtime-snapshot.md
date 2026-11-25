@@ -69,7 +69,9 @@ on compatible owners and Loro on other owners. Session metadata stores the choic
 
 Roost sessions start with owner RPC while their history is unpublished. The
 shared reader follows publication in an open session and switches to Streams
-after applying the captured tail. It uses a short-lived, exact-session grant.
+after applying the captured tail. A timed-out owner RPC can discover published
+history before metadata arrives. The open reader retries temporary Streams
+failures. It uses a short-lived, exact-session grant.
 Sharing from Streams captures a complete history through a fixed tail offset.
 The owner machine handles commands, and Loro carries the control document and
 queue. The upstream coordinator persists pending inputs

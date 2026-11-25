@@ -116,7 +116,12 @@ internal data class PreviewMenu(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, context: ChatContext, onBack: () -> Unit, onSelectTab: (String) -> Unit = {}, creation: app.lody.android.create.CreationSubmissions.Submission? = null, persistDraft: Boolean = false, statusView: app.lody.android.home.StatusViewService? = null) {
+fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, context: ChatContext, onBack: () -> Unit, onSelectTab: (String) -> Unit = {}, creation: app.lody.android.create.CreationSubmissions.Submission? = null, persistDraft: Boolean = false, statusView: app.lody.android.home.StatusViewService? = null,
+    /** Opens a schedule's editor over the conversation (a proposal card's Open). */
+    onOpenSchedule: ((String) -> Unit)? = null,
+    /** Bumped by the host when its schedule editor closes, so edit proposals read their schedule again. */
+    proposalRefresh: Int = 0,
+) {
     BackHandler(onBack = onBack)
     var retry by remember(id, scope) { mutableIntStateOf(0) }
     var status by remember(id, scope) { mutableStateOf("syncing") }
@@ -196,7 +201,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 entries = withContext(Dispatchers.Default) {
                     val next = snapshot.messages.map { message ->
                         rendered[message.id]?.takeIf { it.first == message }?.second ?: when (message.role) {
-                            "system" -> ChatEntry.Operations(message.id, message.operations, message.proposals)
+                            "system" -> ChatEntry.Operations(message.id, message.operations, message.proposals, message.notices)
                             "user" -> ChatEntry.User(
                                 message.id, message.text,
                                 TurnIdentity("", time = turnTime(message.timestamp)),
@@ -548,9 +553,13 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         )
     }
     DisposableEffect(scope, id) { onDispose { application.sessionOutbox.leaveForeground(scope, id) } }
+    // The failure a Retry turn was sent for; it stays "Retrying" until a later turn supersedes it.
+    var retriedFailure by remember(scope, id) { mutableStateOf<String?>(null) }
     LaunchedEffect(scope, id) {
         application.sessionOutbox.failures.collect { failure ->
             if (failure.scope != scope || failure.sessionId != id) return@collect
+            // A Retry turn that was not sent leaves its failure retryable again.
+            retriedFailure = null
             fun handBack() {
                 if (prompt.isEmpty() && attachments.isEmpty() && quotes.isEmpty()) {
                     val rec = failure.record
@@ -605,6 +614,47 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             ),
         )
         Unit
+    }
+    // Failure rows (iOS `ChatErrorCell`): Retry continues the latest recoverable failure with
+    // one new turn through the ordinary send path; Sign in opens the machine's sign-in flow.
+    val retryFailure = ChatFailures.retryable(messages)
+    val retryReady = canSend && !running && session != null
+    val signInSession = session?.takeIf { machineOnline == true && !it.archived && ChatFailures.canAuthenticate(it.cliType, it.agentType, it.agentConfigId, context.machineCapabilities) }
+    var signingIn by remember(scope, id) { mutableStateOf<app.lody.android.runtime.ProviderDetail?>(null) }
+    val providerService = remember(application) { app.lody.android.home.RuntimeAgentProviderService(application.runtimeOwner) }
+    val signInFailed = stringResource(R.string.settings_agent_auth_failed)
+    val failureActions = FailureActions(
+        retryItemId = retryFailure?.itemId,
+        retryEnabled = retryReady,
+        retrying = retryFailure != null && retriedFailure == retryFailure.itemId,
+        retry = {
+            val failure = retryFailure
+            if (failure != null && retryReady && retriedFailure != failure.itemId) {
+                retriedFailure = failure.itemId
+                sendText(if (failure.reason == "acp_provider_overloaded") ChatFailures.CapacityContinuation else ChatFailures.ErrorContinuation, emptyList(), emptyList())
+            }
+        },
+        signIn = signInSession?.let { target -> {
+            coroutines.launch {
+                try { signingIn = providerService.detail(scope, target.machineId, target.agentConfigId!!) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { snackbar.showSnackbar(signInFailed) }
+            }
+            Unit
+        } },
+    )
+    signingIn?.let { detail ->
+        val target = signInSession
+        if (target?.agentConfigId != null) {
+            val flow = app.lody.android.home.rememberProviderAuth(providerService, scope, target.machineId, target.agentConfigId, detail, enabled = true)
+            app.lody.android.home.ProviderAuthenticationSheet(flow, detail, enabled = true) { signingIn = null }
+        }
+    }
+    // Native has no schedule subscription: edit proposals read their schedule again on return.
+    var proposalReads by remember(scope, id) { mutableIntStateOf(0) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(scope, id) {
+        proposalReads++
+        onPauseOrDispose { }
     }
     val quoteTooLong = stringResource(R.string.quote_too_long)
     val quoteUpgrade = stringResource(R.string.quote_upgrade)
@@ -1150,6 +1200,10 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                         loadDiff = { entryId, path -> repository.turnDiff(scope, id, entryId, path) },
                         meId = context.me?.id,
                         decideProposal = { card, accept -> repository.decideProposal(scope, id, card.entryId, card.itemId, accept) },
+                        inspectProposal = { card -> repository.inspectProposal(scope, id, card.entryId, card.itemId) },
+                        openSchedule = onOpenSchedule,
+                        proposalReads = proposalReads + proposalRefresh,
+                        failureActions = failureActions.takeIf { context.session?.isTabClosed != true && !context.readOnly },
                         // An open conversation takes an answer once commands are ready, including during a Roost history reconnect; otherwise the approval just waits.
                         respondPermission = if (controlReady && context.session?.isTabClosed != true) ({ entryId, itemId, requestId, optionId, answers ->
                             repository.respondPermission(scope, id, entryId, itemId, requestId, optionId, answers)

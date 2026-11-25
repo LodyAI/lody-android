@@ -76,6 +76,7 @@ import app.lody.android.designsystem.LodySpacing
 import app.lody.android.designsystem.LodyTextButton
 import app.lody.android.designsystem.LodyTheme
 import app.lody.android.runtime.CatalogSnapshot
+import app.lody.android.runtime.RuntimeScope
 import app.lody.android.runtime.CreationOptions
 import app.lody.android.runtime.ScheduleCommandRequest
 import app.lody.android.runtime.ScheduleDetail
@@ -596,4 +597,27 @@ private fun InlineField(label: String, value: String, enabled: Boolean, onChange
 @Composable
 private fun Note(text: String) {
     Text(text, style = LodyTheme.typography.footnote, color = LodyTheme.colors.textSecondary, modifier = Modifier.fillMaxWidth())
+}
+
+/**
+ * One schedule's editor over another page (a conversation's proposal card Open): reads the
+ * workspace list for the editor's clocks and labels, and reports the editor's notices as toasts
+ * because the page underneath owns its own snackbar.
+ */
+@Composable
+fun ScheduleEditorOverlay(
+    service: ScheduleService?,
+    scope: RuntimeScope,
+    scheduleId: String,
+    snapshot: CatalogSnapshot?,
+    creation: CreationService?,
+    onClose: () -> Unit,
+    onOpenSession: (String) -> Unit,
+) {
+    val state = rememberSchedulesState(service, scope) ?: return
+    LaunchedEffect(state) { state.refresh() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    ScheduleEditorScreen(state, scheduleId, snapshot, creation, onClose = onClose,
+        onNotice = { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show() },
+        onOpenSession = onOpenSession)
 }

@@ -200,6 +200,10 @@ class ChatRepository(
         owner.use(scope) { it.execute(RuntimeCommand.DecideProposal(sessionId, entryId, itemId, accept)) }
     }
 
+    /** Reads an edit proposal's live schedule (failures throw their code). */
+    suspend fun inspectProposal(scope: RuntimeScope, sessionId: String, entryId: String, itemId: String): ProposalInspection =
+        owner.use(scope) { (it.execute(RuntimeCommand.InspectProposal(sessionId, entryId, itemId)) as RuntimeResult.ProposalInspected).value }
+
     /**
      * Answers a permission request (a tool permission, a plan approval, or an ask-user-question with
      * its [answers]) with one of its options: `accepted`, `stale` or `conflict`. A write, never
