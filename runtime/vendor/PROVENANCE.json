@@ -1,9 +1,9 @@
 {
   "source": "LodyAI/lody-ios packages/cloud-runtime",
-  "commit": "d9cc1982fdca8dd4400b3b8da8d8e521be0dad67",
+  "commit": "c94953afdd4ede34ee1cd0ab70d2a986e92fcac5",
   "license": "AGPL-3.0-only",
   "path": "packages/cloud-runtime",
-  "export": "git -C apps/mobile/ios archive d9cc1982fdca8dd4400b3b8da8d8e521be0dad67 packages/cloud-runtime",
+  "export": "git -C apps/mobile/ios archive c94953afdd4ede34ee1cd0ab70d2a986e92fcac5 packages/cloud-runtime",
   "note": "Complete snapshot of the pinned iOS cloud-runtime package, excluding Roost authoring source and its generator. SHA256.json records every mirrored file. Earlier entries retain the source-update history.",
   "roostHistory": {
     "files": [
@@ -487,5 +487,11 @@
     "publicSource": "3bf3ab497f6221043783ca3e01f62db5e60ca693",
     "export": "git -C apps/mobile/ios archive d9cc1982fdca8dd4400b3b8da8d8e521be0dad67 packages/cloud-runtime",
     "note": "The shared route retries temporary Streams catch-up failures in an open session. The mobile owner RPC supplies transport failure provenance so a timeout can discover published history."
+  },
+  "roostCloudReplicaMetadata": {
+    "commit": "c94953afdd4ede34ee1cd0ab70d2a986e92fcac5",
+    "publicSource": "377a930f03ba23f71a7bb9f630a9cd147bc39b3d",
+    "export": "git -C apps/mobile/ios archive c94953afdd4ede34ee1cd0ab70d2a986e92fcac5 packages/cloud-runtime",
+    "note": "The Streams directory reads one coherent local observation. The native runtime coalesces metadata refreshes while live history continues to arrive."
   }
 }

@@ -12,7 +12,7 @@
   "licenses/noble-curves-2.4.0-LICENSE.txt": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
   "licenses/noble-hashes-2.4.0-LICENSE.txt": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
   "package.json": "ba0d36f480209893806f837e3a9e239bd9be9995c9d6a254a206b0435e959125",
-  "README.md": "3303389684fc223193601aa065d455c6c49d60cadc462f83b545c85189cc0139",
+  "README.md": "29478dfd13f483b96dea1000acd3de7f7ea884efeb555f616108d1736e9551fe",
   "scripts/build.mjs": "09dde6d6b5a75dc5ffced507d17778396b9556f379f679d1c37e38cf3fdb4652",
   "scripts/contract-swift.mjs": "56bd7a0b5bdebad44faafbd0cf712c0c5981a8afbaf5c5958d83345db6a6af44",
   "scripts/contract.mjs": "d393d98565db65f7738a6a786b6d8764131f914fc60d8fd70c550d34928e208b",
@@ -135,7 +135,7 @@
   "src/runtime/schedules.ts": "c8e5bd5252a989b88b9c21ad9419ae72e1ba9871b2be30d4731ef70dfc157538",
   "src/runtime/server-clock.ts": "9ed4cf098039f1427696aed5908b9ab6cc077ed226d5d1df6fbbc2db04a8227f",
   "src/runtime/session-read.ts": "426afe458aa1541dd5f7ee1c8f52ebbd737fbda2fe4d0754affa1a43e9c0252b",
-  "src/runtime/session.ts": "39b7cc0e495a2cf6ad28cd93cc5b531ae0d3c5494dd58553576e9e3c133db327",
+  "src/runtime/session.ts": "1bb81af944b495fa5c93698e28c3e9ed78e2d0e268c6686c4327c6b71f6be44b",
   "src/runtime/settings.ts": "fcdfdfea2e3bd0ddcab1ab591540382750632ef5eed4c05f77973bec6a3cbb6a",
   "src/runtime/sharing/history.ts": "41bb3abb311a444ae07581760a310f8449e13efaa44e42f5867dc49127125265",
   "src/runtime/sharing/README.md": "6f8fd3c6f5c0ef508eb4c06b62a2ceee11467b57fce5526d794f80b775df7cc9",
@@ -147,7 +147,7 @@
   "src/runtime/status-view.ts": "9bb31710d243f531a3c782d2f3a9c777f33709ec09ab598623efd18215ab5bec",
   "src/runtime/upstream-roost-history.ts": "c3b3234cc83fc9c58c53c30f6e717e8d2cfc8885d8239686b7305b8bffc6fad2",
   "src/runtime/upstream-roost.d.ts": "f48563eb5eb65d86240538cf31e26b33da3ffbc22b81c041d410804bd9bf7a72",
-  "src/runtime/upstream-roost.js": "13196a9745ba436dc9c8da69f6293c97fc4c5ea8c9464145feafc28723d829a7",
+  "src/runtime/upstream-roost.js": "5f0b0a9107b2d8c10a5a47e86e07832c59e7a5acd08705b424e1a0a1db2561de",
   "src/runtime/url-can-parse.ts": "1279dcaed2adc8812caae5359ad77995bbb98e1856a3c43ada6be95b55a6d1f1",
   "tsconfig.json": "b3cdc3632cd4c48e21040f29bb967ddda7a02e40aa50b71d47c82dfa7c2d3e09"
 }
