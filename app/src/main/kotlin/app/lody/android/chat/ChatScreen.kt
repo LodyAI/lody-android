@@ -512,9 +512,15 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         if (!creatingTab) {
             creatingTab = true
             coroutines.launch {
-                if (attemptedTab != null) {
-                    onSelectTab(attemptedTab!!)
-                } else {
+                try {
+                    val previous = attemptedTab
+                    if (previous != null) {
+                        attemptedTab = null
+                        if (context.tabs.any { it.id == previous } || context.closedTabs.any { it.id == previous }) {
+                            onSelectTab(previous)
+                            return@launch
+                        }
+                    }
                     val target = UUID.randomUUID().toString()
                     attemptedTab = target
                     try {
@@ -529,9 +535,17 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                             else -> snackbar.showSnackbar(tabUnknown)
                         }
                     } catch (cancelled: CancellationException) { throw cancelled }
-                    catch (_: Exception) { snackbar.showSnackbar(tabUnknown) }
+                    catch (error: Exception) {
+                        if (isUncertainTabWrite(error)) {
+                            snackbar.showSnackbar(tabUnknown)
+                        } else {
+                            attemptedTab = null
+                            snackbar.showSnackbar(tabFailure)
+                        }
+                    }
+                } finally {
+                    creatingTab = false
                 }
-                creatingTab = false
             }
         }
     }
@@ -2737,4 +2751,14 @@ private class PreviewTexts(
         "unauthorized", "backend_rejected" -> unauthorized
         else -> message?.takeIf { it.isNotBlank() } ?: generic
     }
+}
+
+/** True only when a Tab write may have reached the runtime or server without a confirmed reply. */
+private fun isUncertainTabWrite(error: Exception): Boolean {
+    val code = when (error) {
+        is app.lody.android.runtime.RuntimeException -> error.fault.code
+        is RuntimeFailure -> error.code
+        else -> null
+    }
+    return code in setOf("timeout", "command_timeout", "runtime_replaced", "runtime_restarted", "runtime_stopped", "runtime_suspended", "invalid_result")
 }
