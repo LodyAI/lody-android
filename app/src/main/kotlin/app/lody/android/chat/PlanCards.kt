@@ -172,7 +172,9 @@ private fun PlanCard(
                 Column(Modifier.fillMaxWidth().padding(horizontal = LodySpacing.md).padding(top = LodySpacing.md)) {
                     val parts = blocks?.blocks ?: listOf(markdown)
                     parts.forEachIndexed { index, text ->
-                        key(index) { MarkdownBlock(text, Modifier.padding(bottom = LodySpacing.md)) }
+                        key(index) {
+                            QuotableSelection(Modifier.padding(bottom = LodySpacing.md)) { MarkdownBlock(text) }
+                        }
                     }
                 }
             }
