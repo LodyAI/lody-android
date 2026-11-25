@@ -480,7 +480,8 @@
   },
   "resumeTranscriptWindow": {
     "repository": "LodyAI/lody-ios",
-    "commit": "99a098060f0d4996b0c6c916365ad40cf6a6d77e",
+    "commit": "45ebdc168b0bdf9e6d7973f4709ebfb4e267214a",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/187",
     "files": [
       "contract/runtime-contract.json",
       "src/contract/lifecycle.ts",
