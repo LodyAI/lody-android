@@ -84,11 +84,12 @@ class RuntimeProtocolTest {
   assertNull(ProposalInspection.parse(JSONObject("""{"state":"unavailable","isOwner":false,"timeZone":"UTC"}""")).promptDiff)
  }
  @Test fun roostHistorySourceAndNewerPendingPublicationReachTheConversation() {
-  val event = RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
+  val event = RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s").put("historyStart", 24)
    .put("session", """{"v":1,"status":"live","entries":[],"historySync":{
     "source":"streams","phase":"retrying","httpStatus":503,"newerVersionPending":true
    }}""")) as RuntimeEvent.SessionUpdated
   assertEquals(RoostHistorySync(RoostHistorySync.Source.Streams, RoostHistorySync.Phase.Retrying, 503, true), event.snapshot.historySync)
+  assertEquals(24, event.snapshot.historyStart)
  }
  @Test fun usageProjectionPrefersContextThenFiveHours() {
   fun usage(json: String): SessionUsage? = (RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
@@ -212,10 +213,12 @@ class RuntimeProtocolTest {
   assertNotNull(RuntimeProtocol.event(frame))
  }
  @Test fun sessionHistoryPageStateIsProjected() {
-  val frame=JSONObject().put("type","session").put("sessionId","s").put("session", """{"v":1,"status":"live","entries":[],"historyHasMore":true,"historyLoading":true}""")
+  val frame=JSONObject().put("type","session").put("sessionId","s").put("historyStart",24)
+   .put("session", """{"v":1,"status":"live","entries":[],"historyHasMore":true,"historyLoading":true}""")
   val snapshot=(RuntimeProtocol.event(frame) as RuntimeEvent.SessionUpdated).snapshot
   assertTrue(snapshot.historyHasMore)
   assertTrue(snapshot.historyLoading)
+  assertEquals(24,snapshot.historyStart)
  }
  @Test fun sessionCommandsCanBeReadyDuringHistorySync() {
   val frame=JSONObject().put("type","session").put("sessionId","s").put("session",

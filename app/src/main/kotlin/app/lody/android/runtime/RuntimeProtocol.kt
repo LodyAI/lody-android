@@ -142,6 +142,7 @@ internal object RuntimeProtocol {
                 sendReady = (envelope.opt("sendReady") as? Boolean) ?: (status == "live"),
                 controlReady = (envelope.opt("controlReady") as? Boolean) ?: (status == "live"),
                 historySync = envelope.optJSONObject("historySync")?.let(::historySync),
+                historyStart = (message.opt("historyStart") as? Number)?.toInt()?.takeIf { it >= 0 },
             ))
         }
         "catalog" -> {

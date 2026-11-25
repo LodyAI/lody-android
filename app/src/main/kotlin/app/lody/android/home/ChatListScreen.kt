@@ -371,7 +371,7 @@ fun ChatListScreen(
     BackHandler(enabled = searching) { closeSearch() }
 
     if (preferencesOpen) {
-        PreferencesScreen(onBack = { preferencesOpen = false })
+        PreferencesScreen(accountId = scope?.accountId, onBack = { preferencesOpen = false })
         return
     }
     if (shortcutsOpen) {

@@ -513,9 +513,22 @@
     "note": "The conversation uses the runtime's selected source, publication state, and read failure. The snapshot also includes current-directory Tab drafts from main."
   },
   "roostCloudMachineRecovery": {
-    "commit": "da2c0102b0f91a1934d21b47435d00a8b40ef5cb",
-    "publicSource": "4c974c02653273c832311e8a255bec1197bcd96d",
-    "export": "git -C apps/mobile/ios archive da2c0102b0f91a1934d21b47435d00a8b40ef5cb packages/cloud-runtime",
-    "note": "After HTTP 503, a recovered Streams window resumes the current read while machine admission is pending. The machine can take over after an authorized exact-session read."
+    "commit": "8b341e1b715d61dd535f6a8be0cd709341e00542",
+    "publicSource": "a852a316fd9fbb70461eda252208781d2822f4c1",
+    "export": "git -C apps/mobile/ios archive 8b341e1b715d61dd535f6a8be0cd709341e00542 packages/cloud-runtime",
+    "note": "After HTTP 503, a recovered Streams window resumes reads waiting on the machine. A source change expires earlier replies and paging cursors. The machine can take over after an authorized exact-session read."
+  },
+  "resumeTranscriptWindow": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "45ebdc168b0bdf9e6d7973f4709ebfb4e267214a",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/187",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/lifecycle.ts",
+      "src/contract/session-events.ts",
+      "src/runtime/handlers/lifecycle.ts",
+      "src/runtime/session.ts"
+    ],
+    "note": "Mirrors the scoped history start hint on reopen and its authoritative Loro/Roost window reconstruction. Dependencies and licenses are unchanged."
   }
 }

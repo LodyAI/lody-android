@@ -186,7 +186,9 @@ open class WebViewRuntime internal constructor(
             RuntimeResult.Sent(value.optString("state", "unknown"), value.optString("reason").ifBlank { null })
         }
         is RuntimeCommand.WatchSession -> {
-            call("watchSession", JSONArray().put(command.id), CommandDeadline.QUERY)
+            val args = JSONArray().put(command.id)
+            command.historyStart?.let { args.put(it) }
+            call("watchSession", args, CommandDeadline.QUERY)
             RuntimeResult.Accepted
         }
         is RuntimeCommand.RetryPendingInput -> {
