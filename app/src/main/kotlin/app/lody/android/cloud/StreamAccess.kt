@@ -45,6 +45,10 @@ internal class StreamAccess(val workspaceId: String, gateway: String) {
             parts.size in 4..5 && parts[1] == "ds" && parts[2] == "lody" && (parts.size == 4 || (parts[4] == "bootstrap" && read))
 
     } catch (_: Exception) { false }
+
+    /** The credential-free `loro-ds-v1` capability probe: exactly `GET <grant origin>/ds/ws`. */
+    fun allowsWebSocketProbe(url: String, method: String, headers: Map<String, String>): Boolean =
+        method == "GET" && url == "$origin/ds/ws" && headers.keys.none { it.equals("Authorization", ignoreCase = true) }
 }
 
 /**

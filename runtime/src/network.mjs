@@ -22,10 +22,11 @@ import {proposalCommands} from './proposal-commands.mjs';
 import {withDiffScope} from './diff-commands.mjs';
 const emit=message=>globalThis.webkit.messageHandlers.dataRuntime.postMessage(message);
 // The Status view clock reads the worker's /api/time (build-time backend config, as on iOS).
-const access=createReadAccess(globalThis.fetch.bind(globalThis),emit,{timeUrl:`${LODY_MOBILE_WORKER_URL}/api/time`});
+// With the Streams WebSocket build switch, the grant origin's `loro-ds-v1` socket is gated like fetch.
+const access=createReadAccess(globalThis.fetch.bind(globalThis),emit,{timeUrl:`${LODY_MOBILE_WORKER_URL}/api/time`,...(typeof LODY_MOBILE_STREAMS_WS!=='undefined'&&LODY_MOBILE_STREAMS_WS===true?{NativeWebSocket:globalThis.WebSocket}:{})});
 globalThis.fetch=access.fetch;
-// Bundled Streams uses fetch. Other outbound APIs have no permission in this host.
-globalThis.XMLHttpRequest=undefined;globalThis.WebSocket=undefined;globalThis.EventSource=undefined;
+// Bundled Streams uses fetch (and the gated socket). Other outbound APIs have no permission in this host.
+globalThis.XMLHttpRequest=undefined;globalThis.WebSocket=access.WebSocket;globalThis.EventSource=undefined;
 // The watched session's user turns carry their quote blocks (spans the shared projection drops).
 const quoted=quoteSessionEnvelopes(sessionHistory,sessionDoc);
 const runtime=contractBridge(globalThis.dataRuntime,message=>emit(quoted(message)));

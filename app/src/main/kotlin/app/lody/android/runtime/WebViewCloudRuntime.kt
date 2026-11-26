@@ -128,6 +128,8 @@ class WebViewCloudRuntime internal constructor(
                         return loader.shouldInterceptRequest(request.url) ?: denied()
                     }
                     if (!request.isForMainFrame && access?.allows(request.url.toString(), request.method) == true) return null
+                    // With the Streams WebSocket build switch, the runtime probes `/ds/ws` before its gated socket.
+                    if (!request.isForMainFrame && app.lody.android.BackendEnvironment.streamsWebSocket && access?.allowsWebSocketProbe(request.url.toString(), request.method, request.requestHeaders) == true) return null
                     // The network runtime's server time read for the Status view clock (CSP admits the worker origin).
                     if (!request.isForMainFrame && access != null && app.lody.android.cloud.ServerTimeAccess.allows(request.url.toString(), request.method, app.lody.android.BackendEnvironment.worker)) return null
                     return denied()

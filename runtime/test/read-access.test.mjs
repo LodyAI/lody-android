@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createReadAccess} from '../src/read-access.mjs';
+import {encodeClientFrame} from '@loro-dev/streams-client';
 const config={gatewayBaseUrl:'https://streams.example.org',workspaceId:'workspace'};
 test('closing a session or backgrounding does not report a network outage',async()=>{
  for(const cancel of ['session','background']) {
@@ -135,4 +136,80 @@ test('only the exact credential-free server time read leaves the stream gateway'
  access.setActive(false);
  await assert.rejects(access.fetch('https://worker.example.org/api/time'),/inactive_read/);
  assert.throws(()=>createReadAccess(async()=>new Response(''),()=>{},{timeUrl:'http://worker.example.org/api/time'}),/network_denied/);
+});
+
+// The gated loro-ds-v1 socket over a synthetic native WebSocket.
+function socketAccess() {
+ const natives=[];
+ class NativeWebSocket {
+  constructor(url,protocols){this.url=url;this.protocols=protocols;this.protocol='loro-ds-v1.1';this.sent=[];this.closed=undefined;natives.push(this);}
+  send(data){this.sent.push(data);}
+  close(code,reason){this.closed={code,reason};this.onclose?.({code});}
+ }
+ const requests=[];
+ const access=createReadAccess(async request=>{requests.push(request);return new Response(null,{status:426,headers:{'Sec-WebSocket-Protocol':'loro-ds-v1.1'}});},()=>{},{NativeWebSocket});
+ access.configure(config);
+ return {access,natives,requests};
+}
+const frame=value=>encodeClientFrame(value,true);
+test('the Streams socket carries exactly the reads the HTTP gate allows and never writes',()=>{
+ const permitted=[
+  {type:'auth',reqId:1,token:'grant'},
+  {type:'ping',seq:1n},
+  {type:'join',alias:1,stream:'lody/workspace:meta',offsetMode:'numeric',offset:5n,noEcho:false},
+  {type:'join',alias:2,stream:'lody/workspace:s:session-1',offsetMode:'tail',noEcho:false},
+  {type:'leave',alias:1},
+ ];
+ const {access,natives}=socketAccess();
+ const socket=new access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']);
+ for(const value of permitted)socket.send(frame(value));
+ assert.equal(natives[0].sent.length,permitted.length);
+ assert.equal(natives[0].closed,undefined);
+ const denied=[
+  {type:'join',alias:3,stream:'lody/other:meta',offsetMode:'tail',noEcho:false},
+  {type:'join',alias:3,stream:'lody/workspace:rpc:req:machine-1',offsetMode:'tail',noEcho:false},
+  {type:'join',alias:3,stream:'other/workspace:meta',offsetMode:'tail',noEcho:false},
+  {type:'join',alias:3,stream:'lody/workspace:meta',offsetMode:'tail',noEcho:false,createIfNotFound:true,contentType:'application/octet-stream'},
+  {type:'append',reqId:2,stream:'lody/workspace:meta',contentType:'application/octet-stream',payload:new Uint8Array([1])},
+  {type:'eph_join',alias:4,stream:'lody/workspace:meta',channel:'presence',noEcho:false},
+  {type:'eph_pub',stream:'lody/workspace:meta',channel:'presence',payload:new Uint8Array([1])},
+ ];
+ for(const value of denied){
+  const {access,natives}=socketAccess();
+  const socket=new access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']);
+  assert.throws(()=>socket.send(frame(value)),/network_denied/,JSON.stringify(value,(_,v)=>typeof v==='bigint'?String(v):v));
+  assert.deepEqual(natives[0].sent,[]);
+  assert.equal(natives[0].closed?.code,4000);
+ }
+ const text=socketAccess();
+ const plain=new text.access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']);
+ assert.throws(()=>plain.send('{"type":"join"}'),/network_denied/);
+ assert.throws(()=>plain.send(new Uint8Array([0xff,0,1])),/network_denied/);
+});
+test('Streams sockets reach only the grant origin and close on suspension or a scope change',()=>{
+ const {access,natives}=socketAccess();
+ for(const url of ['ws://streams.example.org/ds/ws','wss://other.example.org/ds/ws','wss://streams.example.org/ds/lody','wss://streams.example.org/ds/ws?token=x','wss://user@streams.example.org/ds/ws'])
+  assert.throws(()=>new access.WebSocket(url,['loro-ds-v1.1']),/network_denied/,url);
+ assert.equal(natives.length,0);
+ new access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']);
+ access.setActive(false);
+ assert.deepEqual(natives[0].closed,{code:4000,reason:'runtime_suspended'});
+ assert.throws(()=>new access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']),/inactive_socket/);
+ access.setActive(true);
+ new access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']);
+ access.configure({gatewayBaseUrl:'https://streams.example.org',workspaceId:'next'});
+ assert.deepEqual(natives[1].closed,{code:4000,reason:'scope_changed'});
+});
+test('the credential-free WebSocket probe is readable only when the socket is enabled',async()=>{
+ const {access,requests}=socketAccess();
+ const probe=await access.fetch('https://streams.example.org/ds/ws',{credentials:'omit'});
+ assert.equal(probe.status,426);
+ assert.equal(requests.length,1);
+ await assert.rejects(access.fetch('https://streams.example.org/ds/ws',{headers:{Authorization:'Bearer grant'}}),/network_denied/);
+ await assert.rejects(access.fetch('https://streams.example.org/ds/ws?x=1'),/network_denied/);
+ await assert.rejects(access.fetch('https://streams.example.org/ds/ws',{method:'POST'}),/network_denied/);
+ const plain=createReadAccess(async()=>new Response(null,{status:426}),()=>{});
+ plain.configure(config);
+ assert.equal(plain.WebSocket,undefined);
+ await assert.rejects(plain.fetch('https://streams.example.org/ds/ws'),/network_denied/);
 });

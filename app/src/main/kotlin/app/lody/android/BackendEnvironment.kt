@@ -6,4 +6,6 @@ internal object BackendEnvironment {
     const val site = BuildConfig.CONVEX_SITE_URL
     const val worker = BuildConfig.CF_WORKER_URL
     const val storageSuffix = BuildConfig.BACKEND_STORAGE_SUFFIX
+    /** `LODY_LORO_STREAMS_WS_ENABLED` from the shared mobile backend config; off by default. */
+    const val streamsWebSocket = BuildConfig.STREAMS_WEBSOCKET
 }

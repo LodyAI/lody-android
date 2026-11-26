@@ -280,7 +280,20 @@ provider projections share one machine scan.
 The trusted NetworkRuntime permits only the validated grant HTTPS origin and its
 matching WSS origin. The offline runtime keeps `connect-src none`. The mirrored
 iOS DataRuntime template permits `https:` and `wss:` while retaining its other CSP
-directives. This permission does not enable the Streams WebSocket transport.
+directives.
+
+The snapshot at `718b6e8e` adds the Streams WebSocket tail (`live-read.ts`), built in
+only when the shared backend config sets `LODY_LORO_STREAMS_WS_ENABLED`
+(`LODY_MOBILE_STREAMS_WS`, `BuildConfig.STREAMS_WEBSOCKET`); otherwise the network
+document keeps `WebSocket` undefined and reads are unchanged. When on,
+`read-access.mjs` installs the only `WebSocket`: it connects solely to
+`wss://<grant origin>/ds/ws`, opens nothing while the runtime is inactive, closes its
+sockets on suspension and scope changes, and decodes every client frame. Only AUTH,
+PING/PONG, LEAVE and JOINs of streams an HTTP GET may read pass; `createIfNotFound`,
+APPEND and ephemeral frames close the socket. The fetch gate and native interception
+also admit the credential-free `GET <grant origin>/ds/ws` probe.
+`catalog-budget.test.mjs` runs the real watcher, SDK and gate against a synthetic
+`loro-ds-v1.1` server.
 
 The snapshot at `9f9483cc` ([lody-ios#123](https://github.com/LodyAI/lody-ios/pull/123)) sends
 `readFile`, `fileDiff` and `turnDiff` for a path under a Project group member used in place

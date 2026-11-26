@@ -17,6 +17,14 @@ class StreamAccessTest {
   for(url in listOf("https://evil.example.org/ds/lody/workspace%3Ameta","https://streams.example.org/ds/lody/other%3Ameta","https://streams.example.org/ds/lody/workspace%3Arpc","https://streams.example.org/script.js","http://streams.example.org/ds/lody/workspace%3Ameta"))assertFalse(url,access.allows(url,"GET"))
   assertTrue(access.allows("https://streams.example.org/ds/lody/workspace%3Amf%3Amachine","POST"))
  }
+ @Test fun permitsOnlyTheCredentialFreeWebSocketProbeOfTheGrantOrigin() {
+  val access=StreamAccess("workspace","https://streams.example.org")
+  assertTrue(access.allowsWebSocketProbe("https://streams.example.org/ds/ws","GET",emptyMap()))
+  assertFalse(access.allowsWebSocketProbe("https://streams.example.org/ds/ws","GET",mapOf("authorization" to "Bearer grant")))
+  for(url in listOf("https://streams.example.org/ds/ws?x=1","https://evil.example.org/ds/ws","https://streams.example.org/ds/ws/","https://streams.example.org/ds/lody/workspace%3Ameta"))assertFalse(url,access.allowsWebSocketProbe(url,"GET",emptyMap()))
+  assertFalse(access.allowsWebSocketProbe("https://streams.example.org/ds/ws","POST",emptyMap()))
+  assertFalse(access.allows("https://streams.example.org/ds/ws","GET"))
+ }
  @Test fun permitsWorkspaceSessionReadsOnly() {
   val access=StreamAccess("workspace","https://streams.example.org")
   assertTrue(access.allows("https://streams.example.org/ds/lody/workspace%3As%3Asession-1/bootstrap","GET"))

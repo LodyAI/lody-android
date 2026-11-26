@@ -11,6 +11,11 @@ and are public in the APK. No file is required for production builds.
 | `CONVEX_SITE_URL` | `https://auth.example.com`   |
 | `CF_WORKER_URL`   | `https://worker.example.com` |
 
+`LODY_LORO_STREAMS_WS_ENABLED=1` (or `true`) additionally builds the runtime with the
+gated Streams WebSocket for caught-up reads (`BuildConfig.STREAMS_WEBSOCKET`). It is
+off by default, accepts the same values as desktop and does not change the storage
+suffix.
+
 Android invokes the existing shared `../backend-config.mjs` resolver. Process
 environment keys override file values; missing or empty values currently select
 production defaults. The resolver owns parsing, URL validation and storage suffixes;
