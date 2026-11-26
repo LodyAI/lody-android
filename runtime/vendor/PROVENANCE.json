@@ -506,13 +506,12 @@
   },
   "streamsSdk016": {
     "repository": "LodyAI/lody-ios",
-    "commit": "e7e3127fc7777109c4f513ca4ebbe727d0a2d475",
+    "commit": "3d6cdd4560aa49c097399a825daf447d69d4a145",
     "pullRequest": "https://github.com/LodyAI/lody-ios/pull/191",
     "files": [
       "README.md",
       "package.json"
     ],
-    "note": "Streams Client 0.16.0 and Streams CRDT 0.24.0, matching Lody. The WebSocket transport they add stays opt-in and unused, so reads remain HTTP long-poll. Android pins the same versions and keeps one 0.16.0 client through an npm override.",
-    "export": "git -C apps/mobile/ios archive e7e3127fc7777109c4f513ca4ebbe727d0a2d475 packages/cloud-runtime"
+    "note": "Streams Client 0.16.0 and Streams CRDT 0.24.0, matching Lody; Android pins the same versions and keeps one 0.16.0 client through an npm override. Only this commit's hunks are mirrored onto the existing snapshot; lody-ios main changes after 122a6753 (#193, #194, 2d332da8) are not part of this snapshot."
   }
 }
