@@ -1,9 +1,9 @@
 {
   "source": "LodyAI/lody-ios packages/cloud-runtime",
-  "commit": "82f40f672bbf94bffe5d0ba5ede6bbbbdec38300",
+  "commit": "141da3456d51185f69b1f981b51b42d70ceb125d",
   "license": "AGPL-3.0-only",
   "path": "packages/cloud-runtime",
-  "export": "git -C apps/mobile/ios archive 82f40f672bbf94bffe5d0ba5ede6bbbbdec38300 packages/cloud-runtime",
+  "export": "git -C apps/mobile/ios archive 141da3456d51185f69b1f981b51b42d70ceb125d packages/cloud-runtime",
   "note": "Complete snapshot of the pinned iOS cloud-runtime package, excluding Roost authoring source and its generator. SHA256.json records every mirrored file. Earlier entries retain the source-update history.",
   "roostHistory": {
     "files": [
@@ -536,5 +536,23 @@
     "publicSource": "51de5de4f4c1387eeba5b6e45ea04463ebaeeb08",
     "export": "git -C apps/mobile/ios archive 6ea73a582878b7c890967a8c12d77763228def72 packages/cloud-runtime",
     "note": "Separate Streams generation recovery from machine authorization. Start the published read without a cached machine capability or publication hint. Project the exact authorization-required state through the native envelope. A local replica quota error permits a fresh machine-authorized read."
+  },
+  "mentionCatchUpReadiness": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "122a6753cfa8f5af57703fba6598c1f6f4dacc12",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/189",
+    "files": [
+      "src/runtime/catalog-sync.ts",
+      "src/runtime/handlers/context.ts",
+      "src/runtime/handlers/mentions.ts",
+      "src/runtime/index.ts",
+      "src/runtime/mention-expansion.ts"
+    ],
+    "note": "Mirrors the iOS mention expansion and catalog live-update readiness fix: reset the 12 ms frame-import slice after idle reads so single-turn live updates stay synchronous without marking metadata or machines unhealthy, scan and store catalog projections before clearing unhealthy, wait up to 3 s in mentionCatalog for active error-free stream catch-ups while failing immediately on transport errors, fall back to live meta Flock session rows before catalog flush, and ignore code blocks/spans and numeric dollar prose during skill expansion. Dependencies, contract and licenses are unchanged."
+  },
+  "roostSdk032": {
+    "commit": "141da3456d51185f69b1f981b51b42d70ceb125d",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/178",
+    "note": "Uses the browser bundle built with the published Roost SDK 0.3.2 and its Streams Client 0.16.0 for framed Roost history reads. Includes the matching licenses."
   }
 }

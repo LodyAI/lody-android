@@ -522,9 +522,22 @@ private fun VerificationPanel(
     }
 }
 
+internal fun legalPathPrefix(locale: java.util.Locale): String {
+    val language = locale.language.lowercase(java.util.Locale.ROOT)
+    if (language == "zh") {
+        val traditional = locale.script.equals("Hant", ignoreCase = true) ||
+            locale.country.uppercase(java.util.Locale.ROOT) in setOf("TW", "HK", "MO")
+        return if (traditional) "/zh-hant" else "/zh"
+    }
+    return when (language) {
+        "ja", "ko", "es", "fr", "ru" -> "/$language"
+        else -> ""
+    }
+}
+
 @Composable
 private fun Legal(colors: LodyLoginColors) {
-    val chinese = LocalConfiguration.current.locales[0].language == "zh"
+    val prefix = legalPathPrefix(LocalConfiguration.current.locales[0] ?: java.util.Locale.ROOT)
     val terms = stringResource(R.string.login_terms)
     val privacy = stringResource(R.string.login_privacy)
     val text = stringResource(R.string.login_legal, terms, privacy)
@@ -532,7 +545,7 @@ private fun Legal(colors: LodyLoginColors) {
     val uri = LocalUriHandler.current
     val annotated = buildAnnotatedString {
         var cursor = 0
-        val parts = listOf(terms to if (chinese) "/zh/terms" else "/terms", privacy to if (chinese) "/zh/privacy" else "/privacy")
+        val parts = listOf(terms to "$prefix/terms", privacy to "$prefix/privacy")
             .mapNotNull { (word, path) -> text.indexOf(word).takeIf { it >= 0 }?.let { Triple(it, word, path) } }
             .sortedBy { it.first }
         for ((at, word, path) in parts) {

@@ -20,6 +20,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import app.lody.android.R
 import app.lody.android.designsystem.*
+import java.util.Locale
+
+internal fun formatDisplayLanguage(locale: Locale): String {
+    if (locale.language.equals("zh", ignoreCase = true)) {
+        val traditional = locale.script.equals("Hant", ignoreCase = true) ||
+            locale.country.uppercase(Locale.ROOT) in setOf("TW", "HK", "MO")
+        return if (traditional) "繁體中文" else "简体中文"
+    }
+    return locale.getDisplayLanguage(locale).replaceFirstChar { it.titlecase(locale) }
+}
 
 /**
  * iOS `PreferencesController`: language and notifications open the system's own pages for this
@@ -51,7 +61,7 @@ internal fun PreferencesScreen(accountId: String?, onBack: () -> Unit) {
             // no alternate app icon, so there is no Appearance group.
             item {
                 SettingsGroup(stringResource(R.string.preferences_general)) {
-                    val language = locale.getDisplayLanguage(locale).replaceFirstChar { it.titlecase(locale) }
+                    val language = formatDisplayLanguage(locale)
                     SettingsLine(stringResource(R.string.preferences_language), LodyIcons.Info, language, onClick = {
                         open(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                             Intent(Settings.ACTION_APP_LOCALE_SETTINGS, Uri.fromParts("package", context.packageName, null))

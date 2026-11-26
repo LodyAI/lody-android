@@ -265,7 +265,7 @@ class SessionOutbox(
             "unknown"
         }
         if (mutable.value[k]?.turnId != record.turnId) return
-        if (state == "not_sent" && reason == "session_not_ready") {
+        if (state == "not_sent" && (reason == "session_not_ready" || reason == "metadata_not_ready")) {
             put(k, record.copy(phase = "waiting", reason = null))
             delay(1_000L)
             return
