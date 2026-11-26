@@ -44,8 +44,12 @@ the API is missing; the individual fallback modules only export, so a document m
 `platform-fallbacks.ts`, not them. `runtime/test/network-document.test.mjs` bundles the network
 document with all three deleted, reads through its guarded fetch and checks `URL.canParse`.
 
-The current runtime pins Flock 0.5.0, Streams Client 0.13.1, Streams CRDT
-0.21.1 and Loro 1.17.0, matching the root workspace and iOS decoder.
+The current runtime pins Flock 0.5.0, Streams Client 0.16.0, Streams CRDT
+0.24.0 and Loro 1.17.0, matching the root workspace and iOS decoder. An npm
+override keeps Streams CRDT on the same 0.16.0 client. The WebSocket transport
+these SDKs add is opt-in and unused, so reads remain HTTP long-poll. After a
+401/403 the client resends only when its auth callback returns a different
+token; the catalog invalidates the cached grant and retries from its cursor.
 Control requests and durable uploads each retain a 15-second budget, with
 `uploadTimeoutMs` set explicitly because SDK 0.12+ defaults uploads to 60 seconds.
 The full iOS snapshot also carries Loro transcript windowing and explicit pending-input

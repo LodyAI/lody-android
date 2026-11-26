@@ -503,5 +503,16 @@
       "src/runtime/mention-expansion.ts"
     ],
     "note": "Mirrors the iOS mention expansion and catalog live-update readiness fix: reset the 12 ms frame-import slice after idle reads so single-turn live updates stay synchronous without marking metadata or machines unhealthy, scan and store catalog projections before clearing unhealthy, wait up to 3 s in mentionCatalog for active error-free stream catch-ups while failing immediately on transport errors, fall back to live meta Flock session rows before catalog flush, and ignore code blocks/spans and numeric dollar prose during skill expansion. Dependencies, contract and licenses are unchanged."
+  },
+  "streamsSdk016": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "e7e3127fc7777109c4f513ca4ebbe727d0a2d475",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/191",
+    "files": [
+      "README.md",
+      "package.json"
+    ],
+    "note": "Streams Client 0.16.0 and Streams CRDT 0.24.0, matching Lody. The WebSocket transport they add stays opt-in and unused, so reads remain HTTP long-poll. Android pins the same versions and keeps one 0.16.0 client through an npm override.",
+    "export": "git -C apps/mobile/ios archive e7e3127fc7777109c4f513ca4ebbe727d0a2d475 packages/cloud-runtime"
   }
 }
