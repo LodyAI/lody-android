@@ -238,6 +238,40 @@ internal object RuntimeProtocol {
         }
     }
 
+    /** Upstream `conversationShareMessages`: persisted prose turns and caption metadata. */
+    fun conversationShare(json: JSONObject): ConversationShareData {
+        val items = json.optJSONArray("messages")?.objects().orEmpty().mapNotNull { item ->
+            val id = item.optString("id")
+            val role = item.optString("role")
+            val text = item.optString("text")
+            if (id.isBlank() || role !in setOf("user", "assistant") || text.isBlank()) return@mapNotNull null
+            val references = item.optJSONArray("references")?.objects().orEmpty().mapNotNull { ref ->
+                val start = (ref.opt("start") as? Number)?.toInt() ?: return@mapNotNull null
+                val end = (ref.opt("end") as? Number)?.toInt() ?: return@mapNotNull null
+                val kind = ref.optString("kind")
+                if (start < 0 || end <= start || kind !in setOf("mention", "quote")) return@mapNotNull null
+                ShareCardReference(start, end, kind, ref.optString("label"))
+            }
+            ShareCardMessage(
+                id = id,
+                role = role,
+                text = text,
+                references = references,
+                estimatedTokens = ((item.opt("estimatedTokens") as? Number)?.toLong() ?: 0L).coerceAtLeast(0L),
+                modelName = (item.opt("modelName") as? String)?.takeIf { it.isNotBlank() },
+                userTurnId = (item.opt("userTurnId") as? String)?.takeIf { it.isNotBlank() },
+            )
+        }
+        return ConversationShareData(
+            messages = items,
+            title = json.optString("title"),
+            createdAt = ((json.opt("createdAt") as? Number)?.toLong() ?: 0L).coerceAtLeast(0L),
+            cliType = (json.opt("cliType") as? String)?.takeIf { it.isNotBlank() },
+            agentType = (json.opt("agentType") as? String)?.takeIf { it.isNotBlank() },
+            agentName = (json.opt("agentName") as? String)?.takeIf { it.isNotBlank() },
+        )
+    }
+
     /** Upstream `itemDetail` blocks (`terminal_command` / `terminal_output` / `diff` / `text` / …), leniently. */
     fun detail(json: JSONObject): StepDetail {
         val blocks = json.optJSONArray("blocks")?.objects().orEmpty().mapNotNull { block ->

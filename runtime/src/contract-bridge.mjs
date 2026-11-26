@@ -107,6 +107,7 @@ export function contractBridge(runtime, emit) {
   // The browse-files sheet: one folder of the session's local project, and one file's contents.
   listDir:args=>invoke('listDir',args),
   readFile:args=>invoke('readFile',args),
+  conversationShareMessages:args=>invoke('conversationShareMessages',args),
   // Schedules: the list with time zones, one schedule's detail, and owner writes (the runtime's 70 s budget).
   schedules:args=>invoke('schedules',args),
   scheduleDetail:args=>invoke('scheduleDetail',args),

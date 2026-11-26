@@ -1178,4 +1178,37 @@
     </plurals>
     <string name="preferences_usage_sharing">Share app usage data to help improve Lody</string>
     <string name="preferences_sharing_retry">Could not confirm the setting. Tap to retry.</string>
+    <string name="share_image_action">Share as image…</string>
+    <string name="share_image_title">Share as image</string>
+    <string name="share_image_empty">No shareable messages in this conversation yet.</string>
+    <string name="share_image_load_failed">Could not prepare messages for sharing. Try again.</string>
+    <string name="share_image_select_all">Select all</string>
+    <string name="share_image_clear_selection">Clear selection</string>
+    <string name="share_image_cancel">Cancel</string>
+    <string name="share_image_preview">Preview image</string>
+    <string name="share_image_destination">Size</string>
+    <string name="share_image_destination_chat">Chat</string>
+    <string name="share_image_destination_post">Post</string>
+    <string name="share_image_padding">Padding</string>
+    <string name="share_image_padding_value">%1$d px</string>
+    <string name="share_image_backdrop">Backdrop</string>
+    <string name="share_image_backdrop_none">None</string>
+    <string name="share_image_backdrop_lody">Lody</string>
+    <string name="share_image_backdrop_welcome">Light</string>
+    <string name="share_image_backdrop_aurora">Aurora</string>
+    <string name="share_image_backdrop_ocean">Ocean</string>
+    <string name="share_image_backdrop_sunset">Sunset</string>
+    <string name="share_image_theme">Theme</string>
+    <string name="share_image_theme_light">Light</string>
+    <string name="share_image_theme_dark">Dark</string>
+    <string name="share_image_copy">Copy image</string>
+    <string name="share_image_export">Export PNG</string>
+    <string name="share_image_copied">Image copied</string>
+    <string name="share_image_too_large">Selection is too long for a single image. Select fewer messages and try again.</string>
+    <string name="share_image_export_failed">Could not export image. Try again.</string>
+    <string name="share_image_tokens">~%1$s tokens</string>
+    <plurals name="share_image_selected_count">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
 </resources>

@@ -1186,6 +1186,69 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     )
 
     val colors = LodyTheme.colors
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val isPlaintextWorkspace = remember(scope, accountState) {
+        runCatching { application.account.requirePlaintext(scope) }.isSuccess
+    }
+    var activeShareScope by remember { mutableStateOf<Pair<RuntimeScope, String>?>(scope to id) }
+    DisposableEffect(scope, id) {
+        activeShareScope = scope to id
+        onDispose { if (activeShareScope == (scope to id)) activeShareScope = null }
+    }
+    var shareSelectionData by remember(scope, id) { mutableStateOf<ConversationShareData?>(null) }
+    var shareSelectedIds by remember(scope, id) { mutableStateOf(emptySet<String>()) }
+    var sharePreviewOpen by remember(scope, id) { mutableStateOf(false) }
+    var shareLoading by remember(scope, id) { mutableStateOf(false) }
+    val selectingForShare = shareSelectionData != null
+    LaunchedEffect(isPlaintextWorkspace, context.session?.isTabClosed) {
+        if (!isPlaintextWorkspace || context.session?.isTabClosed == true) {
+            sharePreviewOpen = false
+            shareSelectionData = null
+            shareSelectedIds = emptySet()
+        }
+    }
+    BackHandler(enabled = selectingForShare && !sharePreviewOpen) {
+        shareSelectionData = null
+        shareSelectedIds = emptySet()
+    }
+    val loadedShareEntryIds = remember(entries) { entries.map { it.id }.toSet() }
+    val selectableShareIds = remember(shareSelectionData, loadedShareEntryIds) {
+        shareSelectionData?.let { ChatMessageSelection.selectableIds(it, loadedShareEntryIds) }.orEmpty()
+    }
+    val selectedShareMessages = remember(shareSelectionData, shareSelectedIds, loadedShareEntryIds) {
+        shareSelectionData?.let { ChatMessageSelection.selectedMessages(it, shareSelectedIds, loadedShareEntryIds) }.orEmpty()
+    }
+    val shareEmptyText = stringResource(R.string.share_image_empty)
+    val shareLoadFailedText = stringResource(R.string.share_image_load_failed)
+    val currentLoadedEntryIds by rememberUpdatedState(loadedShareEntryIds)
+    val startShareImage: () -> Unit = startShare@{
+        if (shareLoading || isDraftTab || context.session?.isTabClosed == true) return@startShare
+        if (runCatching { application.account.requirePlaintext(scope) }.isFailure) return@startShare
+        shareLoading = true
+        coroutines.launch {
+            try {
+                val loaded = repository.shareMessages(scope, id)
+                if (activeShareScope != (scope to id) || runCatching { application.account.requirePlaintext(scope) }.isFailure) {
+                    return@launch
+                }
+                val candidates = ChatMessageSelection.selectableIds(loaded, currentLoadedEntryIds)
+                if (candidates.isEmpty()) {
+                    snackbar.showSnackbar(shareEmptyText)
+                } else {
+                    focusManager.clearFocus()
+                    shareSelectionData = loaded
+                    shareSelectedIds = emptySet()
+                    sharePreviewOpen = false
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                snackbar.showSnackbar(shareLoadFailedText)
+            } finally {
+                shareLoading = false
+            }
+        }
+    }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = Int.MAX_VALUE)
     var scrollToLatest by remember { mutableIntStateOf(0) }
     val atLatest by remember { derivedStateOf { !listState.canScrollForward } }
@@ -1218,13 +1281,22 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 } else {
                     // The transcript scrolls under the floating header.
                     val transcriptSelection = remember { TranscriptSelection() }
-                    CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides transcriptLinks, LocalSessionImages provides sessionImages, LocalSessionFiles provides sessionFiles, LocalMessageQuoter provides quoter.takeIf { context.session?.isTabClosed != true }, LocalTranscriptSelection provides transcriptSelection) { ChatTranscript(
+                    LaunchedEffect(selectingForShare) { if (selectingForShare) transcriptSelection.clear() }
+                    val transcriptShareSelection = remember(selectingForShare, selectableShareIds, shareSelectedIds) {
+                        if (!selectingForShare) null
+                        else TranscriptShareSelection(
+                            selectableIds = selectableShareIds.toSet(),
+                            selectedIds = shareSelectedIds,
+                            onToggle = { entryId -> shareSelectedIds = ChatMessageSelection.toggle(shareSelectedIds, entryId) },
+                        )
+                    }
+                    CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides transcriptLinks, LocalSessionImages provides sessionImages, LocalSessionFiles provides sessionFiles, LocalMessageQuoter provides quoter.takeIf { context.session?.isTabClosed != true && !selectingForShare }, LocalTranscriptSelection provides transcriptSelection) { ChatTranscript(
                         all, Modifier.fillMaxSize().clearsTranscriptSelection(transcriptSelection), contentPadding = PaddingValues(top = top + if (creationNotice != null) LodySize.controlLg else LodySpacing.none, bottom = LodySpacing.md), state = listState, scrollToLatest = scrollToLatest,
                         historyHasMore = historyHasMore, historyLoading = historyLoading,
                         loadEarlier = { repository.loadOlder(scope, id) },
-                        onForgetPending = { forgetId = it },
-                        retryablePendingIds = retryablePendingIds,
-                        onRetryPending = { inputId ->
+                        onForgetPending = if (selectingForShare) null else ({ forgetId = it }),
+                        retryablePendingIds = if (selectingForShare) emptySet() else retryablePendingIds,
+                        onRetryPending = if (selectingForShare) null else ({ inputId ->
                             if (outboxRecord?.turnId == inputId && outboxRecord.phase == "failed") {
                                 application.sessionOutbox.retry(scope, id, inputId)
                             } else coroutines.launch {
@@ -1232,28 +1304,31 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                                 catch (cancelled: CancellationException) { throw cancelled }
                                 catch (_: Exception) { snackbar.showSnackbar(failedText) }
                             }
-                        },
-                        actions = messageActions,
+                        }),
+                        actions = if (selectingForShare) MessageActionState() else messageActions,
                         relatedSessions = context.relatedSessions,
-                        navigateSession = { target -> if (SessionRelations.target(target, context.relatedSessions) != null) onSelectTab(target) },
+                        navigateSession = { target -> if (!selectingForShare && SessionRelations.target(target, context.relatedSessions) != null) onSelectTab(target) },
                         loadDetail = { entryId, itemId -> repository.detail(scope, id, entryId, itemId) },
                         loadDiff = { entryId, path -> repository.turnDiff(scope, id, entryId, path) },
                         meId = context.me?.id,
-                        decideProposal = { card, accept -> repository.decideProposal(scope, id, card.entryId, card.itemId, accept) },
+                        decideProposal = if (selectingForShare) null else ({ card, accept -> repository.decideProposal(scope, id, card.entryId, card.itemId, accept) }),
                         inspectProposal = { card -> repository.inspectProposal(scope, id, card.entryId, card.itemId) },
-                        openSchedule = onOpenSchedule,
+                        openSchedule = if (selectingForShare) null else onOpenSchedule,
                         proposalReads = proposalReads + proposalRefresh,
-                        failureActions = failureActions.takeIf { context.session?.isTabClosed != true && !context.readOnly },
+                        failureActions = failureActions.takeIf { context.session?.isTabClosed != true && !context.readOnly && !selectingForShare },
                         // An open conversation takes an answer once commands are ready, including during a Roost history reconnect; otherwise the approval just waits.
-                        respondPermission = if (controlReady && context.session?.isTabClosed != true) ({ entryId, itemId, requestId, optionId, answers ->
+                        respondPermission = if (controlReady && context.session?.isTabClosed != true && !selectingForShare) ({ entryId, itemId, requestId, optionId, answers ->
                             repository.respondPermission(scope, id, entryId, itemId, requestId, optionId, answers)
                         }) else null,
+                        shareSelection = transcriptShareSelection,
                     ) }
                 }
                 ChatHeader(context.title, context.tabs, context.closedTabs, id, false, changingTab, onBack, onSelectTab, createTab, changeTab, context.machineName, machineOnline, loadMachine,
                     onBrowseFiles = if (!isDraftTab && ProjectFiles.browsable(context.session, creationUnconfirmed)) ({ browsingFiles = true }) else null,
                     previews = previewMenu.takeIf { !isDraftTab && context.session?.isTabClosed != true && !creationUnconfirmed },
-                    status = statusMenu.takeUnless { isDraftTab })
+                    status = statusMenu.takeUnless { isDraftTab },
+                    onShareImage = if (!isDraftTab && context.session?.isTabClosed != true && !creationUnconfirmed && isPlaintextWorkspace && !selectingForShare) startShareImage else null,
+                    shareBusy = shareLoading)
                 if (creationNotice != null) {
                     Text(creationNotice,
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = top).padding(horizontal = TranscriptMargin),
@@ -1292,88 +1367,126 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                     ) { scrollToLatest++ }
                 }
             }
-            if (bar != null && context.session?.isTabClosed != true) {
-                ChatActionBar(
-                    bar,
-                    writing = writing,
-                    // `writing` changes with every begin/finish, so this read recomposes with it.
-                    pullRequestBusy = writing != null && bar.pullRequest?.let(prUpdates::writes) == true,
-                    pullRequestPanel = pullRequestPanel,
-                    panelFor = panelFor,
-                    onOpenWorkspaceChanges = { workspaceChangesScope = it },
-                    // The menu shows the uncommitted list's own ± instead of the branch totals.
-                    loadUncommittedTotals = {
-                        when (val changes = repository.workspaceChanges(scope, id, DiffScope.Uncommitted)) {
-                            is WorkspaceChanges.Ready -> {
-                                uncommittedChanges = changes
-                                uncommittedLoadedAt = System.currentTimeMillis()
-                                uncommittedSummary(changes.files)
-                            }
-                            is WorkspaceChanges.Unavailable -> null
-                        }
+            if (selectingForShare && context.session?.isTabClosed != true) {
+                val allSelected = selectableShareIds.isNotEmpty() && selectableShareIds.all { it in shareSelectedIds }
+                MessageSelectionToolbar(
+                    selectedCount = selectedShareMessages.size,
+                    allSelected = allSelected,
+                    hasSelectable = selectableShareIds.isNotEmpty(),
+                    onToggleAll = {
+                        shareSelectedIds = ChatMessageSelection.toggleAll(shareSelectedIds, selectableShareIds)
                     },
-                    relations = if (hasRelations) ({ SessionRelationsChip(id, context.relatedSessions, onSelectTab) }) else null,
-                    devices = if (devicePlatforms.isNotEmpty()) ({
-                        devicePlatforms.forEach { platform ->
-                            DevicePreviewChip(platform, if (platform == DevicePlatform.IOS) iosPreview else androidPreview) { openDevice(platform) }
-                        }
-                    }) else null,
-                    onAction = { action ->
-                        // Only while still offered, so a menu left open cannot act for a state that moved on.
-                        when {
-                            writing != null || action !in bar.actions -> Unit
-                            action == SessionInfoBar.Action.Merge -> mergeTarget = bar.pullRequest
-                            action == SessionInfoBar.Action.ReadyForReview -> bar.pullRequest?.let { writePullRequest(it, null) }
-                            else -> sendText(bar.prompt(action, prompts), emptyList(), emptyList())
-                        }
+                    onCancel = {
+                        sharePreviewOpen = false
+                        shareSelectionData = null
+                        shareSelectedIds = emptySet()
                     },
-                    onCopied = { coroutines.launch { snackbar.showSnackbar(it) } },
+                    onPreview = {
+                        if (selectedShareMessages.isNotEmpty()) sharePreviewOpen = true
+                    },
                 )
+            } else {
+                if (bar != null && context.session?.isTabClosed != true) {
+                    ChatActionBar(
+                        bar,
+                        writing = writing,
+                        // `writing` changes with every begin/finish, so this read recomposes with it.
+                        pullRequestBusy = writing != null && bar.pullRequest?.let(prUpdates::writes) == true,
+                        pullRequestPanel = pullRequestPanel,
+                        panelFor = panelFor,
+                        onOpenWorkspaceChanges = { workspaceChangesScope = it },
+                        // The menu shows the uncommitted list's own ± instead of the branch totals.
+                        loadUncommittedTotals = {
+                            when (val changes = repository.workspaceChanges(scope, id, DiffScope.Uncommitted)) {
+                                is WorkspaceChanges.Ready -> {
+                                    uncommittedChanges = changes
+                                    uncommittedLoadedAt = System.currentTimeMillis()
+                                    uncommittedSummary(changes.files)
+                                }
+                                is WorkspaceChanges.Unavailable -> null
+                            }
+                        },
+                        relations = if (hasRelations) ({ SessionRelationsChip(id, context.relatedSessions, onSelectTab) }) else null,
+                        devices = if (devicePlatforms.isNotEmpty()) ({
+                            devicePlatforms.forEach { platform ->
+                                DevicePreviewChip(platform, if (platform == DevicePlatform.IOS) iosPreview else androidPreview) { openDevice(platform) }
+                            }
+                        }) else null,
+                        onAction = { action ->
+                            // Only while still offered, so a menu left open cannot act for a state that moved on.
+                            when {
+                                writing != null || action !in bar.actions -> Unit
+                                action == SessionInfoBar.Action.Merge -> mergeTarget = bar.pullRequest
+                                action == SessionInfoBar.Action.ReadyForReview -> bar.pullRequest?.let { writePullRequest(it, null) }
+                                else -> sendText(bar.prompt(action, prompts), emptyList(), emptyList())
+                            }
+                        },
+                        onCopied = { coroutines.launch { snackbar.showSnackbar(it) } },
+                    )
+                }
+                val modelName = capability?.models?.firstOrNull { it.id == modelId }?.name ?: session?.modelName ?: agentName
+                if (quotaNotice != null && context.session?.isTabClosed != true) Text(
+                    quotaNotice,
+                    style = LodyTheme.typography.footnote,
+                    color = LodyTheme.colors.textSecondary,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = LodySpacing.lg, vertical = LodySpacing.xs).testTag("session-free-turn-notice"),
+                )
+                if (context.session?.isTabClosed != true) ChatComposer(
+                    field,
+                    usage = if (chosen && modelId != usage?.modelId) usage?.copy(quota = null) else usage,
+                    onPromptChange = { if (it.text.length <= 32000) { field = app.lody.android.chat.MentionPresentation.edit(field, it); prompt = field.text } },
+                    onFocusChange = { composerFocused = it },
+                    referencePresentation = mentions.presentation(LodyTheme.colors.accentOnSubtle, LodyTheme.colors.accentSubtle),
+                    enabled = canEdit,
+                    sending = outboxSending,
+                    quotaLocked = quotaLocked,
+                    agentCliType = session?.cliType,
+                    agentType = session?.agentType,
+                    roleEmoji = activeRole?.role?.emoji,
+                    roleName = activeRole?.role?.name,
+                    agentName = options?.agents?.firstOrNull { it.id == session?.agentConfigId }?.name ?: agentName.takeIf { it.isNotBlank() },
+                    face = listOfNotNull(modelName, effort),
+                    mode = modeId,
+                    modeLabel = capability?.modes?.firstOrNull { it.id == modeId }?.name,
+                    plan = capability?.planOn(optionValues) == true,
+                    fast = capability?.fastOn(optionValues, modelId) == true,
+                    onRunConfig = if (session != null) ({ runConfig = true }) else null,
+                    stoppable = runningTurn != null && controlReady,
+                    stopping = stopping,
+                    attachments = attachments,
+                    onPickPhotos = {
+                        photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                    },
+                    onPickFiles = { filePicker.launch(arrayOf("*/*")) },
+                    onRemoveAttachment = { removed -> attachments = attachments.filterNot { it.id == removed } },
+                    quotes = quotes,
+                    onOpenQuote = { card -> quoteEditor = QuoteEditing(card.id, card.snapshot, card.comment) },
+                    onRemoveQuote = { removed -> quotes = quotes.filterNot { it.id == removed } },
+                    onSend = send,
+                    onStop = stop,
+                )
+                // Docked between the prompt and the keyboard; rows never take focus, so the keyboard stays.
+                MentionDock(mentions, field, active = composerFocused && canSend, loadShortcut = { shortcutId -> repository.shortcut(scope, shortcutId) }, height = mentionDockHeight) { next -> field = next; prompt = next.text }
             }
-            val modelName = capability?.models?.firstOrNull { it.id == modelId }?.name ?: session?.modelName ?: agentName
-            if (quotaNotice != null && context.session?.isTabClosed != true) Text(
-                quotaNotice,
-                style = LodyTheme.typography.footnote,
-                color = LodyTheme.colors.textSecondary,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = LodySpacing.lg, vertical = LodySpacing.xs).testTag("session-free-turn-notice"),
-            )
-            if (context.session?.isTabClosed != true) ChatComposer(
-                field,
-                usage = if (chosen && modelId != usage?.modelId) usage?.copy(quota = null) else usage,
-                onPromptChange = { if (it.text.length <= 32000) { field = app.lody.android.chat.MentionPresentation.edit(field, it); prompt = field.text } },
-                onFocusChange = { composerFocused = it },
-                referencePresentation = mentions.presentation(LodyTheme.colors.accentOnSubtle, LodyTheme.colors.accentSubtle),
-                enabled = canEdit,
-                sending = outboxSending,
-                quotaLocked = quotaLocked,
-                agentCliType = session?.cliType,
-                agentType = session?.agentType,
-                roleEmoji = activeRole?.role?.emoji,
-                roleName = activeRole?.role?.name,
-                agentName = options?.agents?.firstOrNull { it.id == session?.agentConfigId }?.name ?: agentName.takeIf { it.isNotBlank() },
-                face = listOfNotNull(modelName, effort),
-                mode = modeId,
-                modeLabel = capability?.modes?.firstOrNull { it.id == modeId }?.name,
-                plan = capability?.planOn(optionValues) == true,
-                fast = capability?.fastOn(optionValues, modelId) == true,
-                onRunConfig = if (session != null) ({ runConfig = true }) else null,
-                stoppable = runningTurn != null && controlReady,
-                stopping = stopping,
-                attachments = attachments,
-                onPickPhotos = {
-                    photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo))
-                },
-                onPickFiles = { filePicker.launch(arrayOf("*/*")) },
-                onRemoveAttachment = { removed -> attachments = attachments.filterNot { it.id == removed } },
-                quotes = quotes,
-                onOpenQuote = { card -> quoteEditor = QuoteEditing(card.id, card.snapshot, card.comment) },
-                onRemoveQuote = { removed -> quotes = quotes.filterNot { it.id == removed } },
-                onSend = send,
-                onStop = stop,
-            )
-            // Docked between the prompt and the keyboard; rows never take focus, so the keyboard stays.
-            MentionDock(mentions, field, active = composerFocused && canSend, loadShortcut = { shortcutId -> repository.shortcut(scope, shortcutId) }, height = mentionDockHeight) { next -> field = next; prompt = next.text }
         }
+    }
+    if (sharePreviewOpen && shareSelectionData != null && selectedShareMessages.isNotEmpty()) {
+        val currentShareData = shareSelectionData!!
+        ChatShareImageSheet(
+            shareData = currentShareData,
+            selectedMessages = selectedShareMessages,
+            fallbackAgentName = options?.agents?.firstOrNull { it.id == session?.agentConfigId }?.name ?: agentName.takeIf { it.isNotBlank() },
+            canProceed = {
+                activeShareScope == (scope to id) &&
+                    runCatching { application.account.requirePlaintext(scope) }.isSuccess
+            },
+            onDismiss = { sharePreviewOpen = false },
+            onCompleted = {
+                sharePreviewOpen = false
+                shareSelectionData = null
+                shareSelectedIds = emptySet()
+            },
+        )
     }
     sessionFiles.markdown?.let { file ->
         key(file) { MarkdownAttachmentSheet(file, sessionFiles) { sessionFiles.markdown = null } }
@@ -1486,7 +1599,7 @@ internal class StatusMenu(val settle: Boolean, val focus: Boolean, val onLater: 
 
 /** Floating header: title over the tappable machine subtitle, with conditional Tabs and More. */
 @Composable
-internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, closedTabs: List<CatalogSession>, currentId: String, creating: Boolean, busy: String?, onBack: () -> Unit, onSelectTab: (String) -> Unit, onNewTab: () -> Unit, onChangeTab: (String, Boolean) -> Unit, machine: String = "", machineOnline: Boolean? = null, loadMachine: suspend () -> MachinePanelData = { MachinePanelData() }, onBrowseFiles: (() -> Unit)? = null, previews: PreviewMenu? = null, status: StatusMenu? = null) {
+internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, closedTabs: List<CatalogSession>, currentId: String, creating: Boolean, busy: String?, onBack: () -> Unit, onSelectTab: (String) -> Unit, onNewTab: () -> Unit, onChangeTab: (String, Boolean) -> Unit, machine: String = "", machineOnline: Boolean? = null, loadMachine: suspend () -> MachinePanelData = { MachinePanelData() }, onBrowseFiles: (() -> Unit)? = null, previews: PreviewMenu? = null, status: StatusMenu? = null, onShareImage: (() -> Unit)? = null, shareBusy: Boolean = false) {
     var expanded by remember(currentId) { mutableStateOf(false) }
     var history by remember(currentId) { mutableStateOf(false) }
     var restoringId by remember(currentId) { mutableStateOf<String?>(null) }
@@ -1550,6 +1663,9 @@ internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, clos
                     }
                     if (onBrowseFiles != null) DropdownMenuItem(text = { Text(stringResource(R.string.files_title)) },
                         leadingIcon = { Icon(LodyIcons.Folder, null) }, onClick = { more = false; onBrowseFiles() })
+                    if (onShareImage != null) DropdownMenuItem(text = { Text(stringResource(R.string.share_image_action)) },
+                        enabled = !shareBusy,
+                        leadingIcon = { Icon(LodyIcons.Image, null) }, onClick = { more = false; onShareImage() })
                     if (previews != null) {
                         previews.browserLabel?.let { label ->
                             DropdownMenuItem(text = { Text(label) }, enabled = !previews.browserBusy,

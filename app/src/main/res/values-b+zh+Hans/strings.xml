@@ -1161,4 +1161,36 @@
     </plurals>
     <string name="preferences_usage_sharing">分享应用使用数据，帮助改进 Lody</string>
     <string name="preferences_sharing_retry">未能确认设置，轻点重试。</string>
+    <string name="share_image_action">分享为图片…</string>
+    <string name="share_image_title">分享为图片</string>
+    <string name="share_image_empty">当前对话暂无可分享为图片的消息。</string>
+    <string name="share_image_load_failed">未能准备分享内容，请重试。</string>
+    <string name="share_image_select_all">全选</string>
+    <string name="share_image_clear_selection">清除选择</string>
+    <string name="share_image_cancel">取消</string>
+    <string name="share_image_preview">预览图片</string>
+    <string name="share_image_destination">尺寸</string>
+    <string name="share_image_destination_chat">聊天</string>
+    <string name="share_image_destination_post">长帖</string>
+    <string name="share_image_padding">边距</string>
+    <string name="share_image_padding_value">%1$d px</string>
+    <string name="share_image_backdrop">背景</string>
+    <string name="share_image_backdrop_none">无</string>
+    <string name="share_image_backdrop_lody">Lody</string>
+    <string name="share_image_backdrop_welcome">浅色</string>
+    <string name="share_image_backdrop_aurora">极光</string>
+    <string name="share_image_backdrop_ocean">海洋</string>
+    <string name="share_image_backdrop_sunset">落日</string>
+    <string name="share_image_theme">主题</string>
+    <string name="share_image_theme_light">浅色</string>
+    <string name="share_image_theme_dark">深色</string>
+    <string name="share_image_copy">复制图片</string>
+    <string name="share_image_export">导出 PNG</string>
+    <string name="share_image_copied">已复制图片</string>
+    <string name="share_image_too_large">所选内容过长，无法导出为单张图片。请减少所选消息后重试。</string>
+    <string name="share_image_export_failed">未能导出图片，请重试。</string>
+    <string name="share_image_tokens">~%1$s tokens</string>
+    <plurals name="share_image_selected_count">
+        <item quantity="other">已选择 %d 条</item>
+    </plurals>
 </resources>

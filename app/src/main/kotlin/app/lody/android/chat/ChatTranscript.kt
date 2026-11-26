@@ -176,6 +176,8 @@ fun ChatTranscript(
     failureActions: FailureActions? = null,
     /** Answers a permission request; null where there is no runtime or the session cannot take an answer. */
     respondPermission: PermissionResponder? = null,
+    /** Multi-turn selection mode for Share as image; null during ordinary reading. */
+    shareSelection: TranscriptShareSelection? = null,
 ) {
     // Only an actual drag leaves follow mode. Programmatic positioning and IME layout
     // changes must not look like the reader scrolled away from the end.
@@ -304,7 +306,7 @@ fun ChatTranscript(
             transcriptRows(
                 entries, open, toggle, details, openTasks, openFiles, actions,
                 relatedSessions, navigateSession, onForgetPending, onRetryPending, retryablePendingIds, meId, decideProposal,
-                inspectProposal, openSchedule, proposalReads, failureActions, respondPermission,
+                inspectProposal, openSchedule, proposalReads, failureActions, respondPermission, shareSelection,
             )
         }
         // A small stable end anchor avoids enormous scroll offsets and measuring the
@@ -371,45 +373,55 @@ private fun LazyListScope.transcriptRows(
     proposalReads: Int,
     failureActions: FailureActions?,
     respondPermission: PermissionResponder?,
+    shareSelection: TranscriptShareSelection?,
 ) {
         entries.forEach { entry ->
-            when (entry) {
-                is ChatEntry.Operations -> {
-                    if (entry.events.isNotEmpty()) item(key = entry.id, contentType = "operations") { OperationCards(entry.events, relatedSessions, navigateSession) }
-                    if (entry.proposals.isNotEmpty()) item(key = "${entry.id}#proposals", contentType = "proposals") {
-                        ProposalCards(entry.proposals, meId, decideProposal, Modifier.animateItem().padding(bottom = LodySpacing.md), inspectProposal, openSchedule, proposalReads)
-                    }
-                    if (entry.notices.isNotEmpty()) item(key = "${entry.id}#notices", contentType = "notices") {
-                        SystemNoticeCards(entry.notices, navigateSession, Modifier.animateItem().padding(bottom = LodySpacing.md), failureActions)
-                    }
-                }
-                is ChatEntry.User -> item(key = entry.id, contentType = "user") {
-                    UserTurn(entry, actions, onForgetPending, onRetryPending?.takeIf { entry.id in retryablePendingIds })
-                }
-                is ChatEntry.Assistant -> {
-                    val layout = entry.layout
-                    if (layout.folded) {
-                        val key = "${entry.id}#worked"
-                        val expanded = open[key] ?: false
-                        item(key = key, contentType = "disclosure") {
-                            Disclosure(
-                                entry.worked.ifEmpty { stringResource(R.string.chat_finished_working) },
-                                expanded,
-                                // Clear of the user's message above, close to the reply below (iOS `durationLead`).
-                                Modifier.animateItem().padding(top = LodySpacing.md),
-                            ) { toggle(key, it) }
+            val rowScope: LazyListScope = if (shareSelection != null) {
+                val selectable = entry.id in shareSelection.selectableIds
+                val isSelected = selectable && entry.id in shareSelection.selectedIds
+                SelectionEntryScope(this, entry.id, selectable, isSelected, shareSelection.onToggle)
+            } else {
+                this
+            }
+            with(rowScope) {
+                when (entry) {
+                    is ChatEntry.Operations -> {
+                        if (entry.events.isNotEmpty()) item(key = entry.id, contentType = "operations") { OperationCards(entry.events, relatedSessions, navigateSession) }
+                        if (entry.proposals.isNotEmpty()) item(key = "${entry.id}#proposals", contentType = "proposals") {
+                            ProposalCards(entry.proposals, meId, decideProposal, Modifier.animateItem().padding(bottom = LodySpacing.md), inspectProposal, openSchedule, proposalReads)
                         }
-                        if (expanded) turnBlocks(entry, layout.folding, open, toggle, details, respondPermission)
+                        if (entry.notices.isNotEmpty()) item(key = "${entry.id}#notices", contentType = "notices") {
+                            SystemNoticeCards(entry.notices, navigateSession, Modifier.animateItem().padding(bottom = LodySpacing.md), failureActions)
+                        }
                     }
-                    turnBlocks(entry, layout.visible, open, toggle, details, respondPermission)
-                    if (entry.working) {
-                        val last = layout.blocks.lastOrNull()
-                        val thinking = last is TurnLayout.Activity && last.items.lastOrNull() is TurnItem.Thought
-                        item(key = "${entry.id}#live", contentType = "live") { LiveStatus(thinking, Modifier.animateItem()) }
+                    is ChatEntry.User -> item(key = entry.id, contentType = "user") {
+                        UserTurn(entry, actions, onForgetPending, onRetryPending?.takeIf { entry.id in retryablePendingIds })
                     }
-                    turnOutput(entry, onOpenTasks, onOpenFiles)
-                    turnFooter(entry, actions)
-                    item(key = "${entry.id}#end", contentType = "turn-end") { Spacer(Modifier.height(LodySpacing.lg)) }
+                    is ChatEntry.Assistant -> {
+                        val layout = entry.layout
+                        if (layout.folded) {
+                            val key = "${entry.id}#worked"
+                            val expanded = open[key] ?: false
+                            item(key = key, contentType = "disclosure") {
+                                Disclosure(
+                                    entry.worked.ifEmpty { stringResource(R.string.chat_finished_working) },
+                                    expanded,
+                                    // Clear of the user's message above, close to the reply below (iOS `durationLead`).
+                                    Modifier.animateItem().padding(top = LodySpacing.md),
+                                ) { toggle(key, it) }
+                            }
+                            if (expanded) turnBlocks(entry, layout.folding, open, toggle, details, respondPermission)
+                        }
+                        turnBlocks(entry, layout.visible, open, toggle, details, respondPermission)
+                        if (entry.working) {
+                            val last = layout.blocks.lastOrNull()
+                            val thinking = last is TurnLayout.Activity && last.items.lastOrNull() is TurnItem.Thought
+                            item(key = "${entry.id}#live", contentType = "live") { LiveStatus(thinking, Modifier.animateItem()) }
+                        }
+                        turnOutput(entry, onOpenTasks, onOpenFiles)
+                        turnFooter(entry, actions)
+                        item(key = "${entry.id}#end", contentType = "turn-end") { Spacer(Modifier.height(LodySpacing.lg)) }
+                    }
                 }
             }
         }

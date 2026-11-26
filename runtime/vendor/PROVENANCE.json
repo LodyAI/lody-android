@@ -503,5 +503,19 @@
       "src/runtime/mention-expansion.ts"
     ],
     "note": "Mirrors the iOS mention expansion and catalog live-update readiness fix: reset the 12 ms frame-import slice after idle reads so single-turn live updates stay synchronous without marking metadata or machines unhealthy, scan and store catalog projections before clearing unhealthy, wait up to 3 s in mentionCatalog for active error-free stream catch-ups while failing immediately on transport errors, fall back to live meta Flock session rows before catalog flush, and ignore code blocks/spans and numeric dollar prose during skill expansion. Dependencies, contract and licenses are unchanged."
+  },
+  "conversationShareMessages": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "a3dd40bdd5798f3ea8b279447c69d38a0592b6c3",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/193",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/methods.ts",
+      "src/contract/sessions.ts",
+      "src/protocol/conversation-markdown.ts",
+      "src/protocol/conversation-share-image.ts",
+      "src/runtime/handlers/sessions.ts"
+    ],
+    "note": "Structured conversation share-card turns (`conversationShareMessages`) with decoded mentions/quotes, model name, token estimate and session metadata for native Share as image. Mirrored verbatim from the iOS runtime source in the same change; dependencies and licenses are unchanged."
   }
 }

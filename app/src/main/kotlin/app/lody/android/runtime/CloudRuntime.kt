@@ -85,6 +85,8 @@ sealed interface RuntimeCommand {
     data class ListDir(val sessionId: String, val relativePath: String) : RuntimeCommand
     /** One file's contents (upstream `readFile`, at most 2 MiB), from the session's computer. Read only. */
     data class ReadFile(val sessionId: String, val path: String) : RuntimeCommand
+    /** Shareable turns and caption metadata from the watched session (`conversationShareMessages`). Read only. */
+    data class ConversationShareMessages(val sessionId: String) : RuntimeCommand
     /** One mention category for the composer's @ panel (upstream `mentionCatalog`). Read only. */
     data class MentionCatalog(val category: String, val source: MentionSource) : RuntimeCommand
     /**
@@ -172,6 +174,7 @@ sealed interface RuntimeResult {
     data class WorkspaceChanges(val value: app.lody.android.runtime.WorkspaceChanges) : RuntimeResult
     data class Directory(val value: DirectoryListing) : RuntimeResult
     data class File(val value: FileContent) : RuntimeResult
+    data class ConversationShare(val value: ConversationShareData) : RuntimeResult
     data class Pong(val healthy: Boolean) : RuntimeResult
     data class Preview(val value: BrowserPreviewReply) : RuntimeResult
     data class Device(val value: DeviceControlReply) : RuntimeResult
@@ -671,4 +674,34 @@ data class ProjectGroupMember(
     val id: String, val kind: String, val label: String, val path: String,
     val repoFullName: String? = null, val machineId: String? = null,
 )
+
+/** Decoded span in [ShareCardMessage.text]: `mention` chip or `quote` snapshot ([label]). */
+data class ShareCardReference(
+    val start: Int,
+    val end: Int,
+    val kind: String,
+    val label: String,
+)
+
+/** Persisted user or assistant prose turn prepared for the conversation share card. */
+data class ShareCardMessage(
+    val id: String,
+    val role: String,
+    val text: String,
+    val references: List<ShareCardReference> = emptyList(),
+    val estimatedTokens: Long = 0,
+    val modelName: String? = null,
+    val userTurnId: String? = null,
+)
+
+/** Session-level share card turns and caption provenance (`conversationShareMessages`). */
+data class ConversationShareData(
+    val messages: List<ShareCardMessage>,
+    val title: String,
+    val createdAt: Long,
+    val cliType: String? = null,
+    val agentType: String? = null,
+    val agentName: String? = null,
+)
+
 
