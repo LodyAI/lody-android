@@ -282,7 +282,7 @@ matching WSS origin. The offline runtime keeps `connect-src none`. The mirrored
 iOS DataRuntime template permits `https:` and `wss:` while retaining its other CSP
 directives.
 
-The snapshot at `c280e7e7` adds the Streams WebSocket transport (`live-read.ts`), built in
+The WebSocket hunks of lody-ios#192 (`c6dd6b15`, `a71d836f`, `abb13b8b`; not the rest of lody-ios main) add the Streams WebSocket transport (`live-read.ts`), built in
 only when the shared backend config sets `LODY_LORO_STREAMS_WS_ENABLED`
 (`LODY_MOBILE_STREAMS_WS`, `BuildConfig.STREAMS_WEBSOCKET`); otherwise the network
 document keeps `WebSocket` undefined and every request is unchanged. When on, caught-up

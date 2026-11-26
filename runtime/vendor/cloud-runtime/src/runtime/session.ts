@@ -1825,6 +1825,7 @@ export async function sendTurn(
   let holdsSession = true;
   let uploaded = false;
   let writeStarted = false;
+  let ackTail: ReturnType<typeof createTailReader> | undefined;
   try {
     const expanded = await expand(text);
     text = typeof expanded === 'string' ? expanded : expanded.text;
@@ -2225,13 +2226,25 @@ export async function sendTurn(
       state.controller.signal,
       AbortSignal.timeout(18000),
     ]);
+    ackTail = streamsWebSocketEnabled
+      ? createTailReader(
+          responseClient,
+          streamsWebSocket(
+            () => sessionGrant(state),
+            (await sessionGrant(state)).gatewayBaseUrl,
+            state.workspace,
+          ),
+        )
+      : undefined;
     let offset = '-1';
     while (!signal.aborted) {
-      const read = await responseClient.readOnce({
-        offset,
-        live: 'long-poll',
-        signal,
-      });
+      const read = ackTail
+        ? await ackTail.read({ offset, signal })
+        : await responseClient.readOnce({
+            offset,
+            live: 'long-poll',
+            signal,
+          });
       if (!read.ok) throw new Error(read.result.code);
       offset = read.result.nextOffset;
       if (!read.result.payload) continue;
@@ -2265,6 +2278,7 @@ export async function sendTurn(
       reason: error instanceof Error ? error.message : 'send_failed',
     };
   } finally {
+    ackTail?.close();
     // A released session may already belong to a later control or edit.
     if (holdsSession) state.sending = false;
     if (state.sendingId === id) state.sendingId = undefined;

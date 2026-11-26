@@ -506,19 +506,17 @@
   },
   "streamsSdk016": {
     "repository": "LodyAI/lody-ios",
-    "commit": "e7e3127fc7777109c4f513ca4ebbe727d0a2d475",
+    "commit": "3d6cdd4560aa49c097399a825daf447d69d4a145",
     "pullRequest": "https://github.com/LodyAI/lody-ios/pull/191",
     "files": [
       "README.md",
       "package.json"
     ],
-    "note": "Streams Client 0.16.0 and Streams CRDT 0.24.0, matching Lody. The WebSocket transport they add stays opt-in and unused, so reads remain HTTP long-poll. Android pins the same versions and keeps one 0.16.0 client through an npm override.",
-    "export": "git -C apps/mobile/ios archive e7e3127fc7777109c4f513ca4ebbe727d0a2d475 packages/cloud-runtime"
+    "note": "Streams Client 0.16.0 and Streams CRDT 0.24.0, matching Lody; Android pins the same versions and keeps one 0.16.0 client through an npm override. Only this commit's hunks are mirrored onto the existing snapshot; lody-ios main changes after 122a6753 (#193, #194, 2d332da8) are not part of this snapshot."
   },
   "streamsWebSocketTail": {
     "repository": "LodyAI/lody-ios",
-    "commit": "718b6e8eb798858d986fc48e8d31de980b9f66f1",
-    "export": "git -C apps/mobile/ios archive 718b6e8eb798858d986fc48e8d31de980b9f66f1 packages/cloud-runtime",
+    "commit": "c6dd6b157c715db5a77aea2458a776b4ca49204a",
     "files": [
       "README.md",
       "scripts/build.mjs",
@@ -526,12 +524,12 @@
       "src/runtime/live-read.ts",
       "src/runtime/session.ts"
     ],
-    "note": "Behind LODY_MOBILE_STREAMS_WS (off by default), caught-up catalog and Loro session reads follow the tail over one loro-ds-v1 socket per workspace, returned in the readOnce long-poll shape. Android gates that socket in runtime/src/read-access.mjs: only the grant origin /ds/ws, only JOINs of streams the HTTP gate may read, no writes."
+    "note": "Behind LODY_MOBILE_STREAMS_WS (off by default), caught-up catalog and Loro session reads follow the tail over one loro-ds-v1 socket per workspace, returned in the readOnce long-poll shape. Android gates that socket in runtime/src/read-access.mjs: only the grant origin /ds/ws, only JOINs of streams the HTTP gate may read, no writes. Only this commit's hunks are mirrored onto the existing snapshot; lody-ios main changes after 122a6753 (#193, #194, 2d332da8) are not part of this snapshot.",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/192"
   },
   "streamsWebSocketTransport": {
     "repository": "LodyAI/lody-ios",
-    "commit": "c280e7e735ce9e06e867258c29c11bda2848e524",
-    "export": "git -C apps/mobile/ios archive c280e7e735ce9e06e867258c29c11bda2848e524 packages/cloud-runtime",
+    "commit": "a71d836f044d8d0e31a4de99a973517599aa4960",
     "files": [
       "README.md",
       "src/runtime/index.ts",
@@ -540,6 +538,16 @@
       "src/runtime/machine-rpc.ts",
       "src/runtime/session.ts"
     ],
-    "note": "Behind the same switch, Machine RPC replies, read-only workspace presence and appends (once the pooled socket is ready) also use the loro-ds-v1 socket. read-access.mjs admits each frame exactly as its HTTP equivalent: JOIN = GET, APPEND = POST, createIfNotFound = PUT, plus the ephemeral JOIN of this workspace :meta presence channel; EPH_PUB is refused."
+    "note": "Behind the same switch, Machine RPC replies, read-only workspace presence and appends (once the pooled socket is ready) also use the loro-ds-v1 socket. read-access.mjs admits each frame exactly as its HTTP equivalent: JOIN = GET, APPEND = POST, createIfNotFound = PUT, plus the ephemeral JOIN of this workspace :meta presence channel; EPH_PUB is refused. The iOS commit also adopts main's rpcStreamError in machine-rpc.ts; that main change is not mirrored. Only this commit's hunks are mirrored onto the existing snapshot; lody-ios main changes after 122a6753 (#193, #194, 2d332da8) are not part of this snapshot.",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/192"
+  },
+  "streamsWebSocketSendAck": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "abb13b8bb45711d18853abaceeae32f104e2856a",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/192",
+    "files": [
+      "src/runtime/session.ts"
+    ],
+    "note": "With the switch on, the send path's delivery ACK reply loop uses the same tail reader; off, it is unchanged. Only this commit's hunks are mirrored onto the existing snapshot; lody-ios main changes after 122a6753 (#193, #194, 2d332da8) are not part of this snapshot."
   }
 }
