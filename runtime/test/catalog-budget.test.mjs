@@ -138,10 +138,9 @@ for(const failure of ['background','network','server','transportAbort','unauthor
  c.pending.shift();
  await turn();
  if(failure==='unauthorized' || failure==='forbidden'){
-  // Streams first asks its auth callback again; the catalog owns invalidating
-  // the cached grant once that attempt also fails.
-  c.pending.shift().resolve(new Response(null,{status:failure==='unauthorized'?401:403}));
-  await turn();
+  // Streams asks its auth callback again but does not resend the unchanged
+  // cached token; the catalog owns invalidating that grant.
+  assert.equal(c.pending.length,0);
  }
  assert.equal(c.unhealthy.has('machine'),true);
  assert.ok(c.events.some(e=>e.stage==='sync_error:network_or_auth'));
