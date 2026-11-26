@@ -1,9 +1,9 @@
 {
   "source": "LodyAI/lody-ios packages/cloud-runtime",
-  "commit": "141da3456d51185f69b1f981b51b42d70ceb125d",
+  "commit": "2d332da86c01796e8f52bdf9e8b676e3afb2c377",
   "license": "AGPL-3.0-only",
   "path": "packages/cloud-runtime",
-  "export": "git -C apps/mobile/ios archive 141da3456d51185f69b1f981b51b42d70ceb125d packages/cloud-runtime",
+  "export": "git -C apps/mobile/ios archive 2d332da86c01796e8f52bdf9e8b676e3afb2c377 packages/cloud-runtime",
   "note": "Complete snapshot of the pinned iOS cloud-runtime package, excluding Roost authoring source and its generator. SHA256.json records every mirrored file. Earlier entries retain the source-update history.",
   "roostHistory": {
     "files": [
@@ -455,6 +455,84 @@
     "export": "git -C apps/mobile/ios archive 643f0925e012cf15650a1a634b805ce4fd0b0daf packages/cloud-runtime",
     "note": "Full package export of the Roost cutover after it integrated lody-ios main (which contains the previous iosMainSync commit 9478784). Combines the cutover's owner subscription, scoped history proofs, command readiness and permission readiness with main's quote spans and MCP selection. Dependencies and licenses are unchanged."
   },
+  "scheduleEditProposal": {
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/methods.ts",
+      "src/contract/sessions.ts",
+      "src/protocol/proposals.ts",
+      "src/runtime/handlers/proposals.ts",
+      "src/runtime/project.ts"
+    ],
+    "note": "Agent schedule edit proposals (web schedule_edit_proposal, LodyAI/Lody#3181): the proposal projection, inspectProposal (live schedule, prompt diff, stale/deleted/owner/machine/Agent reasons) and the applied outcome of decideProposal with the Web per-card activity id. System notice summaries also carry agent_warning source, fork origin and resumed-history meta, and worktree_script items project their phase, status and step output tails. Mirrored verbatim from the iOS source in the same change; dependencies and licenses are unchanged."
+  },
+  "createTabHealthGate": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "50e16cfa4c30f84484a3f277c10e9492267591a5",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/185",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/sessions.ts",
+      "src/runtime/create-session.ts",
+      "src/runtime/handlers/sessions.ts"
+    ],
+    "note": "createSession accepts optional parentSessionId (and CreatedSession carries parentSessionId) so a local draft Tab creates its shared-directory session on first send (copying project, repoFullName, baseBranch and projectRun from the root session). createTab also checks only meta and target machine health. Mirrored verbatim from iOS; dependencies and licenses are unchanged."
+  },
+  "resumeTranscriptWindow": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "45ebdc168b0bdf9e6d7973f4709ebfb4e267214a",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/187",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/lifecycle.ts",
+      "src/contract/session-events.ts",
+      "src/runtime/handlers/lifecycle.ts",
+      "src/runtime/session.ts"
+    ],
+    "note": "Mirrors the scoped history start hint on reopen and its authoritative Loro/Roost window reconstruction. Dependencies and licenses are unchanged."
+  },
+  "mentionCatchUpReadiness": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "122a6753cfa8f5af57703fba6598c1f6f4dacc12",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/189",
+    "files": [
+      "src/runtime/catalog-sync.ts",
+      "src/runtime/handlers/context.ts",
+      "src/runtime/handlers/mentions.ts",
+      "src/runtime/index.ts",
+      "src/runtime/mention-expansion.ts"
+    ],
+    "note": "Mirrors the iOS mention expansion and catalog live-update readiness fix: reset the 12 ms frame-import slice after idle reads so single-turn live updates stay synchronous without marking metadata or machines unhealthy, scan and store catalog projections before clearing unhealthy, wait up to 3 s in mentionCatalog for active error-free stream catch-ups while failing immediately on transport errors, fall back to live meta Flock session rows before catalog flush, and ignore code blocks/spans and numeric dollar prose during skill expansion. Dependencies, contract and licenses are unchanged."
+  },
+  "conversationShareMessages": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "a3dd40bdd5798f3ea8b279447c69d38a0592b6c3",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/193",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/methods.ts",
+      "src/contract/sessions.ts",
+      "src/protocol/conversation-markdown.ts",
+      "src/protocol/conversation-share-image.ts",
+      "src/runtime/handlers/sessions.ts"
+    ],
+    "note": "Structured conversation share-card turns (`conversationShareMessages`) with decoded mentions/quotes, model name, token estimate and session metadata for native Share as image. Mirrored verbatim from the iOS runtime source in the same change; dependencies and licenses are unchanged."
+  },
+  "agentRolesLiveSync": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "1a492f38738444533d002c18b3f2779e80579a30",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/194",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/methods.ts",
+      "src/runtime/handlers/context.ts",
+      "src/runtime/handlers/proposals.ts",
+      "src/runtime/handlers/settings.ts",
+      "src/runtime/index.ts",
+      "src/runtime/role-settings.ts"
+    ],
+    "note": "agentRoles checks only meta health (matching providerScope) and passes healthy machine replicas, reuses the synced workspaceReplica for list reads while waking the watcher when a missing stream is discovered or created, merges successful writes into the synced workspaceReplica, and emits agentRolesChanged when agentRole rows change on the workspace stream. Mirrored verbatim from the merged iOS source commit; dependencies and licenses are unchanged."
+  },
   "roostCloudReplica": {
     "commit": "60c4ab1845362e6ad6845324b89d3766f3a1d09e",
     "publicSource": "755e2191aa88d920b392d4b297edc0f6e56a7e19",
@@ -471,17 +549,6 @@
     "export": "git -C apps/mobile/ios archive e405005737b6f0db8a3f10a56658c5d711e0bad0 packages/cloud-runtime",
     "note": "The shared reader switches after publication in an open session, captures the Streams tail for sharing, and stops retrying a refused binding. Android mirrors the generated module and hands the runtime the scoped HTTP refusal."
   },
-  "scheduleEditProposal": {
-    "files": [
-      "contract/runtime-contract.json",
-      "src/contract/methods.ts",
-      "src/contract/sessions.ts",
-      "src/protocol/proposals.ts",
-      "src/runtime/handlers/proposals.ts",
-      "src/runtime/project.ts"
-    ],
-    "note": "Agent schedule edit proposals (web schedule_edit_proposal, LodyAI/Lody#3181): the proposal projection, inspectProposal (live schedule, prompt diff, stale/deleted/owner/machine/Agent reasons) and the applied outcome of decideProposal with the Web per-card activity id. System notice summaries also carry agent_warning source, fork origin and resumed-history meta, and worktree_script items project their phase, status and step output tails. Mirrored verbatim from the iOS source in the same change; dependencies and licenses are unchanged."
-  },
   "roostCloudReplicaRetry": {
     "commit": "d9cc1982fdca8dd4400b3b8da8d8e521be0dad67",
     "publicSource": "3bf3ab497f6221043783ca3e01f62db5e60ca693",
@@ -493,18 +560,6 @@
     "publicSource": "2d2dc07c3caef29c1daad92d4c019f3e3b8e8463",
     "export": "git -C apps/mobile/ios archive 8e71edc59b9516b7b60c745c8bb306d8ad4a5b98 packages/cloud-runtime",
     "note": "The shared reader retries discovery before it has a publication binding and allows live intake between directory pages. Native metadata refreshes stay coalesced."
-  },
-  "createTabHealthGate": {
-    "repository": "LodyAI/lody-ios",
-    "commit": "50e16cfa4c30f84484a3f277c10e9492267591a5",
-    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/185",
-    "files": [
-      "contract/runtime-contract.json",
-      "src/contract/sessions.ts",
-      "src/runtime/create-session.ts",
-      "src/runtime/handlers/sessions.ts"
-    ],
-    "note": "createSession accepts optional parentSessionId (and CreatedSession carries parentSessionId) so a local draft Tab creates its shared-directory session on first send (copying project, repoFullName, baseBranch and projectRun from the root session). createTab also checks only meta and target machine health. Mirrored verbatim from iOS; dependencies and licenses are unchanged."
   },
   "roostHistorySyncStatus": {
     "commit": "82f40f672bbf94bffe5d0ba5ede6bbbbdec38300",
@@ -518,40 +573,14 @@
     "export": "git -C apps/mobile/ios archive e519abce63b2513dda474894f3433e692bca5b15 packages/cloud-runtime",
     "note": "Streams starts with the exact-session grant. Pending publication and transport failures can use a freshly authorized machine read. Restoring Streams switches pending reads and expires old replies and paging cursors."
   },
-  "resumeTranscriptWindow": {
-    "repository": "LodyAI/lody-ios",
-    "commit": "45ebdc168b0bdf9e6d7973f4709ebfb4e267214a",
-    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/187",
-    "files": [
-      "contract/runtime-contract.json",
-      "src/contract/lifecycle.ts",
-      "src/contract/session-events.ts",
-      "src/runtime/handlers/lifecycle.ts",
-      "src/runtime/session.ts"
-    ],
-    "note": "Mirrors the scoped history start hint on reopen and its authoritative Loro/Roost window reconstruction. Dependencies and licenses are unchanged."
-  },
   "roostPublishedAdmission": {
     "commit": "6ea73a582878b7c890967a8c12d77763228def72",
     "publicSource": "51de5de4f4c1387eeba5b6e45ea04463ebaeeb08",
     "export": "git -C apps/mobile/ios archive 6ea73a582878b7c890967a8c12d77763228def72 packages/cloud-runtime",
     "note": "Separate Streams generation recovery from machine authorization. Start the published read without a cached machine capability or publication hint. Project the exact authorization-required state through the native envelope. A local replica quota error permits a fresh machine-authorized read."
   },
-  "mentionCatchUpReadiness": {
-    "repository": "LodyAI/lody-ios",
-    "commit": "122a6753cfa8f5af57703fba6598c1f6f4dacc12",
-    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/189",
-    "files": [
-      "src/runtime/catalog-sync.ts",
-      "src/runtime/handlers/context.ts",
-      "src/runtime/handlers/mentions.ts",
-      "src/runtime/index.ts",
-      "src/runtime/mention-expansion.ts"
-    ],
-    "note": "Mirrors the iOS mention expansion and catalog live-update readiness fix: reset the 12 ms frame-import slice after idle reads so single-turn live updates stay synchronous without marking metadata or machines unhealthy, scan and store catalog projections before clearing unhealthy, wait up to 3 s in mentionCatalog for active error-free stream catch-ups while failing immediately on transport errors, fall back to live meta Flock session rows before catalog flush, and ignore code blocks/spans and numeric dollar prose during skill expansion. Dependencies, contract and licenses are unchanged."
-  },
   "roostSdk032": {
-    "commit": "141da3456d51185f69b1f981b51b42d70ceb125d",
+    "commit": "2d332da86c01796e8f52bdf9e8b676e3afb2c377",
     "pullRequest": "https://github.com/LodyAI/lody-ios/pull/178",
     "note": "Uses the browser bundle built with the published Roost SDK 0.3.2 and its Streams Client 0.16.0 for framed Roost history reads. Includes the matching licenses."
   }

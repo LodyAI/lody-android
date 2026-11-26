@@ -114,6 +114,10 @@ class ChatRepository(
     suspend fun readFile(scope: RuntimeScope, sessionId: String, path: String): FileContent =
         owner.use(scope) { (it.execute(RuntimeCommand.ReadFile(sessionId, path)) as RuntimeResult.File).value }
 
+    /** Persisted shareable turns and caption provenance from the watched session; a read, safe to retry. */
+    suspend fun shareMessages(scope: RuntimeScope, sessionId: String): ConversationShareData =
+        owner.use(scope) { (it.execute(RuntimeCommand.ConversationShareMessages(sessionId)) as RuntimeResult.ConversationShare).value }
+
     suspend fun retryPendingInput(scope: RuntimeScope, sessionId: String, inputId: String) {
         owner.use(scope) { it.execute(RuntimeCommand.RetryPendingInput(sessionId, inputId)) }
     }

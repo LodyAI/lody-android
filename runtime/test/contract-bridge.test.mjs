@@ -281,5 +281,7 @@ test('status view commands, presets, read receipts and the read-only start satis
  // Runtime-only planner commands are refused at the boundary.
  await assert.rejects(bridge.statusViewCommand({workspaceId:'workspace',command:{type:'touchOnSend',sessionId:'s'}}),/invalid_params/);
  assert.equal((await bridge.snoozePresets({})).presets[0].until,3600001);
+ assert.deepEqual(await bridge.conversationShareMessages({workspaceId:'workspace',sessionId:'s'}),{});
+ await assert.rejects(bridge.conversationShareMessages({workspaceId:'workspace',sessionId:''}),/invalid_params/);
  delete globalThis.androidRuntimeMessage;
 });

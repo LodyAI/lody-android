@@ -129,6 +129,8 @@ import {
   SessionWorkspacePathResult,
   ConversationMarkdownParams,
   ConversationMarkdownResult,
+  ConversationShareMessagesParams,
+  ConversationShareMessagesResult,
   RespondPermissionParams,
   DecideProposalParams,
   DecideProposalResult,
@@ -366,6 +368,11 @@ export const runtimeCalls = {
     result: ConversationMarkdownResult,
     timeoutMs: 15_000,
   },
+  conversationShareMessages: {
+    params: ConversationShareMessagesParams,
+    result: ConversationShareMessagesResult,
+    timeoutMs: 15_000,
+  },
   checkTurnQuota: {
     params: CheckTurnQuotaParams,
     result: CheckTurnQuotaResult,
@@ -449,6 +456,7 @@ export const runtimeEvents = {
   agentProvidersChanged: z
     .object({ machineId: z.string() })
     .meta({ id: 'AgentProvidersChangedEvent' }),
+  agentRolesChanged: Empty,
   catalog: CatalogEvent,
   shareProgress: ShareProgressEvent,
   creationOptionsChanged: Empty,

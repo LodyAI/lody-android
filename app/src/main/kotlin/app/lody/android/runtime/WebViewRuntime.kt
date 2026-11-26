@@ -232,6 +232,10 @@ open class WebViewRuntime internal constructor(
             val value = call("readFile", JSONArray().put(command.sessionId).put(command.path), CommandDeadline.FILE_READ)
             RuntimeResult.File(RuntimeProtocol.file(value as? JSONObject ?: JSONObject(), command.path))
         }
+        is RuntimeCommand.ConversationShareMessages -> {
+            val value = call("conversationShareMessages", JSONArray().put(command.sessionId), CommandDeadline.QUERY)
+            RuntimeResult.ConversationShare(RuntimeProtocol.conversationShare(value as? JSONObject ?: JSONObject()))
+        }
         is RuntimeCommand.StopTurn -> {
             call("controlTurn", JSONArray().put(command.sessionId).put(command.machineId).put(command.turnId), CommandDeadline.WRITE)
             RuntimeResult.Accepted

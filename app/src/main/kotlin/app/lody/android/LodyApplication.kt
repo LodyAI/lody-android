@@ -131,6 +131,7 @@ open class LodyApplication : Application() {
         account = AccountController(CloudAuthHttp(WorkspaceModePins(java.io.File(noBackupFilesDir, "workspace-modes" + BackendEnvironment.storageSuffix + ".json")), OkHttpAuthTransport()), KeystoreCredentialStore(this), applicationScope, cache) {
             if (::notifications.isInitialized) notifications.clear()
             app.lody.android.chat.ComposerDrafts.clear(this)
+            app.lody.android.chat.ChatShareImageExporter.clearCache(this)
             sessionOutbox.clear()
             scheduleCache.invalidate()
             previewCache.clearAll()
@@ -138,6 +139,7 @@ open class LodyApplication : Application() {
             submissions.activate(null)
             cloud.disconnect()
         }
+        app.lody.android.chat.ChatShareImageExporter.pruneStaleCache(this)
         account.browserStore = BrowserAuthStore(KeystoreCredentialStore(this, "browser-auth"))
         members = WorkspaceMembers(cache, account::members)
         projectAdding = app.lody.android.home.LiveProjectAdding(runtimeOwner, account, app.lody.android.chat.GitHubHttpClient())

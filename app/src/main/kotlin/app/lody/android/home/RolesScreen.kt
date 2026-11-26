@@ -27,30 +27,59 @@ import app.lody.android.create.PickerOption
 import app.lody.android.designsystem.*
 import app.lody.android.runtime.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 
 interface RoleSettingsService {
+    fun changes(scope: RuntimeScope): Flow<Unit> = emptyFlow()
     suspend fun perform(scope: RuntimeScope, action: RoleSettingsAction): RoleSettingsSnapshot
 }
 class RuntimeRoleSettingsService(private val owner: RuntimeOwner) : RoleSettingsService {
+    override fun changes(scope: RuntimeScope): Flow<Unit> =
+        owner.events.filter { it.scope == scope && it.event is RuntimeEvent.RolesChanged }.map { }
     override suspend fun perform(scope: RuntimeScope, action: RoleSettingsAction): RoleSettingsSnapshot = owner.use(scope) {
         (it.execute(RuntimeCommand.AgentRoleSettings(action)) as RuntimeResult.RoleSettings).value
     }
 }
 
 /**
- * iOS `AgentRolesController`: the last list shows at once while a live read replaces it; a cached
- * list never authorizes writes; saves and deletes show immediately and roll back on failure.
+ * iOS `AgentRolesController`: the last accepted list restores from memory or disk while a live read
+ * replaces it; a cached list never authorizes writes; saves and deletes show immediately and roll
+ * back on failure while keeping the editor draft open.
  */
-internal class RolesState(private val service: RoleSettingsService, private val scope: RuntimeScope) {
+internal class RolesState(
+    private val service: RoleSettingsService,
+    private val scope: RuntimeScope,
+    private val store: SettingsSnapshotStore? = null,
+) {
     var snapshot by mutableStateOf(remembered?.takeIf { it.first == scope }?.second); private set
     var live by mutableStateOf(false); private set
     var busy by mutableStateOf(false); private set
+    var mutating by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
+    var writeError by mutableStateOf<String?>(null); private set
+    var uncertain by mutableStateOf(false); private set
     private var version = 0
+    private var pendingRefresh = false
+
+    /** Restores the persisted display snapshot when nothing is in memory yet; never marks [live]. */
+    suspend fun restore() {
+        if (store == null || snapshot != null || live) return
+        val cached = try { store.readSettings(scope, CACHE_KIND) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { null } ?: return
+        try {
+            val decoded = RoleSettingsJson.result(cached)
+            if (snapshot == null && !live) snapshot = decoded
+        } catch (_: Exception) { /* A malformed cache is ignored; the live read follows. */ }
+    }
 
     suspend fun refresh() {
+        if (mutating) {
+            pendingRefresh = true
+            return
+        }
         val id = ++version
         busy = true
         try {
@@ -59,36 +88,68 @@ internal class RolesState(private val service: RoleSettingsService, private val 
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { if (id == version) error = "role_load_failed" }
         finally { if (id == version) busy = false }
+        if (pendingRefresh && !mutating) {
+            pendingRefresh = false
+            refresh()
+        }
     }
 
-    /** Shows [preview] (or removes [id] when null) at once; restores the list if the write fails. */
+    fun beginEdit() {
+        writeError = null
+        uncertain = false
+    }
+
+    /** Shows [preview] (or removes [id] when null) at once; restores the list and reconciles on failure. */
     suspend fun perform(action: RoleSettingsAction, id: String, preview: RoleSetting?): Boolean {
-        if (!live) return false
+        if (!live || mutating || uncertain) return false
         val previous = snapshot
         version++
         snapshot = previous?.let { current ->
             val others = current.roles.filterNot { it.id == id }
             current.copy(roles = (if (preview == null) others else others + preview).sortedBy { it.name.lowercase() })
         }
-        busy = true; error = null
-        return try {
+        mutating = true; busy = true; writeError = null; uncertain = false; pendingRefresh = false
+        var succeeded = false
+        try {
             accept(service.perform(scope, action))
-            true
+            succeeded = true
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) {
             snapshot = previous
-            error = (failure as? app.lody.android.runtime.RuntimeException)?.fault?.code ?: "role_write_unknown"
-            false
-        } finally { busy = false }
+            val code = (failure as? app.lody.android.runtime.RuntimeException)?.fault?.code ?: "role_write_unknown"
+            writeError = code
+            uncertain = code !in KNOWN_WRITE_REFUSALS
+        } finally {
+            mutating = false
+            busy = false
+        }
+        if (!succeeded) {
+            pendingRefresh = false
+            refresh()
+        } else if (pendingRefresh) {
+            pendingRefresh = false
+            refresh()
+        }
+        return succeeded
     }
 
-    private fun accept(next: RoleSettingsSnapshot) {
+    private suspend fun accept(next: RoleSettingsSnapshot) {
         snapshot = next; live = true; error = null
         remembered = scope to next
+        if (store != null) {
+            try { store.writeSettings(scope, CACHE_KIND, RoleSettingsJson.encode(next)) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { /* Only the cache is lost. */ }
+        }
     }
 
     private companion object {
-        /** Process memory only (one scope). */
+        const val CACHE_KIND = "agent-roles"
+        val KNOWN_WRITE_REFUSALS = setOf(
+            "role_read_only", "role_conflict", "role_duplicate",
+            "role_forbidden", "role_target_unavailable", "role_invalid",
+        )
+        /** Process memory (one scope), ahead of the disk cache. */
         @Volatile var remembered: Pair<RuntimeScope, RoleSettingsSnapshot>? = null
     }
 }
@@ -97,16 +158,42 @@ private data class RoleDraft(val base: RoleSetting?, val id: String = base?.id ?
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun RolesScreen(home: ChatListUiState, service: RoleSettingsService?, scope: RuntimeScope?, onBack: () -> Unit) {
-    val state = remember(service, scope) { if (service != null && scope != null) RolesState(service, scope) else null }
+internal fun RolesScreen(
+    home: ChatListUiState,
+    service: RoleSettingsService?,
+    scope: RuntimeScope?,
+    store: SettingsSnapshotStore? = null,
+    onBack: () -> Unit,
+) {
+    val state = remember(service, scope, store) { if (service != null && scope != null) RolesState(service, scope, store) else null }
     val tasks = rememberCoroutineScope()
     var draft by remember(scope) { mutableStateOf<RoleDraft?>(null) }
-    LaunchedEffect(state) { state?.refresh() }
-    BackHandler { if (draft != null) draft = null else onBack() }
+    val currentHome by rememberUpdatedState(home)
+    LaunchedEffect(state) {
+        state ?: return@LaunchedEffect
+        launch { state.restore() }
+        state.refresh()
+    }
+    LaunchedEffect(state) {
+        state ?: return@LaunchedEffect
+        snapshotFlow { currentHome.sync }.drop(1).collect {
+            if (!state.busy && !state.mutating && (!state.live || state.error != null)) state.refresh()
+        }
+    }
+    LaunchedEffect(state, service, scope) {
+        if (state != null && service != null && scope != null) service.changes(scope).collect { state.refresh() }
+    }
+    BackHandler {
+        if (draft != null) {
+            if (state?.busy != true) draft = null
+        } else onBack()
+    }
     val editing = draft
     if (editing != null && state != null) {
-        RoleEditor(editing.base, home.userId.orEmpty(), state.snapshot?.agents.orEmpty(), state.busy, state.error,
-            onBack = { draft = null },
+        RoleEditor(
+            editing.base, home.userId.orEmpty(), state.snapshot?.agents.orEmpty(),
+            live = state.live, busy = state.busy, uncertain = state.uncertain, error = state.writeError,
+            onBack = { if (!state.busy) draft = null },
             onSave = { fields, target ->
                 val preview = RoleSetting(editing.id, home.userId.orEmpty(), fields.shared, fields.name.trim(), fields.description, fields.promptPrefix.trim(),
                     fields.emoji, editing.base?.revision ?: 0,
@@ -120,7 +207,10 @@ internal fun RolesScreen(home: ChatListUiState, service: RoleSettingsService?, s
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = LodySpacing.sm), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(LodyIcons.Back, stringResource(R.string.settings_agent_back)) }
             Text(stringResource(R.string.settings_roles), Modifier.weight(1f), style = LodyTheme.typography.headline, color = LodyTheme.colors.textPrimary)
-            IconButton(onClick = { draft = RoleDraft(null) }, enabled = state != null && state.live && state.snapshot?.agents?.isNotEmpty() == true) {
+            IconButton(onClick = { tasks.launch { state?.refresh() } }, enabled = state != null && !state.busy) {
+                Icon(LodyIcons.Refresh, stringResource(R.string.settings_agent_refresh))
+            }
+            IconButton(onClick = { state?.beginEdit(); draft = RoleDraft(null) }, enabled = state != null && state.live && state.snapshot?.agents?.isNotEmpty() == true) {
                 Icon(LodyIcons.Plus, stringResource(R.string.roles_add))
             }
         }
@@ -133,9 +223,9 @@ internal fun RolesScreen(home: ChatListUiState, service: RoleSettingsService?, s
             val mine = roles.filter { it.ownerUserId == home.userId }
             val others = roles.filter { it.ownerUserId != home.userId }
             if (mine.isNotEmpty()) item { SettingsHeading(stringResource(R.string.roles_mine)) }
-            items(mine, key = { "mine-${it.id}" }) { role -> RoleLine(role, mine = true) { draft = RoleDraft(role) } }
+            items(mine, key = { "mine-${it.id}" }) { role -> RoleLine(role, mine = true) { state?.beginEdit(); draft = RoleDraft(role) } }
             if (others.isNotEmpty()) item { SettingsHeading(stringResource(R.string.roles_shared_by_others)) }
-            items(others, key = { "other-${it.id}" }) { role -> RoleLine(role, mine = false) { draft = RoleDraft(role) } }
+            items(others, key = { "other-${it.id}" }) { role -> RoleLine(role, mine = false) { state?.beginEdit(); draft = RoleDraft(role) } }
             if (roles.isNotEmpty()) item { RoleNotice(stringResource(R.string.roles_hint)) }
         }
     }
@@ -165,10 +255,13 @@ private fun EmojiBadge(emoji: String, size: androidx.compose.ui.unit.Dp) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RoleEditor(
-    base: RoleSetting?, userId: String, agents: List<RoleAgent>, busy: Boolean, error: String?,
+    base: RoleSetting?, userId: String, agents: List<RoleAgent>, live: Boolean, busy: Boolean, uncertain: Boolean, error: String?,
     onBack: () -> Unit, onSave: (RoleFields, RoleAgent?) -> Unit, onDelete: (RoleSetting) -> Unit,
 ) {
-    val readOnly = base != null && base.ownerUserId != userId
+    val ownerReadOnly = base != null && base.ownerUserId != userId
+    val lengthReadOnly = base != null && (base.name.length > 60 || base.description.length > 140 || base.promptPrefix.length > 32000)
+    val cachedReadOnly = base != null && !live
+    val readOnly = ownerReadOnly || lengthReadOnly || cachedReadOnly
     var name by remember(base?.id) { mutableStateOf(base?.name.orEmpty()) }
     var description by remember(base?.id) { mutableStateOf(base?.description.orEmpty()) }
     var prompt by remember(base?.id) { mutableStateOf(base?.promptPrefix.orEmpty()) }
@@ -177,11 +270,11 @@ private fun RoleEditor(
     var target by remember(base?.id) { mutableStateOf(agents.firstOrNull()) }
     var picker by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
-    val editable = !readOnly && !busy
+    val editable = !readOnly && !busy && !uncertain
     val valid = name.isNotBlank() && name.trim().length <= 60 && description.length <= 140 && (base != null || target != null)
     Scaffold(containerColor = LodyTheme.colors.bgBase, topBar = {
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = LodySpacing.sm), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(LodyIcons.Close, stringResource(R.string.settings_agent_cancel)) }
+            IconButton(onClick = onBack, enabled = !busy) { Icon(LodyIcons.Close, stringResource(R.string.settings_agent_cancel)) }
             Text(stringResource(if (base == null) R.string.roles_add else R.string.roles_edit), Modifier.weight(1f), style = LodyTheme.typography.headline, color = LodyTheme.colors.textPrimary)
             if (!readOnly) IconButton(onClick = { onSave(RoleFields(name, description, prompt, shared, emoji), target) }, enabled = editable && valid) {
                 Icon(LodyIcons.Check, stringResource(R.string.settings_agent_save))
@@ -195,7 +288,9 @@ private fun RoleEditor(
                     contentAlignment = Alignment.Center) { Text(emoji, fontSize = 44.sp) }
                 if (editable) Text(stringResource(R.string.roles_emoji_hint), Modifier.padding(top = LodySpacing.sm), style = LodyTheme.typography.footnote, color = LodyTheme.colors.textSecondary)
             }
-            if (readOnly) RoleNotice(stringResource(R.string.roles_read_only), center = true)
+            if (ownerReadOnly) RoleNotice(stringResource(R.string.roles_read_only), center = true)
+            else if (cachedReadOnly) RoleNotice(stringResource(R.string.roles_cached_read_only), center = true)
+            else if (lengthReadOnly) RoleNotice(stringResource(R.string.roles_invalid), center = true)
             if (error != null) RoleNotice(roleError(error), danger = true)
             Column(Modifier.padding(horizontal = LodySpacing.lg), verticalArrangement = Arrangement.spacedBy(LodySpacing.md)) {
                 OutlinedTextField(name, { if (it.length <= 60) name = it }, Modifier.fillMaxWidth(), enabled = editable, singleLine = true,

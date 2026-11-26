@@ -493,11 +493,18 @@ function watch(mode: string) {
   // sections through failures.
   const workspaceStream = mode === WORKSPACE_STREAM;
   const markUnhealthy = () => {
-    if (!workspaceStream) unhealthy.add(mode);
+    if (workspaceStream) {
+      if (state.workspaceReplica) state.workspaceReplica.synced = false;
+      return;
+    }
+    unhealthy.add(mode);
   };
   let finishCatchUp: (() => void) | undefined;
   const startCatchUp = () => {
-    if (workspaceStream) return;
+    if (workspaceStream) {
+      if (state.workspaceReplica) state.workspaceReplica.synced = false;
+      return;
+    }
     unhealthy.add(mode);
     if (finishCatchUp || !state.catchingUp) return;
     let pending!: Promise<void>;
@@ -533,6 +540,7 @@ function watch(mode: string) {
   void (async () => {
     let failures = 0;
     let providerSignature = '';
+    let roleSignature = '';
     let preparedBootstrap: Awaited<ReturnType<typeof readCatalogRefresh>>;
     while (!signal.aborted) {
       let caughtUp = false;
@@ -581,8 +589,13 @@ function watch(mode: string) {
                 flock: new Flock(`lody-ios-${crypto.randomUUID()}`),
                 client,
                 missing: true,
+                synced: false,
               };
               state.pinSections = { sections: [], loaded: true };
+            }
+            if (roleSignature !== '[]') {
+              roleSignature = '[]';
+              channel.emit('agentRolesChanged', {});
             }
             publish();
             await delay(30000, signal);
@@ -635,12 +648,29 @@ function watch(mode: string) {
               throw new Error('workspace_changed');
             caughtUp = true;
             if (state.workspaceReplica?.flock !== flock)
-              state.workspaceReplica = { flock, client };
+              state.workspaceReplica = { flock, client, synced: true };
+            else {
+              state.workspaceReplica.missing = false;
+              state.workspaceReplica.synced = true;
+            }
             await checkpoint();
             state.pinSections = {
               sections: pinSectionRows(flock.scan({ prefix: ['pinSection'] })),
               loaded: true,
             };
+            const nextRoleSignature = JSON.stringify(
+              flock
+                .scan({ prefix: ['agentRole'] })
+                .filter(
+                  (row) => row.key.length === 2 && row.key[0] === 'agentRole',
+                )
+                .map((row) => [String(row.key[1]), row.value] as const)
+                .sort(([a], [b]) => a.localeCompare(b)),
+            );
+            if (nextRoleSignature !== roleSignature) {
+              roleSignature = nextRoleSignature;
+              channel.emit('agentRolesChanged', {});
+            }
             publish();
             checkedWindow = false;
             failures = 0;
