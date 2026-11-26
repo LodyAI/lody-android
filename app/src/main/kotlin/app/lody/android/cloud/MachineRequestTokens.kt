@@ -49,6 +49,8 @@ internal class MachineRequestTokens(private val http: GitHubHttp = GitHubHttpCli
         }
         if (status !in 200..299) {
             if (operation == "previewToken") return status
+            // A backend without the cloud read-grant route keeps the owner read path.
+            if (cloudHistory && status == 404) return JSONObject().put("state", "owner-required")
             if (cloudHistory) return JSONObject().put("status", status)
             throw Failure("history_token_denied")
         }
