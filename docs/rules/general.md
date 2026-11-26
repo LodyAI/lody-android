@@ -20,6 +20,6 @@ Read before any change under `apps/mobile/android`. These rules bind every calle
 
 - UI uses the shared mobile design system in `app/src/main/kotlin/app/lody/android/designsystem` (sources and font resources are owned by the app): `LodyTheme`, semantic tokens, Inter, Lucide `LodyIcons`. Do not hard-code colors, sizes or fonts in screens.
 
-- Every user-visible string lives in `res/values/strings.xml` with a matching `res/values-b+zh+Hans/strings.xml` entry; keep both key sets identical.
+- Every user-visible string lives in `res/values/strings.xml` (or `auth.xml`) with matching entries across `res/values-b+zh+Hans`, `res/values-b+zh+Hant`, `res/values-ja`, `res/values-ko`, `res/values-es`, `res/values-fr`, and `res/values-ru`; keep all key sets and format arguments identical, and declare all supported locales in `res/xml/locales_config.xml`.
 
 - Dark app/page base and grouped backgrounds use soft black `#111113`, aligned with iOS, including launch/window surfaces. Never add an opaque pure-black background or pure-black mode; preserve translucent scrims/shadows and artwork.
