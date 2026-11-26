@@ -1,6 +1,7 @@
 package app.lody.android.cloud
 
 import app.lody.android.auth.Credential
+import app.lody.android.chat.GitHubHttp
 import app.lody.android.runtime.RuntimeScope
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -16,10 +17,10 @@ class MachineRequestTokensTest {
         .put("cloudHistory", true)
 
     private fun mint(status: Int): JSONObject = runBlocking {
-        MachineRequestTokens { _, url, _, _ ->
+        MachineRequestTokens(GitHubHttp { _, url, _, _ ->
             assertEquals(true, url.endsWith("/api/session-history/roost-read-grant"))
             status to "No matching routes found"
-        }.mint(Credential("token"), scope, "historyToken", cloudHistoryIntent()) as JSONObject
+        }).mint(Credential("token"), scope, "historyToken", cloudHistoryIntent()) as JSONObject
     }
 
     @Test fun missingCloudReadGrantRouteFallsBackToOwnerRead() {
