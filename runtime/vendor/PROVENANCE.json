@@ -490,5 +490,18 @@
       "src/runtime/session.ts"
     ],
     "note": "Mirrors the scoped history start hint on reopen and its authoritative Loro/Roost window reconstruction. Dependencies and licenses are unchanged."
+  },
+  "mentionCatchUpReadiness": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "122a6753cfa8f5af57703fba6598c1f6f4dacc12",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/189",
+    "files": [
+      "src/runtime/catalog-sync.ts",
+      "src/runtime/handlers/context.ts",
+      "src/runtime/handlers/mentions.ts",
+      "src/runtime/index.ts",
+      "src/runtime/mention-expansion.ts"
+    ],
+    "note": "Mirrors the iOS mention expansion and catalog live-update readiness fix: reset the 12 ms frame-import slice after idle reads so single-turn live updates stay synchronous without marking metadata or machines unhealthy, scan and store catalog projections before clearing unhealthy, wait up to 3 s in mentionCatalog for active error-free stream catch-ups while failing immediately on transport errors, fall back to live meta Flock session rows before catalog flush, and ignore code blocks/spans and numeric dollar prose during skill expansion. Dependencies, contract and licenses are unchanged."
   }
 }

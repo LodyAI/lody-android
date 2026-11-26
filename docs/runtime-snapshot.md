@@ -287,3 +287,10 @@ report the file outside the project.
 The snapshot at `84e41933` ([lody-ios#124](https://github.com/LodyAI/lody-ios/pull/124)) carries a tool call's `activityKind` (`context_compaction` /
 `codex_retry`, web `isProcessStatusToolCall`) in its transcript summary, so the conversation
 shows context compaction as its own status row instead of an ordinary tool step.
+
+The snapshot at `122a6753` ([lody-ios#189](https://github.com/LodyAI/lody-ios/pull/189)) mirrors the iOS mention-expansion and catalog live-update
+readiness fix: caught-up live updates reset the 12 ms import slice after idle reads and update
+catalog projections before clearing `unhealthy`, `mentionCatalog` waits up to 3 s for active
+error-free stream catch-ups while failing immediately on transport errors, newly created sessions
+fall back to live `meta` Flock rows before catalog flush, and `$` expansion skips code spans/fences
+and numeric dollar prose.

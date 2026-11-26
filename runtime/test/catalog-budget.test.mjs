@@ -350,3 +350,67 @@ test('session and Machine RPC uploads keep the native 15-second deadline with th
   assert.equal(requests,1,'an uncertain write must not be replayed');
  }
 });
+
+test('caught-up live frames stay healthy across idle long-polls while multi-page bursts expose catchingUp until upToDate',async t=>{
+ const {catalogImportCheckpoint}=await import('../vendor/cloud-runtime/src/runtime/catalog-sync.ts');
+ const {encodeFrame}=await import('../vendor/cloud-runtime/src/frames.ts');
+ const {transform}=await import('esbuild');
+ const start=source.indexOf('function watch(');
+ const js=(await transform(source.slice(start,source.indexOf('\nconst ctx',start)),{loader:'ts',format:'cjs'})).code.replace(/^/,MODULE_CONSTANTS);
+ const server=new Flock('live-meta');
+ server.set(['e','session-s1'],true,1);
+ server.set(['m','session-s1'],{id:'s1',title:'First'},1);
+ const snapshot=server.exportFile();
+ const frameFor=(id,title)=>{
+  const before=server.version();
+  server.set(['e',`session-${id}`],true);
+  server.set(['m',`session-${id}`],{id,title});
+  server.commit();
+  return encodeFrame(new TextEncoder().encode(JSON.stringify(server.exportJson(before))));
+ };
+ const watchers=new Map(),catalogs=new Map(),machineReplicas=new Map(),unhealthy=new Set(),catchingUp=new Map(),reads=[];
+ let unhealthyDuringLive=false;
+ const trackedUnhealthy={
+  add(v){if(reads.length===1)unhealthyDuringLive=true;return unhealthy.add(v);},
+  delete:v=>unhealthy.delete(v),
+  has:v=>unhealthy.has(v),
+ };
+ const context={
+  readCatalogRefresh,importCatalogUpdates,catalogImportCheckpoint,acquireCatalogBootstrap:catalogBootstrapSlots(),retrySessionRead,
+  AbortController,DOMException,Error,Uint8Array,crypto,watchers,catalogs,machineReplicas,unhealthy:trackedUnhealthy,
+  state:{workspace:'fixture',catchingUp},
+  getGrant:async()=>({gatewayBaseUrl:'https://example.org',token:'fixture'}),
+  Flock,resumeAcceptedInputs(){},providerRows:()=>[],decompress:bytes=>bytes,
+  projectRows:rows=>({projects:[],sessions:rows.filter(r=>r.key[0]==='m').map(r=>r.value),machineIds:[]}),
+  StreamsClient:class {
+   async bootstrap(){return {ok:true,result:{snapshotOffset:'0',snapshot:{body:snapshot},updates:[],nextOffset:'1',cursor:'c1',upToDate:true}};}
+   async head(){return {ok:true,result:{nextOffset:'1'}};}
+   readOnce(){return new Promise(resolve=>reads.push(resolve));}
+  },
+  publish(){},channel:{emit(){}},delay:async()=>{},grant:{},
+ };
+ t.after(()=>watchers.get('meta')?.abort());
+ vm.runInNewContext(js+'\nwatch("meta");',context);
+ while(reads.length<1)await turn();
+ assert.equal(unhealthy.has('meta'),false);
+ assert.equal(catalogs.get('meta')?.sessions.length,1);
+
+ // Simulate >12ms idle wait in long-poll, then a single caught-up live frame (like createSession).
+ await new Promise(resolve=>setTimeout(resolve,20));
+ reads[0]({ok:true,result:{payload:{body:frameFor('s2','Created')},nextOffset:'2',cursor:'c2',upToDate:true}});
+ while(reads.length<2)await turn();
+ assert.equal(unhealthyDuringLive,false,'fast single-turn live update must not mark meta unhealthy');
+ assert.equal(catalogs.get('meta')?.sessions.length,2);
+
+ // Multi-page burst (upToDate: false) marks unhealthy + catchingUp until the final upToDate page.
+ reads[1]({ok:true,result:{payload:{body:frameFor('s3','Burst 1')},nextOffset:'3',cursor:'c3',upToDate:false}});
+ while(reads.length<3)await turn();
+ assert.equal(unhealthy.has('meta'),true);
+ const wait=catchingUp.get('meta');
+ assert.ok(wait,'active multi-page catch-up exposes a shared wait promise');
+ reads[2]({ok:true,result:{payload:{body:frameFor('s4','Burst 2')},nextOffset:'4',cursor:'c4',upToDate:true}});
+ await wait;
+ assert.equal(unhealthy.has('meta'),false);
+ assert.equal(catchingUp.has('meta'),false);
+ assert.equal(catalogs.get('meta')?.sessions.length,4);
+});
