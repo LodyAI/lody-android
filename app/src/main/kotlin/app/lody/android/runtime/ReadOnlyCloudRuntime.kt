@@ -13,7 +13,6 @@ internal class ReadOnlyCloudRuntime(
     override val scope: RuntimeScope,
     initialGrant: ShortLivedGrant,
     private val provider: GrantProvider,
-    private val shortcutCloud: ShortcutCloudProvider? = null,
     private val machineRequestTokens: MachineTokenProvider? = null,
     private val billing: BillingProvider? = null,
     /** The member's workspace is read-only (a viewer role): the runtime then offers no Status view writes. */
@@ -38,7 +37,6 @@ internal class ReadOnlyCloudRuntime(
                 if (event.generation != state.value.generation) return@collect
                 val requested = event.event
                 if (requested == RuntimeEvent.GrantRequested) refresh()
-                else if (requested is RuntimeEvent.ShortcutCloudRequested) answer(requested, event.generation)
                 else if (requested is RuntimeEvent.MachineTokenRequested) mint(requested, event.generation)
                 else mutableEvents.emit(event)
             }
@@ -84,19 +82,6 @@ internal class ReadOnlyCloudRuntime(
                     delay(minOf(30_000L, 2_000L shl minOf(failures++, 4)))
                 }
             }
-        }
-    }
-    /** Answers a shortcutCloud request exactly once: `{value}` on success, null on any failure or deadline. */
-    private fun answer(request: RuntimeEvent.ShortcutCloudRequested, generation: Long) {
-        val calls = shortcutCloud
-        lifetime?.launch {
-            val value: JSONObject? = if (calls == null || request.operation !in ShortcutOperations) null else withTimeoutOrNull(60_000) {
-                try { JSONObject().put("value", calls.call(scope, request.operation, JSONObject(request.args)) ?: JSONObject.NULL) }
-                catch (cancelled: CancellationException) { throw cancelled }
-                catch (_: Exception) { null }
-            }
-            if (state.value.generation != generation) return@launch
-            runCatching { runtime.call("shortcutCloudReply", JSONArray().put(request.requestId).put(value ?: JSONObject.NULL)) }
         }
     }
     /** Delivers the scoped proof or the native transport outcome to the current generation. */
@@ -163,5 +148,3 @@ internal class ReadOnlyCloudRuntime(
         runtime.stop()
     }
 }
-
-private val ShortcutOperations = setOf("listAccessibleDocuments", "getStreamToken", "stageDocument", "activateDocument")

@@ -31,8 +31,6 @@ const quoted=quoteSessionEnvelopes(sessionHistory,sessionDoc);
 const runtime=contractBridge(globalThis.dataRuntime,message=>emit(quoted(message)));
 const core={ping:()=>runtime.ping(),probeSchema:()=>runtime.probeSchema(),setActive:active=>{access.setActive(active);if(!active)stopSessions();return runtime.setActive(active);}};
 const cloud=cloudCommands(runtime,access,stopSessions);
-// Native answers a shortcutCloud request it received as an event.
-cloud.shortcutCloudReply=(requestId,reply)=>runtime.shortcutCloud(requestId,reply);
 // Native answers a scoped preview or history proof request.
 cloud.machineTokenReply=(requestId,reply)=>runtime.machineToken(requestId,reply);
 let identity;
@@ -113,4 +111,4 @@ persisted => {
  }, persisted, AbortSignal.timeout(30000));
 });
 globalThis.androidDispatch=createDispatcher(core,emit,{...cloud,...createCommands(runtime,sendWithReferences,()=>identity),...scheduleCommands(runtime,()=>identity),...proposalCommands(runtime,()=>identity),...providerCommands(runtime,()=>identity),...roleCommands(runtime,()=>identity),...shortcutCommands(runtime,()=>identity),...detail});
-emit({type:'hostReady',protocol:HOST_PROTOCOL,capabilities:[...CORE_CAPABILITIES,'connect','grant','watchSession','closeSession','loadOlderSession','forgetPendingInput','retryPendingInput','creationOptions','createAndSend','sendText','turnQuota','itemDetail','createTab','turnDiff','workspaceChanges','fileDiff','listDir','readFile','conversationShareMessages','controlTurn','respondPermission','agentRoles','mentionCatalog','localProjects','shortcutBody','projectGroups','messageAction','setTabClosed','archiveSession','statusViewCommand','snoozePresets','markSessionRead','schedules','scheduleDetail','scheduleCommand','decideProposal','inspectProposal','agentProviders','agentProviderDetail','agentProviderProbe','agentProviderAuth','agentProviderOperation','agentRoleSettings','shortcutCloudReply','shortcutSettings','sessionPreview','iosSimulatorControl','androidEmulatorControl','machineTokenReply']});
+emit({type:'hostReady',protocol:HOST_PROTOCOL,capabilities:[...CORE_CAPABILITIES,'connect','grant','watchSession','closeSession','loadOlderSession','forgetPendingInput','retryPendingInput','creationOptions','createAndSend','sendText','turnQuota','itemDetail','createTab','turnDiff','workspaceChanges','fileDiff','listDir','readFile','conversationShareMessages','controlTurn','respondPermission','agentRoles','mentionCatalog','localProjects','shortcutBody','projectGroups','messageAction','setTabClosed','archiveSession','statusViewCommand','snoozePresets','markSessionRead','schedules','scheduleDetail','scheduleCommand','decideProposal','inspectProposal','agentProviders','agentProviderDetail','agentProviderProbe','agentProviderAuth','agentProviderOperation','agentRoleSettings','shortcutSettings','sessionPreview','iosSimulatorControl','androidEmulatorControl','machineTokenReply']});

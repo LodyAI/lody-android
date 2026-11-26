@@ -1,9 +1,9 @@
 {
   "source": "LodyAI/lody-ios packages/cloud-runtime",
-  "commit": "2d332da86c01796e8f52bdf9e8b676e3afb2c377",
+  "commit": "ffabfb31323a27e80739733537a71714d1c50dbc",
   "license": "AGPL-3.0-only",
   "path": "packages/cloud-runtime",
-  "export": "git -C apps/mobile/ios archive 2d332da86c01796e8f52bdf9e8b676e3afb2c377 packages/cloud-runtime",
+  "export": "git -C apps/mobile/ios archive ffabfb31323a27e80739733537a71714d1c50dbc packages/cloud-runtime",
   "note": "Complete snapshot of the pinned iOS cloud-runtime package, excluding Roost authoring source and its generator. SHA256.json records every mirrored file. Earlier entries retain the source-update history.",
   "roostHistory": {
     "files": [

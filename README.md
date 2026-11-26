@@ -337,10 +337,9 @@ closes the editor with a notice only while it is still open), and create or
 edit simple ones (name, slug, prompt; visibility only when creating), as iOS: owner
 only, and shortcuts with a project / computer / provider scope or structured references
 stay view only. A save shows at once and rolls back on failure; an unknown outcome holds
-the same payload so the only next step is retrying that save. The runtime's
-`shortcutCloud` host calls (`listAccessibleDocuments`, `getStreamToken`, `stageDocument`,
-`activateDocument`) reach `PromptShortcutCloud`, which calls `promptShortcuts:*` on Convex
-with the verified account and the native workspace; mutations use a one-shot client.
+the same payload so the only next step is retrying that save. Workspace shortcuts read
+and write `<workspace>:shortcut-index` and `<workspace>:shortcut:<id>` directly under the
+workspace Loro Streams grant.
 This also lets the composer's `/` shortcuts load their bodies.
 The list and the bodies already read are cached per account/workspace (process memory,
 then the `prompt-shortcuts` settings snapshot in `AtomicCatalogStore`, cleared on logout):

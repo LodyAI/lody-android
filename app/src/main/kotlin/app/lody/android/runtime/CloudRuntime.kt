@@ -506,8 +506,6 @@ sealed interface RuntimeEvent {
     data class Synced(val revision: Long, val streams: Int) : RuntimeEvent
     data class SyncFailed(val reason: String) : RuntimeEvent
     data object GrantRequested : RuntimeEvent
-    /** The runtime asks the native host to make one prompt-shortcut Convex call (iOS `shortcutCloud`). */
-    data class ShortcutCloudRequested(val requestId: String, val operation: String, val args: String) : RuntimeEvent
     /** The runtime asks the native host to mint a preview proof's request token for [intent] (JSON). */
     data class MachineTokenRequested(val requestId: String, val operation: String, val intent: String) : RuntimeEvent
 }
@@ -518,10 +516,8 @@ data class OwnedRuntimeState(val scope: RuntimeScope? = null, val status: Runtim
 
 /** Stage-2 port. Phase 1 has no credential provider implementation or cloud capability. */
 fun interface GrantProvider { suspend fun request(scope: RuntimeScope): ShortLivedGrant }
-/** Makes one allow-listed `promptShortcuts:*` Convex call for [scope] with the verified account; throws on failure. */
 /** Reads [scope]'s workspace plan projection with the verified account; null (or a throw) fails open. */
 fun interface BillingProvider { suspend fun entitlement(scope: RuntimeScope): org.json.JSONObject? }
-fun interface ShortcutCloudProvider { suspend fun call(scope: RuntimeScope, operation: String, args: org.json.JSONObject): Any? }
 /**
  * Mints one preview-control request token for [scope] with the verified account: the token string,
  * or the HTTP status (Int) the backend refused with; throws on any other failure.

@@ -133,27 +133,6 @@ test('role settings use the verified scope, keep known refusals and report other
  const offline=roleCommands({agentRoles(){throw Error('must not run')}},()=>null);
  assert.deepEqual(await offline.agentRoleSettings({action:'list'}),{error:'not_connected'});
 });
-test('shortcutCloud host calls go to native once, only for this workspace and allow-listed operations',async()=>{
- const sent=[], events=[];
- const runtime={receive(text){const e=JSON.parse(text);sent.push(e);if(e.kind==='request')globalThis.androidRuntimeMessage({type:'envelope',envelope:JSON.stringify({...e,kind:'result',payload:{}})});}};
- const bridge=contractBridge(runtime,e=>events.push(e));
- await bridge.start('workspace','user',true);
- const ask=(id,payload)=>globalThis.androidRuntimeMessage({type:'envelope',envelope:JSON.stringify({v:1,gen:1,kind:'request',id,method:'shortcutCloud',payload})});
- ask('c1',{workspaceId:'workspace',operation:'listAccessibleDocuments',args:{}});
- assert.deepEqual(events.at(-1),{type:'shortcutCloud',requestId:'c1',operation:'listAccessibleDocuments',args:'{}'});
- assert.equal(bridge.shortcutCloud('c1',{value:[]}),true);
- assert.deepEqual([sent.at(-1).kind,sent.at(-1).payload],['result',{value:[]}]);
- assert.equal(bridge.shortcutCloud('c1',{value:[]}),false);
- ask('c2',{workspaceId:'workspace',operation:'activateDocument',args:{}});
- bridge.shortcutCloud('c2',null);
- assert.deepEqual([sent.at(-1).kind,sent.at(-1).error.code],['error','shortcut_unavailable']);
- const before=events.length;
- ask('c3',{workspaceId:'other',operation:'listAccessibleDocuments',args:{}});
- ask('c4',{workspaceId:'workspace',operation:'deleteEverything',args:{}});
- assert.equal(events.length,before);
- assert.deepEqual(sent.slice(-2).map(e=>[e.id,e.kind]),[['c3','error'],['c4','error']]);
- delete globalThis.androidRuntimeMessage;
-});
 import {shortcutCommands} from '../src/shortcut-commands.mjs';
 test('shortcut settings use the verified scope and report an uncertain save as unknown',async()=>{
  const adapter=shortcutCommands({async promptShortcuts(input){

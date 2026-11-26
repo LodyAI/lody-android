@@ -261,9 +261,8 @@ append of `<workspace>:wf:workspace` only. Prompt shortcuts (`0f4e373f`, `lody-i
 `visibility`, updating shortcut body documents in place (`<workspace>:shortcut:<id>`) and
 indexing them in `<workspace>:shortcut-index` using the cached workspace Loro Streams token;
 both network gates permit read, create and append of `<workspace>:shortcut-index` and
-`<workspace>:shortcut:<id>`, while retaining Phase 1 read-only access to legacy
-`shortcut-index:<workspace>:<owner>:<visibility>` and `shortcut-body:<id>` streams (plus
-`revokeDocument` via `shortcutCloud` when deleting an unmigrated legacy shortcut).
+`<workspace>:shortcut:<id>`, with Phase 2 legacy `shortcut-index:*` / `shortcut-body:*`
+fallback and `shortcutCloud` host bridge removed.
 
 ## Previews
 
