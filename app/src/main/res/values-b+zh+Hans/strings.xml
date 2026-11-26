@@ -849,6 +849,7 @@
     <string name="roles_private">私有</string>
     <string name="roles_emoji_hint">轻点更换表情</string>
     <string name="roles_read_only">仅所有者可以编辑或删除此角色。</string>
+    <string name="roles_cached_read_only">当前显示已保存的数据，刷新后才可编辑或删除。</string>
     <string name="roles_name">名称</string>
     <string name="roles_description">说明</string>
     <string name="roles_target">机器与 Agent</string>

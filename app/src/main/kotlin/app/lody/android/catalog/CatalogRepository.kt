@@ -150,6 +150,7 @@ class CatalogRepository(private val account: AccountController, private val owne
       is RuntimeEvent.ProviderProgress -> Unit
       is RuntimeEvent.ProviderRefreshProgress -> Unit
       is RuntimeEvent.ProvidersChanged -> Unit
+      RuntimeEvent.RolesChanged -> Unit
       RuntimeEvent.GrantRequested -> Unit
       is RuntimeEvent.ShortcutCloudRequested -> Unit
       is RuntimeEvent.MachineTokenRequested -> Unit

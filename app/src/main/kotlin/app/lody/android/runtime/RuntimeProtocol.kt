@@ -14,6 +14,7 @@ internal object RuntimeProtocol {
     }
     fun event(message: JSONObject): RuntimeEvent? = when (message.getString("type")) {
         "agentProvidersChanged" -> RuntimeEvent.ProvidersChanged(message.getString("machineId"))
+        "agentRolesChanged" -> RuntimeEvent.RolesChanged
         "agentProviderRefreshProgress" -> RuntimeEvent.ProviderRefreshProgress(message.getString("machineId"), message.getString("id"),
             message.optString("modelName").ifBlank { message.getString("modelId") }, message.getInt("index"), message.getInt("total"))
         "agentProviderOperationProgress" -> RuntimeEvent.ProviderProgress(message.getString("machineId"), message.getString("id"), message.getString("status"), (message.opt("percent") as? Number)?.toFloat()?.takeIf { it.isFinite() }?.coerceIn(0f, 100f))

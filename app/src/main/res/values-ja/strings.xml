@@ -841,6 +841,7 @@
     <string name="roles_private">プライベート</string>
     <string name="roles_emoji_hint">タップして絵文字を変更</string>
     <string name="roles_read_only">このロールを編集または削除できるのは所有者のみです。</string>
+    <string name="roles_cached_read_only">保存済みのデータを表示しています。編集または削除する前に更新してください。</string>
     <string name="roles_name">名前</string>
     <string name="roles_description">説明</string>
     <string name="roles_target">マシンとエージェント</string>

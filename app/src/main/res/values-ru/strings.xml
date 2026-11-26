@@ -889,6 +889,7 @@
     <string name="roles_private">Личная</string>
     <string name="roles_emoji_hint">Нажмите, чтобы изменить эмодзи</string>
     <string name="roles_read_only">Изменять или удалять эту роль может только владелец.</string>
+    <string name="roles_cached_read_only">Показаны сохранённые данные. Обновите перед редактированием или удалением.</string>
     <string name="roles_name">Название</string>
     <string name="roles_description">Описание</string>
     <string name="roles_target">Компьютер и агент</string>

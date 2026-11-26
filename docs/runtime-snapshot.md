@@ -294,3 +294,5 @@ catalog projections before clearing `unhealthy`, `mentionCatalog` waits up to 3 
 error-free stream catch-ups while failing immediately on transport errors, newly created sessions
 fall back to live `meta` Flock rows before catalog flush, and `$` expansion skips code spans/fences
 and numeric dollar prose.
+
+The snapshot at `1a492f38` ([lody-ios#194](https://github.com/LodyAI/lody-ios/pull/194)) updates `agentRoles` to check only `meta` health (passing healthy-filtered `machineReplicas`, matching `agentProviders`), reuses the live caught-up `workspaceReplica` for `list` reads (waking `refreshWorkspace` when a missing stream is discovered or created and merging accepted writes into the synced replica), and emits `agentRolesChanged` from the workspace stream watcher whenever `agentRole` rows change. Dependencies and licenses are unchanged.

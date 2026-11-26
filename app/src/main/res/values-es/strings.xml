@@ -841,6 +841,7 @@
     <string name="roles_private">Privado</string>
     <string name="roles_emoji_hint">Toca para cambiar el emoji</string>
     <string name="roles_read_only">Solo el propietario puede editar o eliminar este rol.</string>
+    <string name="roles_cached_read_only">Se muestran datos guardados. Actualiza antes de editar o eliminar.</string>
     <string name="roles_name">Nombre</string>
     <string name="roles_description">Descripción</string>
     <string name="roles_target">Máquina y agente</string>

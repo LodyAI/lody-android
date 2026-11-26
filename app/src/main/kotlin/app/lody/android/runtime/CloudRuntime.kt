@@ -469,6 +469,7 @@ data class SessionSnapshot(
 )
 sealed interface RuntimeEvent {
     data class ProvidersChanged(val machineId: String) : RuntimeEvent
+    data object RolesChanged : RuntimeEvent
     data class ProviderProgress(val machineId: String, val id: String, val status: String, val percent: Float?) : RuntimeEvent
     /** A refresh is reading [modelName]'s options, [index] of [total] (1-based). */
     data class ProviderRefreshProgress(val machineId: String, val id: String, val modelName: String, val index: Int, val total: Int) : RuntimeEvent

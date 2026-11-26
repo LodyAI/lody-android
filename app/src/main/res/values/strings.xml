@@ -859,6 +859,7 @@
     <string name="roles_private">Private</string>
     <string name="roles_emoji_hint">Tap to change the emoji</string>
     <string name="roles_read_only">Only the owner can edit or delete this role.</string>
+    <string name="roles_cached_read_only">Showing saved data. Refresh before editing or deleting.</string>
     <string name="roles_name">Name</string>
     <string name="roles_description">Description</string>
     <string name="roles_target">Machine and Agent</string>

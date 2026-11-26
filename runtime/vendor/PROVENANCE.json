@@ -517,5 +517,20 @@
       "src/runtime/handlers/sessions.ts"
     ],
     "note": "Structured conversation share-card turns (`conversationShareMessages`) with decoded mentions/quotes, model name, token estimate and session metadata for native Share as image. Mirrored verbatim from the iOS runtime source in the same change; dependencies and licenses are unchanged."
+  },
+  "agentRolesLiveSync": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "1a492f38738444533d002c18b3f2779e80579a30",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/194",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/methods.ts",
+      "src/runtime/handlers/context.ts",
+      "src/runtime/handlers/proposals.ts",
+      "src/runtime/handlers/settings.ts",
+      "src/runtime/index.ts",
+      "src/runtime/role-settings.ts"
+    ],
+    "note": "agentRoles checks only meta health (matching providerScope) and passes healthy machine replicas, reuses the synced workspaceReplica for list reads while waking the watcher when a missing stream is discovered or created, merges successful writes into the synced workspaceReplica, and emits agentRolesChanged when agentRole rows change on the workspace stream. Mirrored verbatim from the merged iOS source commit; dependencies and licenses are unchanged."
   }
 }

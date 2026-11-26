@@ -55,4 +55,37 @@ internal object RoleSettingsJson {
             is RoleSettingsAction.Delete -> { put("action", "delete"); put("base", JSONObject(action.base.raw)) }
         }
     }
+
+    /** Encodes a display snapshot for `SettingsSnapshotStore` (no credentials or memory). */
+    fun encode(snapshot: RoleSettingsSnapshot): JSONObject = JSONObject()
+        .put("roles", JSONArray(snapshot.roles.map { role ->
+            if (role.raw.isNotBlank()) JSONObject(role.raw) else JSONObject()
+                .put("id", role.id)
+                .put("ownerUserId", role.ownerUserId)
+                .put("visibility", if (role.shared) "workspace" else "private")
+                .put("name", role.name)
+                .put("description", role.description)
+                .put("promptPrefix", role.promptPrefix)
+                .put("emoji", role.emoji)
+                .put("revision", role.revision)
+                .put("targets", JSONArray(role.targets.map {
+                    JSONObject()
+                        .put("machineId", it.machineId)
+                        .put("agentConfigId", it.agentConfigId)
+                        .put("machineName", it.machineName)
+                        .put("agentName", it.agentName)
+                        .put("state", it.state)
+                }))
+        }))
+        .put("agents", JSONArray(snapshot.agents.map { agent ->
+            JSONObject()
+                .put("id", agent.id)
+                .put("name", agent.name)
+                .put("machineId", agent.machineId)
+                .put("machineName", agent.machineName)
+                .apply {
+                    agent.cliType?.let { put("cliType", it) }
+                    agent.agentType?.let { put("agentType", it) }
+                }
+        }))
 }

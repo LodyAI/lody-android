@@ -387,7 +387,7 @@ fun ChatListScreen(
         return
     }
     if (rolesOpen) {
-        RolesScreen(state, roleSettings, scope, onBack = { rolesOpen = false })
+        RolesScreen(state, roleSettings, scope, settingsCache, onBack = { rolesOpen = false })
         return
     }
     if (agentsOpen) {
