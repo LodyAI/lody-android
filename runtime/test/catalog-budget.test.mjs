@@ -7,10 +7,10 @@ import {Flock} from '@loro-dev/flock-wasm/base64';
 import {readCatalogRefresh, importCatalogUpdates, catalogBootstrapSlots} from '../vendor/cloud-runtime/src/runtime/catalog-sync.ts';
 import {retrySessionRead} from '../vendor/cloud-runtime/src/runtime/session-read.ts';
 import {createReadAccess} from '../src/read-access.mjs';
-import {createTailReader,streamsWebSocket} from '../vendor/cloud-runtime/src/runtime/live-read.ts';
+import {createTailReader,streamsWebSocket,streamsWebSocketFor} from '../vendor/cloud-runtime/src/runtime/live-read.ts';
 import {decodeClientFrame,encodeServerFrame} from '@loro-dev/streams-client';
 // The watcher's live-read bindings; WebSocket stays off unless a test enables it.
-const LIVE_READ={createTailReader,streamsWebSocket,streamsWebSocketEnabled:false};
+const LIVE_READ={createTailReader,streamsWebSocket,streamsWebSocketFor,streamsWebSocketEnabled:false};
 
 const source=await readFile(new URL('../vendor/cloud-runtime/src/runtime/index.ts',import.meta.url),'utf8');
 // Module constants the extracted functions read: the live workspace Flock read (pin sections)
@@ -333,7 +333,7 @@ test('session and Machine RPC uploads keep the native 15-second deadline with th
  for(const stream of ['fixture:session:s1','fixture:rpc:req:m1']) {
   const requestStarted=Promise.withResolvers();
   let requests=0;
-  const context={StreamsClient:class extends StreamsClient {
+  const context={...LIVE_READ,StreamsClient:class extends StreamsClient {
    constructor(options){super({...options,fetch:(_url,init)=>{
     requests++;requestStarted.resolve();
     return new Promise((_resolve,reject)=>init.signal.addEventListener('abort',()=>reject(init.signal.reason),{once:true}));

@@ -12,7 +12,8 @@ and are public in the APK. No file is required for production builds.
 | `CF_WORKER_URL`   | `https://worker.example.com` |
 
 `LODY_LORO_STREAMS_WS_ENABLED=1` (or `true`) additionally builds the runtime with the
-gated Streams WebSocket for caught-up reads (`BuildConfig.STREAMS_WEBSOCKET`). It is
+gated Streams WebSocket for caught-up reads, Machine RPC replies, presence and appends
+(`BuildConfig.STREAMS_WEBSOCKET`). It is
 off by default, accepts the same values as desktop and does not change the storage
 suffix.
 
