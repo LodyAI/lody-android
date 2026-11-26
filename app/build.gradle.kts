@@ -38,6 +38,7 @@ android {
             val name = if (key == "STORAGE_SUFFIX") "BACKEND_STORAGE_SUFFIX" else key
             buildConfigField("String", name, groovy.json.JsonOutput.toJson(backends[key]))
         }
+        buildConfigField("boolean", "STREAMS_WEBSOCKET", (backends["LORO_STREAMS_WS_ENABLED"] == "1").toString())
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -121,6 +122,7 @@ val generateRuntimeAssets = tasks.register<RuntimeAssets>("generateRuntimeAssets
     inputs.dir(rootProject.file("runtime/src"))
     inputs.file(rootProject.file("runtime/build.mjs"))
     inputs.property("backendStorageSuffix", backends["STORAGE_SUFFIX"].toString())
+    inputs.property("streamsWebSocket", backends["LORO_STREAMS_WS_ENABLED"].toString())
     inputs.file(rootProject.file("../shared/markdown-repair/entry.js"))
     inputs.file(rootProject.file("runtime/snapshot.mjs"))
     inputs.file(rootProject.file("runtime/package-lock.json"))

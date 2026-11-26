@@ -1,21 +1,28 @@
+import {decodeClientFrame} from '@loro-dev/streams-client';
+
 /**
  * Network permission comes only from the native-validated workspace grant, plus one exact
  * credential-free read: the server time ([timeUrl], `GET <worker>/api/time`) the Status view
- * clock calibrates against.
+ * clock calibrates against. With [NativeWebSocket], the grant origin's `loro-ds-v1` socket
+ * carries exactly the reads and appends HTTP may make, plus read-only workspace presence.
  */
-export function createReadAccess(fetch, emit=()=>{}, {timeUrl}={}) {
+export function createReadAccess(fetch, emit=()=>{}, {timeUrl,NativeWebSocket}={}) {
  let config, active=true;
  const time=timeUrl ? new URL(timeUrl) : undefined;
  if(time && (time.protocol!=='https:' || time.username || time.password || time.search || time.hash || time.port || time.pathname!=='/api/time')) throw Error('network_denied');
- const requests=new Set(), waiters=new Set();
+ const requests=new Set(), waiters=new Set(), sockets=new Set();
  function configure(value) {
   const gateway=new URL(value.gatewayBaseUrl);
   if(gateway.protocol!=='https:' || gateway.username || gateway.password || gateway.search || gateway.hash || gateway.port) throw Error('network_denied');
   if(!/^[a-zA-Z0-9_-]{1,128}$/.test(value.workspaceId)) throw Error('network_denied');
   config={origin:gateway.origin,prefix:gateway.pathname.replace(/\/$/, '')+'/ds/lody/',workspace:value.workspaceId};
+  // A socket authenticated for the previous scope never serves the next one.
+  for(const socket of [...sockets]) socket.close(4000,'scope_changed');
  }
  function allowed(request) {
   const url=new URL(request.url);
+  // The credential-free `loro-ds-v1` capability probe (426 when WebSocket is served).
+  if(NativeWebSocket && config && request.method==='GET' && url.origin===config.origin && url.pathname==='/ds/ws' && !url.search && !url.hash && !url.username && !url.password && !request.headers.has('Authorization'))return true;
   if(!config || !['GET','HEAD','POST','PUT'].includes(request.method) || url.origin!==config.origin || url.username || url.password || url.hash || !url.pathname.startsWith(config.prefix)) return false;
   const parts=url.pathname.slice(config.prefix.length).split('/');
   if(parts.length>2 || (parts.length===2 && parts[1]!=='bootstrap')) return false;
@@ -42,6 +49,7 @@ export function createReadAccess(fetch, emit=()=>{}, {timeUrl}={}) {
   active=value;
   // Distinguish host suspension from a transport AbortError after SDK wrapping.
   if(!active) for(const controller of requests) controller.abort(new DOMException('runtime_suspended','AbortError'));
+  if(!active) for(const socket of [...sockets]) socket.close(4000,'runtime_suspended');
   else {for(const wake of [...waiters]) wake();}
  }
  async function guardedFetch(input, init) {
@@ -103,5 +111,71 @@ export function createReadAccess(fetch, emit=()=>{}, {timeUrl}={}) {
   if(text.length>4096)throw Error('response_too_large');
   return new Response(text,{status:response.status,statusText:response.statusText,headers:response.headers});
  }
- return {configure,setActive,fetch:guardedFetch};
+ // A frame names `{bucket}/{stream}`; it is permitted exactly when the equivalent HTTP request is.
+ function permits(stream, method) {
+  if(typeof stream!=='string' || !stream.startsWith('lody/'))return false;
+  const name=stream.slice('lody/'.length);
+  if(!name || name.includes('/'))return false;
+  return allowed(new Request(config.origin+config.prefix+encodeURIComponent(name),{method}));
+ }
+ // JOIN = GET, APPEND = POST, `createIfNotFound` = PUT. Presence is read-only: an ephemeral
+ // JOIN of this workspace's `:meta` presence channel; this runtime publishes no presence.
+ function permitted(frame, aliases) {
+  if(['ping','pong','auth'].includes(frame.type))return true;
+  if(frame.type==='leave'){aliases.delete(frame.alias);return true;}
+  const creates=frame.createIfNotFound===true;
+  if(frame.type==='join'){
+   if(!permits(frame.stream,'GET') || (creates && !permits(frame.stream,'PUT')))return false;
+   aliases.set(frame.alias,frame.stream);
+   return true;
+  }
+  if(frame.type==='append'){
+   const stream=frame.stream ?? aliases.get(frame.alias);
+   return permits(stream,'POST') && (!creates || permits(stream,'PUT'));
+  }
+  if(frame.type==='eph_join'){
+   const stream=frame.stream ?? aliases.get(frame.baseAlias);
+   if(frame.channel!=='presence' || stream!==`lody/${config.workspace}:meta` || !permits(stream,'GET'))return false;
+   aliases.set(frame.alias,stream);
+   return true;
+  }
+  return false;
+ }
+ // Background cannot open sockets; each connection is bound to the grant origin's `/ds/ws`.
+ class GuardedWebSocket {
+  #socket;
+  #aliases=new Map();
+  onopen=null;onmessage=null;onclose=null;onerror=null;
+  constructor(url, protocols) {
+   if(!active)throw Error('inactive_socket');
+   if(!config)throw Error('network_denied');
+   const target=new URL(url);
+   if(target.protocol!=='wss:' || target.host!==new URL(config.origin).host || target.pathname!=='/ds/ws' || target.search || target.hash || target.username || target.password)throw Error('network_denied');
+   if(sockets.size>=4)throw Error('network_busy');
+   const socket=new NativeWebSocket(target.href,protocols);
+   this.#socket=socket;sockets.add(this);
+   socket.onopen=event=>this.onopen?.(event);
+   socket.onmessage=event=>this.onmessage?.(event);
+   socket.onerror=event=>this.onerror?.(event);
+   socket.onclose=event=>{sockets.delete(this);this.onclose?.(event);};
+  }
+  get protocol(){return this.#socket.protocol;}
+  get readyState(){return this.#socket.readyState;}
+  get binaryType(){return this.#socket.binaryType;}
+  set binaryType(value){this.#socket.binaryType=value;}
+  send(data) {
+   let frame;
+   try {
+    if(!(data instanceof Uint8Array || data instanceof ArrayBuffer))throw Error('text_frame');
+    frame=decodeClientFrame(data instanceof Uint8Array?data:new Uint8Array(data),this.protocol==='loro-ds-v1.1');
+   } catch {frame=undefined;}
+   if(!frame || !permitted(frame,this.#aliases)) {
+    this.close(4000,'network_denied');
+    throw Error('network_denied');
+   }
+   this.#socket.send(data);
+  }
+  close(code,reason){this.#socket.close(code,reason);}
+ }
+ return {configure,setActive,fetch:guardedFetch,...(NativeWebSocket?{WebSocket:GuardedWebSocket}:{})};
 }

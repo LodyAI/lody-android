@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createReadAccess} from '../src/read-access.mjs';
+import {decodeClientFrame,encodeClientFrame,encodeServerFrame} from '@loro-dev/streams-client';
 const config={gatewayBaseUrl:'https://streams.example.org',workspaceId:'workspace'};
 test('closing a session or backgrounding does not report a network outage',async()=>{
  for(const cancel of ['session','background']) {
@@ -135,4 +136,146 @@ test('only the exact credential-free server time read leaves the stream gateway'
  access.setActive(false);
  await assert.rejects(access.fetch('https://worker.example.org/api/time'),/inactive_read/);
  assert.throws(()=>createReadAccess(async()=>new Response(''),()=>{},{timeUrl:'http://worker.example.org/api/time'}),/network_denied/);
+});
+
+// The gated loro-ds-v1 socket over a synthetic native WebSocket.
+function socketAccess() {
+ const natives=[];
+ class NativeWebSocket {
+  constructor(url,protocols){this.url=url;this.protocols=protocols;this.protocol='loro-ds-v1.1';this.sent=[];this.closed=undefined;natives.push(this);}
+  send(data){this.sent.push(data);}
+  close(code,reason){this.closed={code,reason};this.onclose?.({code});}
+ }
+ const requests=[];
+ const access=createReadAccess(async request=>{requests.push(request);return new Response(null,{status:426,headers:{'Sec-WebSocket-Protocol':'loro-ds-v1.1'}});},()=>{},{NativeWebSocket});
+ access.configure(config);
+ return {access,natives,requests};
+}
+const frame=value=>encodeClientFrame(value,true);
+test('the Streams socket carries exactly the reads and appends the HTTP gate allows',()=>{
+ const octet='application/octet-stream';
+ const permitted=[
+  {type:'auth',reqId:1,token:'grant'},
+  {type:'ping',seq:1n},
+  {type:'join',alias:1,stream:'lody/workspace:meta',offsetMode:'numeric',offset:5n,noEcho:false},
+  {type:'join',alias:2,stream:'lody/workspace:s:session-1',offsetMode:'tail',noEcho:false},
+  // Session streams may be created over HTTP (PUT), so a creating JOIN is the same permission.
+  {type:'join',alias:3,stream:'lody/workspace:s:session-2',offsetMode:'tail',noEcho:false,createIfNotFound:true,contentType:octet},
+  {type:'append',reqId:2,stream:'lody/workspace:meta',contentType:octet,payload:new Uint8Array([1])},
+  {type:'append',reqId:3,alias:2,contentType:octet,payload:new Uint8Array([1])},
+  {type:'append',reqId:4,stream:'lody/workspace:rpc:req:machine-1',contentType:'application/json',payload:new TextEncoder().encode('{}')},
+  {type:'eph_join',alias:4,baseAlias:1,channel:'presence',noEcho:false},
+  {type:'eph_join',alias:5,stream:'lody/workspace:meta',channel:'presence',noEcho:false},
+  {type:'leave',alias:1},
+ ];
+ const {access,natives}=socketAccess();
+ const socket=new access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']);
+ for(const value of permitted)socket.send(frame(value));
+ assert.equal(natives[0].sent.length,permitted.length);
+ assert.equal(natives[0].closed,undefined);
+ const denied=[
+  [],
+  [{type:'join',alias:3,stream:'lody/other:meta',offsetMode:'tail',noEcho:false}],
+  [{type:'join',alias:3,stream:'lody/workspace:rpc:req:machine-1',offsetMode:'tail',noEcho:false}],
+  [{type:'join',alias:3,stream:'other/workspace:meta',offsetMode:'tail',noEcho:false}],
+  // `:meta` is never created over HTTP.
+  [{type:'join',alias:3,stream:'lody/workspace:meta',offsetMode:'tail',noEcho:false,createIfNotFound:true,contentType:octet}],
+  [{type:'append',reqId:2,stream:'lody/other:meta',contentType:octet,payload:new Uint8Array([1])}],
+  // Reply streams are created and read, never appended by this runtime.
+  [{type:'append',reqId:2,stream:'lody/workspace:rpc:res:machine-1:reply-1',contentType:octet,payload:new Uint8Array([1])}],
+  [{type:'append',reqId:2,stream:'shortcut-body:doc-1',contentType:octet,payload:new Uint8Array([1])}],
+  [{type:'append',reqId:2,alias:9,contentType:octet,payload:new Uint8Array([1])}],
+  [{type:'join',alias:2,stream:'lody/workspace:rpc:res:machine-1:reply-1',offsetMode:'tail',noEcho:false},{type:'leave',alias:2},{type:'append',reqId:3,alias:2,contentType:octet,payload:new Uint8Array([1])}],
+  [{type:'eph_join',alias:4,stream:'lody/workspace:meta',channel:'typing',noEcho:false}],
+  [{type:'eph_join',alias:4,stream:'lody/workspace:s:session-1',channel:'presence',noEcho:false}],
+  [{type:'eph_pub',stream:'lody/workspace:meta',channel:'presence',payload:new Uint8Array([1])}],
+ ];
+ for(const sequence of denied.slice(1)){
+  const {access,natives}=socketAccess();
+  const socket=new access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']);
+  const last=sequence.at(-1);
+  for(const value of sequence.slice(0,-1))socket.send(frame(value));
+  assert.throws(()=>socket.send(frame(last)),/network_denied/,JSON.stringify(last,(_,v)=>typeof v==='bigint'?String(v):v));
+  assert.equal(natives[0].sent.length,sequence.length-1);
+  assert.equal(natives[0].closed?.code,4000);
+ }
+ const text=socketAccess();
+ const plain=new text.access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']);
+ assert.throws(()=>plain.send('{"type":"join"}'),/network_denied/);
+ assert.throws(()=>plain.send(new Uint8Array([0xff,0,1])),/network_denied/);
+});
+test('Streams sockets reach only the grant origin and close on suspension or a scope change',()=>{
+ const {access,natives}=socketAccess();
+ for(const url of ['ws://streams.example.org/ds/ws','wss://other.example.org/ds/ws','wss://streams.example.org/ds/lody','wss://streams.example.org/ds/ws?token=x','wss://user@streams.example.org/ds/ws'])
+  assert.throws(()=>new access.WebSocket(url,['loro-ds-v1.1']),/network_denied/,url);
+ assert.equal(natives.length,0);
+ new access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']);
+ access.setActive(false);
+ assert.deepEqual(natives[0].closed,{code:4000,reason:'runtime_suspended'});
+ assert.throws(()=>new access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']),/inactive_socket/);
+ access.setActive(true);
+ new access.WebSocket('wss://streams.example.org/ds/ws',['loro-ds-v1.1']);
+ access.configure({gatewayBaseUrl:'https://streams.example.org',workspaceId:'next'});
+ assert.deepEqual(natives[1].closed,{code:4000,reason:'scope_changed'});
+});
+test('the credential-free WebSocket probe is readable only when the socket is enabled',async()=>{
+ const {access,requests}=socketAccess();
+ const probe=await access.fetch('https://streams.example.org/ds/ws',{credentials:'omit'});
+ assert.equal(probe.status,426);
+ assert.equal(requests.length,1);
+ await assert.rejects(access.fetch('https://streams.example.org/ds/ws',{headers:{Authorization:'Bearer grant'}}),/network_denied/);
+ await assert.rejects(access.fetch('https://streams.example.org/ds/ws?x=1'),/network_denied/);
+ await assert.rejects(access.fetch('https://streams.example.org/ds/ws',{method:'POST'}),/network_denied/);
+ const plain=createReadAccess(async()=>new Response(null,{status:426}),()=>{});
+ plain.configure(config);
+ assert.equal(plain.WebSocket,undefined);
+ await assert.rejects(plain.fetch('https://streams.example.org/ds/ws'),/network_denied/);
+});
+
+// The vendored presence watcher, built with the switch on, through the gated socket.
+test('machine presence joins through the gated socket read-only and releases it when stopped',async t=>{
+ const {build}=await import('esbuild');
+ const {mkdir,rm,writeFile}=await import('node:fs/promises');
+ const {EphemeralStore}=await import('loro-crdt');
+ const root=new URL('../',import.meta.url).pathname;
+ const result=await build({absWorkingDir:root,entryPoints:['vendor/cloud-runtime/src/runtime/machine-presence.ts'],bundle:true,packages:'external',format:'esm',platform:'node',write:false,define:{LODY_MOBILE_STREAMS_WS:'true'}});
+ const dir=`${root}node_modules/.cache/lody-android-tests`;await mkdir(dir,{recursive:true});
+ const file=`${dir}/machine-presence-${process.pid}.mjs`;await writeFile(file,result.outputFiles[0].text);
+ let watchMachinePresence;
+ try{({watchMachinePresence}=await import(file));}finally{await rm(file,{force:true});}
+ const sent=[], natives=[];
+ class NativeWebSocket {
+  constructor(url){this.url=url;this.protocol='loro-ds-v1.1';this.closed=false;natives.push(this);queueMicrotask(()=>this.onopen?.({}));}
+  push(frame){const data=encodeServerFrame(frame,true).slice().buffer;queueMicrotask(()=>this.closed||this.onmessage?.({data}));}
+  send(data){
+   const frame=decodeClientFrame(data,true);sent.push(frame);
+   if(frame.type==='auth')this.push({type:'auth_ok',reqId:frame.reqId,expiresAtUnixSec:BigInt(Math.floor(Date.now()/1000)+3600)});
+   if(frame.type==='eph_join'){
+    this.push({type:'eph_join_ok',alias:frame.alias});
+    const store=new EphemeralStore(90000);
+    store.set('machine-m1',{kind:'machine',machineId:'m1',instanceId:'i1',updatedAt:Date.now()});
+    this.push({type:'eph_data',alias:frame.alias,isBootstrap:true,payload:store.encodeAll()});
+    store.destroy();
+   }
+   if(frame.type==='leave')this.push({type:'left',alias:frame.alias,serverInitiated:false});
+  }
+  close(code){this.closed=true;this.onclose?.({code:code??1000});}
+ }
+ const requests=[];
+ const access=createReadAccess(async request=>{requests.push(new URL(request.url));return new Response(null,{status:426,headers:{'Sec-WebSocket-Protocol':'loro-ds-v1.1'}});},()=>{},{NativeWebSocket});
+ access.configure(config);
+ const previous={fetch:globalThis.fetch,WebSocket:globalThis.WebSocket};
+ // As network.mjs installs them.
+ globalThis.fetch=access.fetch;globalThis.WebSocket=access.WebSocket;
+ const published=[];
+ const stop=watchMachinePresence('workspace',async()=>({token:'grant',gatewayBaseUrl:config.gatewayBaseUrl}),value=>published.push(value));
+ t.after(()=>{stop();Object.assign(globalThis,previous);});
+ for(let i=0;i<2000 && published.at(-1)?.state!=='live';i++)await new Promise(resolve=>setTimeout(resolve,0));
+ assert.deepEqual(published.at(-1),{state:'live',onlineMachineIds:['m1']});
+ assert.equal(natives[0].closed,false,'the gate permitted every presence frame');
+ assert.deepEqual(sent.filter(frame=>frame.type.startsWith('eph')).map(frame=>[frame.type,frame.stream,frame.channel]),[['eph_join','lody/workspace:meta','presence']]);
+ assert.deepEqual(requests.map(url=>url.pathname),['/ds/ws']);
+ stop();
+ for(let i=0;i<2000 && !natives[0].closed;i++)await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(natives[0].closed,true);
 });

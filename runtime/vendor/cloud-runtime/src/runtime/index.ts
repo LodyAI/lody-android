@@ -59,6 +59,12 @@ import { registerSchedules } from './handlers/schedules.ts';
 import { registerProposals } from './handlers/proposals.ts';
 import { registerSharing } from './handlers/sharing.ts';
 import { registerStatusView } from './handlers/status-view.ts';
+import {
+  createTailReader,
+  streamsWebSocket,
+  streamsWebSocketEnabled,
+  streamsWebSocketFor,
+} from './live-read.ts';
 const host = (globalThis as any).webkit.messageHandlers.dataRuntime;
 const send = (message: object) => host.postMessage(message);
 const channel = createChannel(
@@ -508,6 +514,7 @@ function watch(mode: string) {
     while (!signal.aborted) {
       let caughtUp = false;
       let releaseBootstrap = () => {};
+      let tail: ReturnType<typeof createTailReader> | undefined;
       try {
         const authorization = await getGrant();
         if (signal.aborted) return;
@@ -520,6 +527,11 @@ function watch(mode: string) {
         const client = new StreamsClient({
           url: `${authorization.gatewayBaseUrl.replace(/\/$/, '')}/ds/lody/${encodeURIComponent(stream)}`,
           auth: async () => (await getGrant()).token,
+          ...streamsWebSocketFor(
+            getGrant,
+            authorization.gatewayBaseUrl,
+            stream,
+          ),
           retry: { maxAttempts: 1 },
           // Keep writes within the native command budget; SDK 0.12+ defaults uploads to 60s.
           timeout: {
@@ -528,6 +540,17 @@ function watch(mode: string) {
             pollTimeoutMs: 35000,
           },
         });
+        // Without the build switch every read stays exactly as before.
+        const reader = (tail = streamsWebSocketEnabled
+          ? createTailReader(
+              client,
+              streamsWebSocket(
+                getGrant,
+                authorization.gatewayBaseUrl,
+                state.workspace,
+              ),
+            )
+          : undefined);
         if (mode !== 'meta' && !workspaceStream)
           releaseBootstrap = await acquireCatalogBootstrap(signal);
         const checkpoint = catalogImportCheckpoint(signal, () => {
@@ -661,12 +684,16 @@ function watch(mode: string) {
           const response = await retrySessionRead(
             signal,
             async () => {
-              const result = await client.readOnce({
-                offset,
-                cursor,
-                signal,
-                ...(livePoll ? { live: 'long-poll' as const } : {}),
-              });
+              const result = !livePoll
+                ? await client.readOnce({ offset, cursor, signal })
+                : reader
+                  ? await reader.read({ offset, cursor, signal })
+                  : await client.readOnce({
+                      offset,
+                      cursor,
+                      signal,
+                      live: 'long-poll',
+                    });
               if (!result.ok) {
                 const error = result.result;
                 const aborted =
@@ -779,6 +806,7 @@ function watch(mode: string) {
           return;
         }
       } finally {
+        tail?.close();
         releaseBootstrap();
         endCatchUp();
       }

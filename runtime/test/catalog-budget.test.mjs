@@ -7,6 +7,10 @@ import {Flock} from '@loro-dev/flock-wasm/base64';
 import {readCatalogRefresh, importCatalogUpdates, catalogBootstrapSlots} from '../vendor/cloud-runtime/src/runtime/catalog-sync.ts';
 import {retrySessionRead} from '../vendor/cloud-runtime/src/runtime/session-read.ts';
 import {createReadAccess} from '../src/read-access.mjs';
+import {createTailReader,streamsWebSocket,streamsWebSocketFor} from '../vendor/cloud-runtime/src/runtime/live-read.ts';
+import {decodeClientFrame,encodeServerFrame} from '@loro-dev/streams-client';
+// The watcher's live-read bindings; WebSocket stays off unless a test enables it.
+const LIVE_READ={createTailReader,streamsWebSocket,streamsWebSocketFor,streamsWebSocketEnabled:false};
 
 const source=await readFile(new URL('../vendor/cloud-runtime/src/runtime/index.ts',import.meta.url),'utf8');
 // Module constants the extracted functions read: the live workspace Flock read (pin sections)
@@ -22,7 +26,7 @@ async function runWatcher({snapshot=1024, updates=0, initialReady=true, reads=[]
  let bootstraps=0,index=0,finish;
  const done=new Promise(resolve=>{finish=resolve;});
  const context={
-  readCatalogRefresh, importCatalogUpdates:async()=>{}, catalogImportCheckpoint:()=>async()=>{}, acquireCatalogBootstrap:catalogBootstrapSlots(), retrySessionRead,AbortController,DOMException,Error,Uint8Array,crypto,watchers,catalogs,unhealthy:new Set(),machineReplicas:replicas,state:{workspace:'fixture'},
+  readCatalogRefresh, importCatalogUpdates:async()=>{}, catalogImportCheckpoint:()=>async()=>{}, acquireCatalogBootstrap:catalogBootstrapSlots(), ...LIVE_READ,retrySessionRead,AbortController,DOMException,Error,Uint8Array,crypto,watchers,catalogs,unhealthy:new Set(),machineReplicas:replicas,state:{workspace:'fixture'},
   getGrant:async()=>({gatewayBaseUrl:'https://example.org',token:'fixture'}),
   Flock:class {importFile(){} scan(){return [];}},
   StreamsClient:class {
@@ -104,7 +108,7 @@ async function reconnectingCatalog(t) {
  }),event=>events.push(event));
  access.configure({gatewayBaseUrl:'https://example.org',workspaceId:'fixture'});
  const context={
-  readCatalogRefresh, importCatalogUpdates, catalogImportCheckpoint:()=>async()=>{}, acquireCatalogBootstrap:catalogBootstrapSlots(), retrySessionRead,AbortController,DOMException,Error,Uint8Array,crypto,watchers,unhealthy,catalogs,machineReplicas,
+  readCatalogRefresh, importCatalogUpdates, catalogImportCheckpoint:()=>async()=>{}, acquireCatalogBootstrap:catalogBootstrapSlots(), ...LIVE_READ,retrySessionRead,AbortController,DOMException,Error,Uint8Array,crypto,watchers,unhealthy,catalogs,machineReplicas,
   state:{workspace:'fixture'},grant:undefined,
   getGrant:async()=>context.grant ??= {gatewayBaseUrl:'https://example.org',token:'fixture-'+(++grantRequests)},Flock,
   StreamsClient:class extends StreamsClient {
@@ -275,7 +279,7 @@ test('queued machine bootstraps cannot block metadata, cancellation or healthy m
  const watchers=new Map(), catalogs=new Map(), machineReplicas=new Map(), unhealthy=new Set(), pending=new Map(), events=[];
  const context={
   catalogImportCheckpoint:()=>async()=>{},importCatalogUpdates,readCatalogRefresh,acquireCatalogBootstrap:catalogBootstrapSlots(2),
-  retrySessionRead,AbortController,DOMException,Error,Uint8Array,crypto,watchers,catalogs,machineReplicas,unhealthy,state:{workspace:'fixture'},Flock,projectRows,
+  ...LIVE_READ,retrySessionRead,AbortController,DOMException,Error,Uint8Array,crypto,watchers,catalogs,machineReplicas,unhealthy,state:{workspace:'fixture'},Flock,projectRows,
   getGrant:async()=>({gatewayBaseUrl:'https://example.org',token:'fixture'}),resumeAcceptedInputs(){},providerRows:()=>[],decompress:bytes=>bytes,
   StreamsClient:class {
    constructor({url}){this.mode=decodeURIComponent(url).split(':').at(-1);}
@@ -329,7 +333,7 @@ test('session and Machine RPC uploads keep the native 15-second deadline with th
  for(const stream of ['fixture:session:s1','fixture:rpc:req:m1']) {
   const requestStarted=Promise.withResolvers();
   let requests=0;
-  const context={StreamsClient:class extends StreamsClient {
+  const context={...LIVE_READ,StreamsClient:class extends StreamsClient {
    constructor(options){super({...options,fetch:(_url,init)=>{
     requests++;requestStarted.resolve();
     return new Promise((_resolve,reject)=>init.signal.addEventListener('abort',()=>reject(init.signal.reason),{once:true}));
@@ -375,7 +379,7 @@ test('caught-up live frames stay healthy across idle long-polls while multi-page
   has:v=>unhealthy.has(v),
  };
  const context={
-  readCatalogRefresh,importCatalogUpdates,catalogImportCheckpoint,acquireCatalogBootstrap:catalogBootstrapSlots(),retrySessionRead,
+  ...LIVE_READ,readCatalogRefresh,importCatalogUpdates,catalogImportCheckpoint,acquireCatalogBootstrap:catalogBootstrapSlots(),retrySessionRead,
   AbortController,DOMException,Error,Uint8Array,crypto,watchers,catalogs,machineReplicas,unhealthy:trackedUnhealthy,
   state:{workspace:'fixture',catchingUp},
   getGrant:async()=>({gatewayBaseUrl:'https://example.org',token:'fixture'}),
@@ -412,4 +416,60 @@ test('caught-up live frames stay healthy across idle long-polls while multi-page
  assert.equal(unhealthy.has('meta'),false);
  assert.equal(catchingUp.has('meta'),false);
  assert.equal(catalogs.get('meta')?.sessions.length,4);
+});
+
+// Real watcher, tail reader, Streams SDK and Android socket gate; synthetic loro-ds-v1.1 server.
+test('caught-up catalog updates arrive over the gated WebSocket without long-poll',async t=>{
+ const {transform}=await import('esbuild');
+ const start=source.indexOf('function watch(');
+ const js=(await transform(source.slice(start,source.indexOf('\nconst ctx',start)),{loader:'ts',format:'cjs'})).code.replace(/^/,MODULE_CONSTANTS);
+ const server=new Flock('server');server.set(['title'],'Before',1);
+ const snapshot=server.exportFile(), version=server.version();
+ server.set(['title'],'After',2);
+ const update=new TextEncoder().encode(JSON.stringify(server.exportJson(version)));
+ const requests=[], joins=[], sockets=[], events=[], watchers=new Map(), machineReplicas=new Map();
+ class NativeWebSocket {
+  constructor(url){this.url=url;this.protocol='loro-ds-v1.1';sockets.push(this);queueMicrotask(()=>this.onopen?.({}));}
+  push(frame){const data=encodeServerFrame(frame,true).slice().buffer;queueMicrotask(()=>this.onmessage?.({data}));}
+  send(data){
+   const frame=decodeClientFrame(data,true);
+   if(frame.type==='auth')this.push({type:'auth_ok',reqId:frame.reqId,expiresAtUnixSec:BigInt(Math.floor(Date.now()/1000)+3600)});
+   if(frame.type==='join'){joins.push(frame);this.alias=frame.alias;this.push({type:'join_ok',alias:frame.alias,startOffset:frame.offset,streamClosed:false,contentType:'application/octet-stream'});}
+  }
+  close(code){this.onclose?.({code:code??1000});}
+ }
+ const access=createReadAccess(async request=>{
+  requests.push(new URL(request.url));
+  if(new URL(request.url).pathname==='/ds/ws')return new Response(null,{status:426,headers:{'Sec-WebSocket-Protocol':'loro-ds-v1.1'}});
+  return new Promise(()=>{});
+ },()=>{},{NativeWebSocket});
+ access.configure({gatewayBaseUrl:'https://example.org',workspaceId:'fixture'});
+ const context={
+  ...LIVE_READ,streamsWebSocketEnabled:true,
+  // Production passes no factory: the network document installs the gated socket as WebSocket.
+  streamsWebSocket:(grant,url,workspace)=>({...streamsWebSocket(grant,url,workspace,true),webSocketFactory:(target,{protocols})=>new access.WebSocket(target,protocols)}),
+  readCatalogRefresh, importCatalogUpdates, catalogImportCheckpoint:()=>async()=>{}, acquireCatalogBootstrap:catalogBootstrapSlots(), retrySessionRead,AbortController,DOMException,Error,Uint8Array,crypto,watchers,unhealthy:new Set(),catalogs:new Map(),machineReplicas,
+  state:{workspace:'fixture'},
+  getGrant:async()=>({gatewayBaseUrl:'https://example.org',token:'fixture'}),Flock,
+  StreamsClient:class extends StreamsClient {
+   constructor(options){super({...options,fetch:access.fetch});}
+   async bootstrap(){return {ok:true,result:{snapshotOffset:'0',snapshot:{body:snapshot},updates:[],nextOffset:'1',cursor:'cursor-1',upToDate:true}};}
+  },
+  apply(flock,bytes){if(bytes.length)flock.importJson(JSON.parse(new TextDecoder().decode(bytes)));},
+  providerRows:()=>[],projectRows:rows=>rows,
+  publish(){events.push({type:'published',title:machineReplicas.get('machine')?.get(['title'])});},
+  channel:{emit(type,payload){events.push({type,...payload});}},
+  delay:async(ms,signal)=>{signal.throwIfAborted();},
+ };
+ vm.runInNewContext(js+'\nwatch("machine");',context);
+ t.after(()=>watchers.get('machine').abort());
+ for(let i=0;i<200 && !joins.length;i++)await turn();
+ assert.equal(joins[0]?.stream,'lody/fixture:mf:machine');
+ assert.equal(joins[0].offset,1n);
+ for(let i=0;i<20;i++)await turn();
+ sockets[0].push({type:'data',alias:sockets[0].alias,nextOffset:2n,upToDate:true,streamClosed:false,checkpoint:true,messages:[update]});
+ for(let i=0;i<200 && events.filter(e=>e.type==='published').at(-1)?.title!=='After';i++)await turn();
+ assert.equal(events.filter(e=>e.type==='published').at(-1).title,'After');
+ assert.deepEqual(requests.map(url=>url.pathname),['/ds/ws'],'only the credential-free probe used HTTP');
+ assert.equal(events.some(e=>e.stage==='sync_error:network_or_auth'),false);
 });
