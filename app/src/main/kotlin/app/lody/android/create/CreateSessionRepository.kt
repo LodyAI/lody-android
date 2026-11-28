@@ -15,17 +15,22 @@ interface CreationOptionsStore {
 
     suspend fun readOptions(scope: RuntimeScope, projectId: String?): CreationOptions?
     suspend fun writeOptions(scope: RuntimeScope, projectId: String?, options: CreationOptions)
+
+    suspend fun readRoles(scope: RuntimeScope): List<AgentRole>? = null
+    suspend fun writeRoles(scope: RuntimeScope, roles: List<AgentRole>) {}
 }
 
 interface CreationService {
     suspend fun refreshCapability(scope: RuntimeScope, agentConfigId: String) {}
     fun observeOptions(scope: RuntimeScope): Flow<CreationOptions?> = flow { emit(options(scope, null)) }
+    fun observeRoles(scope: RuntimeScope): Flow<List<AgentRole>?> = flow { emit(roles(scope)) }
     suspend fun cachedBranches(scope: RuntimeScope, repo: String): BranchCache? = null
     suspend fun branches(scope: RuntimeScope, repo: String, page: Int): BranchPage = error("branches_unavailable")
     suspend fun cacheBranches(scope: RuntimeScope, repo: String, page: BranchPage) {}
     suspend fun selectBranch(scope: RuntimeScope, repo: String, name: String) {}
 
     suspend fun cachedOptions(scope: RuntimeScope, projectId: String?): CreationOptions? = null
+    suspend fun cachedRoles(scope: RuntimeScope): List<AgentRole>? = null
     /** The last selection per computer and recently used configurations (device-local). */
     suspend fun runConfigs(scope: RuntimeScope): RunConfigPrefs? = null
     suspend fun saveRunConfigs(scope: RuntimeScope, value: RunConfigPrefs) {}
@@ -79,10 +84,22 @@ class CreateSessionRepository(private val owner: RuntimeOwner, private val store
     override suspend fun selectBranch(scope: RuntimeScope, repo: String, name: String) = store.selectBranch(scope, repo, name)
 
     override suspend fun cachedOptions(scope: RuntimeScope, projectId: String?) = store.readOptions(scope, projectId)
+    override suspend fun cachedRoles(scope: RuntimeScope) = store.readRoles(scope)
     override suspend fun runConfigs(scope: RuntimeScope) = store.readRunConfigs(scope)
     override suspend fun saveRunConfigs(scope: RuntimeScope, value: RunConfigPrefs) = store.writeRunConfigs(scope, value)
+    override fun observeRoles(scope: RuntimeScope): Flow<List<AgentRole>?> = owner.observeAgentRoles(scope).onEach { value ->
+        if (value != null) {
+            try { store.writeRoles(scope, value) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { }
+        }
+    }
     override suspend fun roles(scope: RuntimeScope): List<AgentRole> = owner.use(scope) {
-        (it.execute(RuntimeCommand.ListAgentRoles) as RuntimeResult.Roles).value
+        val value = (it.execute(RuntimeCommand.ListAgentRoles) as RuntimeResult.Roles).value
+        try { store.writeRoles(scope, value) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { /* Disk failure must not hide live Roles. */ }
+        value
     }
     override suspend fun projectGroups(scope: RuntimeScope): List<ProjectGroup> = owner.use(scope) {
         (it.execute(RuntimeCommand.ListProjectGroups) as RuntimeResult.ProjectGroups).value
@@ -106,4 +123,21 @@ class CreateSessionRepository(private val owner: RuntimeOwner, private val store
     override suspend fun create(scope: RuntimeScope, request: CreateRequest): CreationReceipt = owner.use(scope) {
         (it.execute(RuntimeCommand.CreateAndSend(request)) as RuntimeResult.Created).value
     }
+}
+
+@OptIn(FlowPreview::class)
+internal fun RuntimeOwner.observeAgentRoles(scope: RuntimeScope): Flow<List<AgentRole>?> {
+    val changes = events.filter {
+        it.scope == scope && it.generation == state.value.status.generation &&
+            (it.event is RuntimeEvent.Synced || it.event is RuntimeEvent.RolesChanged || it.event is RuntimeEvent.CreationChanged)
+    }.map { Unit }
+    val readiness = state.map { Triple(it.scope, it.status.phase, it.status.generation) }.distinctUntilChanged().map { Unit }
+    return merge(changes, readiness).debounce(150).map {
+        if (state.value.scope != scope || state.value.status.phase != RuntimePhase.READY) null
+        else try {
+            use(scope) { (it.execute(RuntimeCommand.ListAgentRoles) as RuntimeResult.Roles).value }
+        }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { null }
+    }.distinctUntilChanged()
 }

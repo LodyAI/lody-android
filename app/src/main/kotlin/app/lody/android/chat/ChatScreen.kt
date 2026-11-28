@@ -419,11 +419,22 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     // agent config; the agent itself never changes here. The picked Role (or explicit None)
     // holds until a newer turn lands with its own Role.
     var roles by remember(scope) { mutableStateOf<List<AgentRole>?>(null) }
-    LaunchedEffect(scope, status == "live" || isDraftTab) {
-        if ((status != "live" && !isDraftTab) || roles != null) return@LaunchedEffect
-        try { roles = repository.roles(scope) }
+    LaunchedEffect(scope) {
+        try { application.creation.cachedRoles(scope)?.let { if (roles == null) roles = it } }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { /* No Role row until the list loads; turns inherit meanwhile. */ }
+        catch (_: Exception) { }
+        if (roles == null) {
+            try { roles = repository.roles(scope) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { /* No Role row until the list loads; turns inherit meanwhile. */ }
+        }
+        try {
+            repository.observeRoles(scope).collect { loaded ->
+                if (loaded != null) roles = loaded
+            }
+        }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { }
     }
     val durableRole = SessionRoles.durable(snapshotChoice)
     var pickedRole by remember(id) { mutableStateOf<SessionRoles.Pick?>(null) }

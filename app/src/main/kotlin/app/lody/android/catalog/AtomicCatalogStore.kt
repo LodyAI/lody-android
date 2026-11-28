@@ -80,6 +80,25 @@ internal class AtomicCatalogStore(context: Context, name: String = "catalog") : 
             ?.sortedByDescending { it.lastModified() }?.drop(16)?.forEach { AtomicFile(it).delete() }
         Unit
     }
+    private fun rolesFile(scope: RuntimeScope) = File(directory, "roles-" + catalogFile(scope).name)
+    override suspend fun readRoles(scope: RuntimeScope): List<AgentRole>? = io {
+        if (!owns(scope)) return@io null
+        if (context()?.account?.workspaces?.firstOrNull { it.id == scope.workspaceId }?.contentMode == WorkspaceContentMode.E2EE) return@io null
+        val data = load(rolesFile(scope), 1024 * 1024) ?: return@io null
+        try {
+            require(data.getString("account") == scope.accountId && data.getString("workspace") == scope.workspaceId)
+            CreationJson.roles(data.getJSONObject("roles"))
+        } catch (_: Exception) { AtomicFile(rolesFile(scope)).delete(); null }
+    }
+    override suspend fun writeRoles(scope: RuntimeScope, roles: List<AgentRole>) = io {
+        require(owns(scope)) { "cache_scope_changed" }
+        require(context()?.account?.workspaces?.firstOrNull { it.id == scope.workspaceId }?.contentMode != WorkspaceContentMode.E2EE) { "encrypted_workspace" }
+        save(rolesFile(scope), JSONObject().put("account", scope.accountId).put("workspace", scope.workspaceId)
+            .put("roles", CreationJson.encodeRoles(roles)), 1024 * 1024)
+        directory.listFiles()?.filter { it.name.startsWith("roles-") && it.name.endsWith(".json") }
+            ?.sortedByDescending { it.lastModified() }?.drop(16)?.forEach { AtomicFile(it).delete() }
+        Unit
+    }
     private fun branchFile(scope: RuntimeScope, repo: String): File {
         val key = JSONArray(listOf(scope.accountId, scope.workspaceId, repo)).toString()
         val digest = MessageDigest.getInstance("SHA-256").digest(key.toByteArray())
@@ -179,7 +198,7 @@ internal class AtomicCatalogStore(context: Context, name: String = "catalog") : 
         previous?.account?.workspaces?.filter { old -> account.id != previous.account.id || account.workspaces.none { it.id == old.id } }?.forEach {
             AtomicFile(catalogFile(RuntimeScope(previous.account.id, it.id))).delete()
         }
-        directory.listFiles()?.filter { (it.name.startsWith("options-") || it.name.startsWith("branches-") || it.name.startsWith("members-") || it.name.startsWith("schedules-") || it.name.startsWith("runconfig-")) && it.name.endsWith(".json") }?.forEach { file ->
+        directory.listFiles()?.filter { (it.name.startsWith("options-") || it.name.startsWith("roles-") || it.name.startsWith("branches-") || it.name.startsWith("members-") || it.name.startsWith("schedules-") || it.name.startsWith("runconfig-")) && it.name.endsWith(".json") }?.forEach { file ->
             val cached = load(file)
             if (cached == null || cached.optString("account") != account.id || account.workspaces.none { it.id == cached.optString("workspace") }) AtomicFile(file).delete()
         }
@@ -221,7 +240,7 @@ internal class AtomicCatalogStore(context: Context, name: String = "catalog") : 
         val target = catalogFile(scope)
         save(target, data)
         // Bound disk use to eight recently updated workspace projections (<=64 MiB).
-        directory.listFiles()?.filter { it.name.endsWith(".json") && !it.name.startsWith("options-") && !it.name.startsWith("branches-") && !it.name.startsWith("members-") && !it.name.startsWith("schedules-") && it != accountFile && it != target }
+        directory.listFiles()?.filter { it.name.endsWith(".json") && !it.name.startsWith("options-") && !it.name.startsWith("roles-") && !it.name.startsWith("branches-") && !it.name.startsWith("members-") && !it.name.startsWith("schedules-") && !it.name.startsWith("runconfig-") && !it.name.startsWith("settings-") && it != accountFile && it != target }
             ?.sortedByDescending { it.lastModified() }?.drop(7)?.forEach { AtomicFile(it).delete() }
         Unit
     }

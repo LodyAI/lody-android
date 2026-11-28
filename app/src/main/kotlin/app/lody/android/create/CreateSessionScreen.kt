@@ -232,9 +232,18 @@ fun CreateSessionScreen(snapshot: CatalogSnapshot?, repository: CreationService,
         catch (_: Exception) { RunConfigPrefs() }
     }
     LaunchedEffect(runtimeScope) {
-        roles = try { repository.roles(runtimeScope) }
+        roles = null
+        try { roles = repository.cachedRoles(runtimeScope) }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { null }
+        catch (_: Exception) { /* A missing/corrupt cache is a normal cold start. */ }
+        // Refresh Roles on runtime readiness and catalog/Role changes, keeping cached/loaded rows across transient failures.
+        try {
+            repository.observeRoles(runtimeScope).collect { loaded ->
+                if (loaded != null) roles = loaded
+            }
+        }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { }
     }
     val branchRepo = target.projectId.orEmpty().removePrefix("github:")
     var branches by remember(runtimeScope, target.projectId, target.chat) { mutableStateOf(BranchState()) }

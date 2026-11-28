@@ -80,6 +80,7 @@ class CreationJsonTest {
         assertEquals("🪼", role.emoji)
         assertEquals(3, role.revision)
         assertEquals(RoleRunConfig("opus", null, mapOf("reasoning_effort" to "high", "plan_mode" to true)), role.targets.single().runConfig)
+        assertEquals(listOf(role), CreationJson.roles(CreationJson.encodeRoles(listOf(role))))
     }
 
     @Test fun aRoleCreationCarriesItsIdAndPinnedOptions() {

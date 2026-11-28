@@ -1,6 +1,7 @@
 package app.lody.android.chat
 
 import app.lody.android.BuildConfig
+import app.lody.android.create.observeAgentRoles
 import app.lody.android.runtime.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -167,6 +168,9 @@ class ChatRepository(
     /** Agent Roles readable by this user, for the conversation's Role row; a read. */
     suspend fun roles(scope: RuntimeScope): List<AgentRole> =
         owner.use(scope) { (it.execute(RuntimeCommand.ListAgentRoles) as RuntimeResult.Roles).value }
+
+    /** Re-reads readable Agent Roles when the runtime becomes ready or Roles/options change. */
+    fun observeRoles(scope: RuntimeScope): Flow<List<AgentRole>?> = owner.observeAgentRoles(scope)
 
     /** One mention category for the composer's @ panel; a read, safe to retry. */
     suspend fun mentions(scope: RuntimeScope, category: String, session: CatalogSession?): MentionCatalogPage =

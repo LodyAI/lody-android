@@ -112,7 +112,7 @@
   "src/runtime/handlers/proposals.ts": "2592a7ac75f5dac6cd9a248f46367a83a565aa531f350b9dd6dd8b7dab15d034",
   "src/runtime/handlers/schedules.ts": "0386b3df4e6f3e8b126cf79072a9c26cb8c689ed91b45187db9428caf5014939",
   "src/runtime/handlers/sessions.ts": "981d26c37273d0e0665735653419030af29a91f23c0b4e28a57bca63ee070cd6",
-  "src/runtime/handlers/settings.ts": "c05327bafb686296b7157be5d97bbce7aeb782e40ab3d1c88066376c8dd9a164",
+  "src/runtime/handlers/settings.ts": "3d24ced9a4146a0b9120a50caf67ef92a29f04fb978e20296890b2618db73d45",
   "src/runtime/handlers/sharing.ts": "e14230453d18d26f683714a8d34d1f1b7df45f2561bac0736a149174d63f0a7c",
   "src/runtime/handlers/status-view.ts": "05310d0b7a1a28493186ee5d4ceb2007f6f11e9ef708326d439b8124b6e936bd",
   "src/runtime/index.ts": "cbc271b1b046fb3c46ab60b3a8ef861285acdf489d738111985440b59888fa6c",

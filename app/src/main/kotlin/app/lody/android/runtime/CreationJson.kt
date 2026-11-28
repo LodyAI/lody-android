@@ -77,6 +77,18 @@ internal object CreationJson {
         )
     }
 
+    fun encodeRoles(roles: List<AgentRole>): JSONObject = JSONObject().put("roles", JSONArray(roles.map { role ->
+        JSONObject().put("id", role.id).put("name", role.name).put("emoji", role.emoji).put("revision", role.revision)
+            .put("targets", JSONArray(role.targets.map { target ->
+                JSONObject().put("machineId", target.machineId).put("agentConfigId", target.agentConfigId).put("state", target.state)
+                    .put("runConfig", JSONObject().apply {
+                        target.runConfig.modelId?.let { put("modelId", it) }
+                        target.runConfig.modeId?.let { put("modeId", it) }
+                        if (target.runConfig.options.isNotEmpty()) put("configOptionValues", JSONObject(target.runConfig.options))
+                    })
+            }))
+    }))
+
     private fun selection(value: JSONObject) = RunSelection(
         value.getString("agentId"), value.optString("modelId").ifBlank { null },
         value.optString("modeId").ifBlank { null }, value.optString("effort").ifBlank { null },

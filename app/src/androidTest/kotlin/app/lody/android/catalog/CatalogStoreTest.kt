@@ -86,6 +86,25 @@ class CatalogStoreTest {
    assertNull(store.readOptions(scope, null))
   } finally { store.clear() }
  }
+ @Test fun agentRolesPersistAcrossInstancesRejectEncryptedAndRespectLogout() = runBlocking {
+  val store = AtomicCatalogStore(context, "roles-test")
+  val roles = listOf(AgentRole("r1", "Reviewer", "🧪", 2, listOf(AgentRoleTarget("m", "provider", "configured", RoleRunConfig("model", "auto", mapOf("reasoning_effort" to "high"))))))
+  try {
+   store.clear(); store.saveAccount(account); store.writeRoles(scope, roles)
+   val reopened = AtomicCatalogStore(context, "roles-test")
+   assertEquals(roles, reopened.readRoles(scope))
+   assertNull(reopened.readRoles(RuntimeScope("account", "other")))
+   assertNull(reopened.readRoles(RuntimeScope("other-account", "w")))
+   reopened.saveAccount(account.copy(workspaces = listOf(Workspace("w", "Encrypted", contentMode = WorkspaceContentMode.E2EE))))
+   assertNull(reopened.readRoles(scope))
+   reopened.saveAccount(account.copy(workspaces = listOf(Workspace("other", "Other"))))
+   reopened.saveAccount(account)
+   assertNull(reopened.readRoles(scope))
+   reopened.writeRoles(scope, roles)
+   reopened.clear()
+   assertNull(store.readRoles(scope))
+  } finally { store.clear() }
+ }
  @Test fun atomicSnapshotRestoresContextAndIsolatesScopeAcrossInstances() = runBlocking {
   val store = AtomicCatalogStore(context, "cache-test")
   try {
