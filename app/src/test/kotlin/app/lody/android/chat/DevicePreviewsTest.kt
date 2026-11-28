@@ -68,4 +68,110 @@ class DevicePreviewsTest {
         assertEquals(listOf(pixel), session.devices)
         assertNull((calls.first { it is DeviceCommand.Start } as DeviceCommand.Start).quality)
     }
+
+    @Test fun remotePreviewPolicyHandlesNonMacOSOwnerCapabilityOfflineAndBrowserEmpty() {
+        assertTrue(RemotePreviewPolicy.isIosSimulatorDimmed(null))
+        assertFalse(RemotePreviewPolicy.isIosSimulatorDimmed("available"))
+        assertEquals(
+            RemotePreviewDecision.RequiresMacOS,
+            RemotePreviewPolicy.evaluate(
+                target = RemotePreviewTarget.IOS_SIMULATOR,
+                sessionUserId = "user-2",
+                currentUserId = "user-1",
+                machineSimulator = null,
+                machineEmulator = true,
+                machineCapabilities = mapOf("previewControl" to 1, "androidEmulator" to 1),
+                machineOnline = false,
+                hasBrowserCandidate = false,
+                hasCachedBrowser = false,
+                iosRunning = false,
+                androidRunning = false,
+            ),
+        )
+        assertEquals(
+            RemotePreviewDecision.OwnerOnly,
+            RemotePreviewPolicy.evaluate(
+                target = RemotePreviewTarget.BROWSER,
+                sessionUserId = "user-2",
+                currentUserId = "user-1",
+                machineSimulator = "available",
+                machineEmulator = true,
+                machineCapabilities = mapOf("previewControl" to 1),
+                machineOnline = true,
+                hasBrowserCandidate = true,
+                hasCachedBrowser = false,
+                iosRunning = false,
+                androidRunning = false,
+            ),
+        )
+        assertEquals(
+            RemotePreviewDecision.UpgradeRequired(RemotePreviewTarget.IOS_SIMULATOR),
+            RemotePreviewPolicy.evaluate(
+                target = RemotePreviewTarget.IOS_SIMULATOR,
+                sessionUserId = "user-1",
+                currentUserId = "user-1",
+                machineSimulator = "upgrade-required",
+                machineEmulator = false,
+                machineCapabilities = mapOf("previewControl" to 1),
+                machineOnline = true,
+                hasBrowserCandidate = false,
+                hasCachedBrowser = false,
+                iosRunning = false,
+                androidRunning = false,
+            ),
+        )
+        assertEquals(
+            RemotePreviewDecision.UpgradeRequired(RemotePreviewTarget.ANDROID_EMULATOR),
+            RemotePreviewPolicy.evaluate(
+                target = RemotePreviewTarget.ANDROID_EMULATOR,
+                sessionUserId = "user-1",
+                currentUserId = "user-1",
+                machineSimulator = "available",
+                machineEmulator = false,
+                machineCapabilities = mapOf("previewControl" to 1),
+                machineOnline = true,
+                hasBrowserCandidate = false,
+                hasCachedBrowser = false,
+                iosRunning = false,
+                androidRunning = false,
+            ),
+        )
+        assertEquals(
+            RemotePreviewDecision.BrowserEmpty,
+            RemotePreviewPolicy.evaluate(
+                target = RemotePreviewTarget.BROWSER,
+                sessionUserId = "user-1",
+                currentUserId = "user-1",
+                machineSimulator = "available",
+                machineEmulator = true,
+                machineCapabilities = mapOf("previewControl" to 1),
+                machineOnline = true,
+                hasBrowserCandidate = false,
+                hasCachedBrowser = false,
+                iosRunning = false,
+                androidRunning = false,
+            ),
+        )
+        assertEquals(
+            RemotePreviewDecision.OpenDevice(DevicePlatform.ANDROID),
+            RemotePreviewPolicy.evaluate(
+                target = RemotePreviewTarget.ANDROID_EMULATOR,
+                sessionUserId = "user-1",
+                currentUserId = "user-1",
+                machineSimulator = null,
+                machineEmulator = true,
+                machineCapabilities = mapOf("previewControl" to 1, "androidEmulator" to 1),
+                machineOnline = true,
+                hasBrowserCandidate = false,
+                hasCachedBrowser = false,
+                iosRunning = false,
+                androidRunning = false,
+            ),
+        )
+        assertTrue(RemotePreviewPolicy.isBrowserServerStoppedError("port_not_listening"))
+        assertTrue(RemotePreviewPolicy.isBrowserServerStoppedError("local_server_unreachable"))
+        assertFalse(RemotePreviewPolicy.isBrowserServerStoppedError("tunnel_creation_failed"))
+        assertEquals("Start dev server", RemotePreviewPolicy.appendDraftPrompt("", "Start dev server"))
+        assertEquals("Existing draft\n\nStart dev server", RemotePreviewPolicy.appendDraftPrompt("Existing draft  ", "Start dev server"))
+    }
 }

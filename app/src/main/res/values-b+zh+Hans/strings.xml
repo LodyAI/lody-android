@@ -1238,4 +1238,15 @@
     <string name="schedules_run_now_status_unknown_help">当前无法获取该对话的实时运行状态。立即运行“%1$s”可能会排队或与正在进行的工作并行。确定要继续吗？</string>
     <string name="schedules_run_now_status_unknown_detail_help">当前无法获取该对话的实时运行状态。立即运行“%1$s”将使用上次保存的配置（不包含未保存修改），可能会排队或与正在进行的工作并行。确定要继续吗？</string>
     <string name="schedules_destination_untitled_chat">未命名对话</string>
+    <string name="preview_menu_title">远程预览</string>
+    <string name="preview_browser">浏览器</string>
+    <string name="preview_owner_only">仅会话发起人可管理远程预览。</string>
+    <string name="preview_machine_offline">目标电脑已离线。</string>
+    <string name="preview_browser_empty_title">暂无可用浏览器预览</string>
+    <string name="preview_browser_empty_message">当前会话尚未上报 Web 预览地址。可将请求填入输入框，发送给 Agent 启动开发服务器并上报预览。</string>
+    <string name="preview_browser_stopped_message">%1$s 当前未响应。可将请求填入输入框，发送给 Agent 重新启动开发服务器并上报预览。</string>
+    <string name="preview_browser_empty_insert">填入输入框</string>
+    <string name="preview_browser_prompt">请启动当前项目的 Web 开发服务器并上报预览地址。</string>
+    <string name="preview_ios_requires_macos">需要 macOS</string>
+    <string name="preview_android_upgrade">请在 %1$s 上更新 Lody 后再预览 Android 模拟器。</string>
 </resources>

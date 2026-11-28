@@ -43,6 +43,8 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.Constraints
@@ -103,16 +105,17 @@ data class ChatContext(
     val readOnly: Boolean = false,
 )
 
-/** The More menu's preview entries; null labels hide an entry. */
+/** The More menu's Remote preview submenu model. */
 internal data class PreviewMenu(
     val browserLabel: String? = null,
-    val browserActive: Boolean = false,
     val browserBusy: Boolean = false,
-    val browserCanStopProcess: Boolean = false,
+    val iosDimmed: Boolean = false,
     val onBrowser: () -> Unit = {},
-    val onCopyBrowser: () -> Unit = {},
-    val onStopBrowser: (Boolean) -> Unit = {},
+    val onIosSimulator: () -> Unit = {},
+    val onAndroidEmulator: () -> Unit = {},
 )
+
+private data class BrowserEmptyDialogState(val stoppedLabel: String? = null)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -974,10 +977,13 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     val androidPreview = androidEntry.session
     var devicePage by remember(scope, id) { mutableStateOf<DevicePlatform?>(null) }
     var simulatorUpgrade by remember(scope, id) { mutableStateOf(false) }
+    var emulatorUpgrade by remember(scope, id) { mutableStateOf(false) }
+    var browserEmptyDialog by remember(scope, id) { mutableStateOf<BrowserEmptyDialogState?>(null) }
     var browserOpen by remember(scope, id) { mutableStateOf(false) }
     var browserEntry by remember(scope, id) { mutableStateOf(application.previewCache.browser(scope, id)) }
     var browserBusy by remember(scope, id) { mutableStateOf(false) }
     var browserCheckJob by remember(scope, id) { mutableStateOf<Job?>(null) }
+    val composerFocusRequester = remember(id) { androidx.compose.ui.focus.FocusRequester() }
     DisposableEffect(scope, id) { onDispose { browserCheckJob?.cancel() } }
     val openDevice: (DevicePlatform) -> Unit = { platform ->
         if (platform == DevicePlatform.IOS && context.machineSimulator == "upgrade-required") { simulatorUpgrade = true }
@@ -987,6 +993,10 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         stringResource(R.string.preview_unsupported), stringResource(R.string.preview_unauthorized), stringResource(R.string.preview_generic),
         stringResource(R.string.preview_stopped), stringResource(R.string.preview_stopped_with_process), stringResource(R.string.preview_stop_failed), stringResource(R.string.preview_failed),
     )
+    val previewIosRequiresMacOs = stringResource(R.string.preview_ios_requires_macos)
+    val previewOwnerOnly = stringResource(R.string.preview_owner_only)
+    val previewMachineOffline = stringResource(R.string.preview_machine_offline)
+    val previewBrowserPrompt = stringResource(R.string.preview_browser_prompt)
     val supportsPreviewStopProcess = (context.machineCapabilities["previewStopProcess"] ?: 0) >= 1
     val supportsIosShutdown = (context.machineCapabilities["iosSimulatorShutdown"] ?: 0) >= 1
     val supportsAndroidShutdown = (context.machineCapabilities["androidEmulatorShutdown"] ?: 0) >= 1
@@ -1035,6 +1045,10 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             val message = try {
                 val reply = repository.browserPreview(scope, id, BrowserPreviewAction.CREATE)
                 when {
+                    RemotePreviewPolicy.isBrowserServerStoppedError(reply.error) -> {
+                        browserEmptyDialog = BrowserEmptyDialogState(stoppedLabel = browserCandidate?.label)
+                        null
+                    }
                     reply.error != null -> previewTexts.error(reply.error, reply.message)
                     PreviewUrls.origin(reply.url) == null -> previewTexts.generic
                     else -> {
@@ -1145,14 +1159,42 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             if (message != null) snackbar.showSnackbar(message)
         }
     }
+    val handleRemotePreview: (RemotePreviewTarget) -> Unit = { target ->
+        val cachedBrowser = application.previewCache.browser(scope, id) != null
+        val decision = RemotePreviewPolicy.evaluate(
+            target = target,
+            sessionUserId = session?.userId,
+            currentUserId = scope.accountId,
+            machineSimulator = context.machineSimulator,
+            machineEmulator = context.machineEmulator,
+            machineCapabilities = context.machineCapabilities,
+            machineOnline = machineOnline,
+            hasBrowserCandidate = browserCandidate != null || cachedBrowser,
+            hasCachedBrowser = cachedBrowser,
+            iosRunning = iosPreview.running,
+            androidRunning = androidPreview.running,
+        )
+        when (decision) {
+            RemotePreviewDecision.OpenBrowser -> openBrowserPreview()
+            RemotePreviewDecision.BrowserEmpty -> browserEmptyDialog = BrowserEmptyDialogState(stoppedLabel = null)
+            is RemotePreviewDecision.OpenDevice -> openDevice(decision.platform)
+            RemotePreviewDecision.RequiresMacOS -> coroutines.launch { snackbar.showSnackbar(previewIosRequiresMacOs) }
+            RemotePreviewDecision.OwnerOnly -> coroutines.launch { snackbar.showSnackbar(previewOwnerOnly) }
+            RemotePreviewDecision.MachineOffline -> coroutines.launch { snackbar.showSnackbar(previewMachineOffline) }
+            is RemotePreviewDecision.UpgradeRequired -> when (decision.target) {
+                RemotePreviewTarget.BROWSER -> coroutines.launch { snackbar.showSnackbar(previewTexts.unsupported) }
+                RemotePreviewTarget.IOS_SIMULATOR -> simulatorUpgrade = true
+                RemotePreviewTarget.ANDROID_EMULATOR -> emulatorUpgrade = true
+            }
+        }
+    }
     val previewMenu = PreviewMenu(
-        browserLabel = browserCandidate?.let { stringResource(R.string.preview_open_label, it.label) },
-        browserActive = browserCandidate?.active == true || browserEntry != null,
+        browserLabel = browserCandidate?.label,
         browserBusy = browserBusy,
-        browserCanStopProcess = supportsPreviewStopProcess,
-        onBrowser = openBrowserPreview,
-        onCopyBrowser = copyBrowserLink,
-        onStopBrowser = stopBrowserPreview,
+        iosDimmed = RemotePreviewPolicy.isIosSimulatorDimmed(context.machineSimulator),
+        onBrowser = { handleRemotePreview(RemotePreviewTarget.BROWSER) },
+        onIosSimulator = { handleRemotePreview(RemotePreviewTarget.IOS_SIMULATOR) },
+        onAndroidEmulator = { handleRemotePreview(RemotePreviewTarget.ANDROID_EMULATOR) },
     )
     // Device capsules in the action bar: shown once the agent started a preview (catalog request id)
     // or one is running. The CLI records an agent start on the conversation that owns the device,
@@ -1180,6 +1222,39 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         text = { Text(stringResource(R.string.preview_ios_upgrade, context.machineName)) },
         confirmButton = { TextButton(onClick = { simulatorUpgrade = false }) { Text(stringResource(R.string.preview_ok)) } },
     )
+    if (emulatorUpgrade) AlertDialog(
+        onDismissRequest = { emulatorUpgrade = false },
+        text = { Text(stringResource(R.string.preview_android_upgrade, context.machineName)) },
+        confirmButton = { TextButton(onClick = { emulatorUpgrade = false }) { Text(stringResource(R.string.preview_ok)) } },
+    )
+    browserEmptyDialog?.let { state ->
+        AlertDialog(
+            onDismissRequest = { browserEmptyDialog = null },
+            title = { Text(stringResource(R.string.preview_browser_empty_title)) },
+            text = {
+                Text(
+                    if (!state.stoppedLabel.isNullOrBlank()) {
+                        stringResource(R.string.preview_browser_stopped_message, state.stoppedLabel)
+                    } else {
+                        stringResource(R.string.preview_browser_empty_message)
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = canEdit,
+                    onClick = {
+                        browserEmptyDialog = null
+                        prompt = RemotePreviewPolicy.appendDraftPrompt(prompt, previewBrowserPrompt)
+                        runCatching { composerFocusRequester.requestFocus() }
+                    },
+                ) { Text(stringResource(R.string.preview_browser_empty_insert)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { browserEmptyDialog = null }) { Text(stringResource(R.string.preview_cancel)) }
+            },
+        )
+    }
     devicePage?.let { platform ->
         val entry = if (platform == DevicePlatform.IOS) iosEntry else androidEntry
         val canShutdown = if (platform == DevicePlatform.ANDROID) supportsAndroidShutdown else supportsIosShutdown
@@ -1350,7 +1425,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 }
                 ChatHeader(context.title, context.tabs, context.closedTabs, id, false, changingTab, onBack, onSelectTab, createTab, changeTab, context.machineName, machineOnline, loadMachine,
                     onBrowseFiles = if (!isDraftTab && ProjectFiles.browsable(context.session, creationUnconfirmed)) ({ browsingFiles = true }) else null,
-                    previews = previewMenu.takeIf { !isDraftTab && context.session?.isTabClosed != true && !creationUnconfirmed },
+                    previews = previewMenu.takeIf { !isDraftTab && context.session?.archived != true && context.session?.isTabClosed != true && !creationUnconfirmed && isPlaintextWorkspace },
                     status = statusMenu.takeUnless { isDraftTab },
                     onShareImage = if (!isDraftTab && context.session?.isTabClosed != true && !creationUnconfirmed && isPlaintextWorkspace && !selectingForShare) startShareImage else null,
                     shareBusy = shareLoading)
@@ -1473,6 +1548,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                     usage = if (chosen && modelId != usage?.modelId) usage?.copy(quota = null) else usage,
                     onPromptChange = { if (it.text.length <= 32000) { field = app.lody.android.chat.MentionPresentation.edit(field, it); prompt = field.text } },
                     onFocusChange = { composerFocused = it },
+                    focusRequester = composerFocusRequester,
                     referencePresentation = mentions.presentation(LodyTheme.colors.accentOnSubtle, LodyTheme.colors.accentSubtle),
                     enabled = canEdit,
                     sending = outboxSending,
@@ -1728,11 +1804,12 @@ internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, clos
             }
             var more by remember { mutableStateOf(false) }
             var statusSubmenu by remember(currentId) { mutableStateOf(false) }
+            var previewSubmenu by remember(currentId) { mutableStateOf(false) }
             Box {
-                IconButton(onClick = { statusSubmenu = false; more = !more }, modifier = Modifier.size(LodySize.controlLg)) {
+                IconButton(onClick = { statusSubmenu = false; previewSubmenu = false; more = !more }, modifier = Modifier.size(LodySize.controlLg)) {
                     Icon(LodyIcons.More, stringResource(R.string.bar_more), tint = colors.iconPrimary, modifier = Modifier.size(LodyIconSize.md))
                 }
-                DropdownMenu(expanded = more, onDismissRequest = { more = false; statusSubmenu = false }) {
+                DropdownMenu(expanded = more, onDismissRequest = { more = false; statusSubmenu = false; previewSubmenu = false }) {
                     if (statusSubmenu && status != null) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.status_menu_title)) },
@@ -1755,36 +1832,52 @@ internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, clos
                             leadingIcon = { Icon(LodyIcons.Undo, null) },
                             onClick = { more = false; statusSubmenu = false; status.onFocus() },
                         )
+                    } else if (previewSubmenu && previews != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.preview_menu_title)) },
+                            leadingIcon = { Icon(LodyIcons.Back, stringResource(R.string.chat_back)) },
+                            onClick = { previewSubmenu = false },
+                        )
+                        HorizontalDivider(color = colors.borderSubtle)
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(stringResource(R.string.preview_browser))
+                                    previews.browserLabel?.let { label ->
+                                        Text(label, style = LodyTheme.typography.footnote, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            },
+                            enabled = !previews.browserBusy,
+                            leadingIcon = { Icon(LodyIcons.ExternalLink, null) },
+                            onClick = { more = false; previewSubmenu = false; previews.onBrowser() },
+                        )
+                        val iosColor = if (previews.iosDimmed) colors.textDisabled else colors.textPrimary
+                        val iosIconColor = if (previews.iosDimmed) colors.textDisabled else colors.iconPrimary
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.preview_ios), color = iosColor) },
+                            leadingIcon = { Icon(LodyIcons.Machine, null, tint = iosIconColor) },
+                            onClick = { more = false; previewSubmenu = false; previews.onIosSimulator() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.preview_android)) },
+                            leadingIcon = { Icon(LodyIcons.Desktop, null) },
+                            onClick = { more = false; previewSubmenu = false; previews.onAndroidEmulator() },
+                        )
                     } else {
                         if (onBrowseFiles != null) DropdownMenuItem(text = { Text(stringResource(R.string.files_title)) },
                             leadingIcon = { Icon(LodyIcons.Folder, null) }, onClick = { more = false; onBrowseFiles() })
+                        if (previews != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.preview_menu_title)) },
+                                leadingIcon = { Icon(LodyIcons.Play, null) },
+                                trailingIcon = { Icon(LodyIcons.Forward, null, modifier = Modifier.size(LodyIconSize.sm)) },
+                                onClick = { previewSubmenu = true },
+                            )
+                        }
                         if (onShareImage != null) DropdownMenuItem(text = { Text(stringResource(R.string.share_image_action)) },
                             enabled = !shareBusy,
                             leadingIcon = { Icon(LodyIcons.Image, null) }, onClick = { more = false; onShareImage() })
-                        if (previews != null) {
-                            previews.browserLabel?.let { label ->
-                                DropdownMenuItem(text = { Text(label) }, enabled = !previews.browserBusy,
-                                    leadingIcon = { Icon(LodyIcons.ExternalLink, null) }, onClick = { more = false; previews.onBrowser() })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.preview_copy_link)) }, enabled = !previews.browserBusy,
-                                    leadingIcon = { Icon(LodyIcons.Link, null) }, onClick = { more = false; previews.onCopyBrowser() })
-                                if (previews.browserActive) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(if (previews.browserCanStopProcess) R.string.preview_disconnect_remote_only else R.string.preview_stop)) },
-                                        enabled = !previews.browserBusy,
-                                        leadingIcon = { Icon(LodyIcons.Stop, null) },
-                                        onClick = { more = false; previews.onStopBrowser(false) },
-                                    )
-                                    if (previews.browserCanStopProcess) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.preview_disconnect_and_stop_process), color = LodyTheme.colors.dangerDefault) },
-                                            enabled = !previews.browserBusy,
-                                            leadingIcon = { Icon(LodyIcons.Stop, null, tint = LodyTheme.colors.dangerDefault) },
-                                            onClick = { more = false; previews.onStopBrowser(true) },
-                                        )
-                                    }
-                                }
-                            }
-                        }
                         DropdownMenuItem(text = { Text(stringResource(R.string.chat_new_tab)) }, enabled = !creating && busy == null,
                             leadingIcon = { Icon(LodyIcons.Plus, null) }, onClick = { more = false; onNewTab() })
                         if (closedTabs.isNotEmpty()) DropdownMenuItem(text = { Text(stringResource(R.string.chat_closed_tabs)) },
@@ -1921,6 +2014,7 @@ internal fun ChatComposer(
     prompt: androidx.compose.ui.text.input.TextFieldValue,
     onPromptChange: (androidx.compose.ui.text.input.TextFieldValue) -> Unit,
     onFocusChange: (Boolean) -> Unit,
+    focusRequester: androidx.compose.ui.focus.FocusRequester = remember { androidx.compose.ui.focus.FocusRequester() },
     referencePresentation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
     enabled: Boolean,
     agentCliType: String?,
@@ -2082,6 +2176,7 @@ internal fun ChatComposer(
                     maxLines = if (expanded) 10 else 1,
                     modifier = Modifier
                         .weight(1f)
+                        .focusRequester(focusRequester)
                         .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) }
                         .padding(horizontal = LodySpacing.sm, vertical = LodySpacing.sm)
                         .semantics { contentDescription = placeholder },

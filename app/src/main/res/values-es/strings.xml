@@ -1201,4 +1201,15 @@
     <string name="schedules_run_now_status_unknown_help">El estado en vivo de este chat no está disponible en este momento. Ejecutar “%1$s” ahora puede ponerse en cola o ejecutarse junto con trabajo activo. ¿Ejecutar de todos modos?</string>
     <string name="schedules_run_now_status_unknown_detail_help">El estado en vivo de este chat no está disponible en este momento. Ejecutar “%1$s” usa la última programación guardada (se excluyen los cambios sin guardar) y puede ponerse en cola o ejecutarse junto con trabajo activo. ¿Ejecutar de todos modos?</string>
     <string name="schedules_destination_untitled_chat">Chat sin título</string>
+    <string name="preview_menu_title">Vista previa remota</string>
+    <string name="preview_browser">Navegador</string>
+    <string name="preview_owner_only">Solo el propietario de la sesión puede gestionar las vistas previas remotas.</string>
+    <string name="preview_machine_offline">Este equipo está desconectado.</string>
+    <string name="preview_browser_empty_title">No hay vista previa disponible</string>
+    <string name="preview_browser_empty_message">Aún no se ha informado ninguna dirección de vista previa web. Puedes insertar una solicitud en el campo de entrada para pedir al agente que inicie el servidor y la informe.</string>
+    <string name="preview_browser_stopped_message">El servidor en %1$s no responde. Puedes insertar una solicitud en el campo de entrada para pedir al agente que lo reinicie e informe la vista previa.</string>
+    <string name="preview_browser_empty_insert">Insertar en el mensaje</string>
+    <string name="preview_browser_prompt">Inicia el servidor de desarrollo web de este proyecto e informa la URL de vista previa.</string>
+    <string name="preview_ios_requires_macos">Requiere macOS</string>
+    <string name="preview_android_upgrade">Actualiza Lody en %1$s para previsualizar el emulador de Android.</string>
 </resources>

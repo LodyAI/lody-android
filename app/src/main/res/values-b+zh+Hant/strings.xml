@@ -1201,4 +1201,15 @@
     <string name="schedules_run_now_status_unknown_help">目前無法取得此對話的即時執行狀態。立即執行「%1$s」可能會排隊或與進行中的工作並行。確定要繼續嗎？</string>
     <string name="schedules_run_now_status_unknown_detail_help">目前無法取得此對話的即時執行狀態。立即執行「%1$s」將使用上次儲存的排程（不包含未儲存的變更），可能會排隊或與進行中的工作並行。確定要繼續嗎？</string>
     <string name="schedules_destination_untitled_chat">未命名對話</string>
+    <string name="preview_menu_title">遠端預覽</string>
+    <string name="preview_browser">瀏覽器</string>
+    <string name="preview_owner_only">僅工作階段發起人可管理遠端預覽。</string>
+    <string name="preview_machine_offline">目標電腦已離線。</string>
+    <string name="preview_browser_empty_title">尚無可用的瀏覽器預覽</string>
+    <string name="preview_browser_empty_message">目前工作階段尚未回報 Web 預覽位址。可將請求填入輸入框，傳送給 Agent 啟動開發伺服器並回報預覽。</string>
+    <string name="preview_browser_stopped_message">%1$s 目前未回應。可將請求填入輸入框，傳送給 Agent 重新啟動開發伺服器並回報預覽。</string>
+    <string name="preview_browser_empty_insert">填入輸入框</string>
+    <string name="preview_browser_prompt">請啟動目前專案的 Web 開發伺服器並回報預覽位址。</string>
+    <string name="preview_ios_requires_macos">需要 macOS</string>
+    <string name="preview_android_upgrade">請在 %1$s 上更新 Lody 後再預覽 Android 模擬器。</string>
 </resources>

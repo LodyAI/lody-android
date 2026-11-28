@@ -1201,4 +1201,15 @@
     <string name="schedules_run_now_status_unknown_help">L’état en direct de cette discussion est actuellement indisponible. Exécuter « %1$s » maintenant peut mettre en file ou s’exécuter en parallèle d’un travail actif. Exécuter quand même ?</string>
     <string name="schedules_run_now_status_unknown_detail_help">L’état en direct de cette discussion est actuellement indisponible. Exécuter « %1$s » utilise la dernière planification enregistrée (les modifications non enregistrées sont exclues) et peut mettre en file ou s’exécuter en parallèle d’un travail actif. Exécuter quand même ?</string>
     <string name="schedules_destination_untitled_chat">Discussion sans titre</string>
+    <string name="preview_menu_title">Aperçu à distance</string>
+    <string name="preview_browser">Navigateur</string>
+    <string name="preview_owner_only">Seul le propriétaire de la session peut gérer les aperçus à distance.</string>
+    <string name="preview_machine_offline">Cet ordinateur est hors ligne.</string>
+    <string name="preview_browser_empty_title">Aucun aperçu disponible</string>
+    <string name="preview_browser_empty_message">Aucune adresse d’aperçu web n’a encore été signalée. Insérez une demande dans le champ de saisie pour demander à l’agent de démarrer le serveur et de la signaler.</string>
+    <string name="preview_browser_stopped_message">Le serveur à l’adresse %1$s ne répond pas. Insérez une demande dans le champ de saisie pour demander à l’agent de le redémarrer et de signaler l’aperçu.</string>
+    <string name="preview_browser_empty_insert">Insérer dans la saisie</string>
+    <string name="preview_browser_prompt">Démarre le serveur de développement web de ce projet et signale l’URL d’aperçu.</string>
+    <string name="preview_ios_requires_macos">Nécessite macOS</string>
+    <string name="preview_android_upgrade">Mettez à jour Lody sur %1$s pour prévisualiser l’émulateur Android.</string>
 </resources>

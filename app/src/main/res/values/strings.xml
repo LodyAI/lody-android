@@ -1256,4 +1256,15 @@
     <string name="schedules_run_now_status_unknown_help">Live status for this chat is unavailable right now. Running “%1$s” now may queue or run alongside active work in this chat. Run anyway?</string>
     <string name="schedules_run_now_status_unknown_detail_help">Live status for this chat is unavailable right now. Running “%1$s” uses the last saved schedule (unsaved edits are excluded) and may queue or run alongside active work in this chat. Run anyway?</string>
     <string name="schedules_destination_untitled_chat">Untitled chat</string>
+    <string name="preview_menu_title">Remote preview</string>
+    <string name="preview_browser">Browser</string>
+    <string name="preview_owner_only">Only the session owner can manage remote previews.</string>
+    <string name="preview_machine_offline">This computer is offline.</string>
+    <string name="preview_browser_empty_title">No preview ready</string>
+    <string name="preview_browser_empty_message">No web preview address has been reported yet. Insert a prompt into the composer to ask the agent to start the dev server and report it.</string>
+    <string name="preview_browser_stopped_message">The dev server at %1$s is not responding. Insert a prompt into the composer to ask the agent to start it and report the preview.</string>
+    <string name="preview_browser_empty_insert">Insert into composer</string>
+    <string name="preview_browser_prompt">Start the web dev server for this project and report the preview URL.</string>
+    <string name="preview_ios_requires_macos">Requires macOS</string>
+    <string name="preview_android_upgrade">Update Lody on %1$s to preview the Android Emulator.</string>
 </resources>

@@ -1201,4 +1201,15 @@
     <string name="schedules_run_now_status_unknown_help">現在このチャットのライブ状態を取得できません。今すぐ「%1$s」を実行すると、進行中の作業とキューまたは並行して実行される場合があります。実行しますか？</string>
     <string name="schedules_run_now_status_unknown_detail_help">現在このチャットのライブ状態を取得できません。「%1$s」は最後に保存されたスケジュール（未保存の変更は除く）で実行され、進行中の作業とキューまたは並行して実行される場合があります。実行しますか？</string>
     <string name="schedules_destination_untitled_chat">無題のチャット</string>
+    <string name="preview_menu_title">リモートプレビュー</string>
+    <string name="preview_browser">ブラウザ</string>
+    <string name="preview_owner_only">リモートプレビューを管理できるのはセッション作成者のみです。</string>
+    <string name="preview_machine_offline">このコンピューターはオフラインです。</string>
+    <string name="preview_browser_empty_title">利用可能なプレビューがありません</string>
+    <string name="preview_browser_empty_message">このセッションではまだ Web プレビュー URL が報告されていません。入力欄にリクエストを入れて、エージェントに開発サーバーの起動と報告を依頼できます。</string>
+    <string name="preview_browser_stopped_message">%1$s が応答していません。入力欄にリクエストを入れて、エージェントに開発サーバーの再起動と報告を依頼できます。</string>
+    <string name="preview_browser_empty_insert">入力欄に挿入</string>
+    <string name="preview_browser_prompt">このプロジェクトの Web 開発サーバーを起動して、プレビュー URL を報告してください。</string>
+    <string name="preview_ios_requires_macos">macOS が必要です</string>
+    <string name="preview_android_upgrade">%1$s の Lody を更新してから Android エミュレーターをプレビューしてください。</string>
 </resources>
