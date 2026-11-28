@@ -719,7 +719,6 @@
     <string name="schedules_finished_hidden">已结束的定时项已隐藏</string>
     <string name="settings_personal">个人</string>
     <string name="settings_preferences">偏好设置</string>
-    <string name="settings_preferences_hint">语言、通知与会话行为</string>
     <string name="settings_developer_mode">开发者模式</string>
     <string name="settings_roost_history">Roost 历史记录（测试）</string>
     <string name="settings_roost_history_hint">新会话在所选电脑支持时使用 Roost；已有会话保留原有历史记录。</string>
@@ -730,7 +729,6 @@
     <string name="settings_test_notification_body">能看到这条，说明图标和通知渠道都正常。</string>
     <string name="settings_workspace_named">工作区 · %1$s</string>
     <string name="settings_workspace_general">通用</string>
-    <string name="settings_workspace_hint">工作区设置与切换</string>
     <string name="settings_agents">Agent</string>
     <string name="settings_roles">Agent 角色</string>
     <string name="settings_shortcuts">提示词快捷指令</string>

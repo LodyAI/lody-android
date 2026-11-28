@@ -710,7 +710,6 @@
     <string name="schedules_finished_hidden">已隱藏結束的排程</string>
     <string name="settings_personal">個人</string>
     <string name="settings_preferences">偏好設定</string>
-    <string name="settings_preferences_hint">語言、通知與對話行為</string>
     <string name="settings_developer_mode">開發人員模式</string>
     <string name="settings_roost_history">Roost 歷史紀錄（測試版）</string>
     <string name="settings_roost_history_hint">當所選電腦支援時，新對話將使用 Roost；現有對話會保留目前的歷史紀錄。</string>
@@ -721,7 +720,6 @@
     <string name="settings_test_notification_body">如果你看得到這則通知，代表圖示與通知頻道運作正常。</string>
     <string name="settings_workspace_named">工作區 · %1$s</string>
     <string name="settings_workspace_general">一般</string>
-    <string name="settings_workspace_hint">工作區設定與切換</string>
     <string name="settings_agents">Agent</string>
     <string name="settings_roles">Agent 角色</string>
     <string name="settings_shortcuts">提示詞捷徑</string>

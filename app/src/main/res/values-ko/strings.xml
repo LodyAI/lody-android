@@ -710,7 +710,6 @@
     <string name="schedules_finished_hidden">완료된 일정이 숨겨져 있습니다</string>
     <string name="settings_personal">개인</string>
     <string name="settings_preferences">환경설정</string>
-    <string name="settings_preferences_hint">언어, 알림 및 채팅 동작</string>
     <string name="settings_developer_mode">개발자 모드</string>
     <string name="settings_roost_history">Roost 기록 (베타)</string>
     <string name="settings_roost_history_hint">선택한 컴퓨터에서 지원하는 경우 새 대화에 Roost를 사용합니다. 기존 대화는 현재 기록을 유지합니다.</string>
@@ -721,7 +720,6 @@
     <string name="settings_test_notification_body">이 알림이 보이면 아이콘과 알림 채널이 정상 작동하는 것입니다.</string>
     <string name="settings_workspace_named">워크스페이스 · %1$s</string>
     <string name="settings_workspace_general">일반</string>
-    <string name="settings_workspace_hint">워크스페이스 설정 및 전환</string>
     <string name="settings_agents">에이전트</string>
     <string name="settings_roles">에이전트 역할</string>
     <string name="settings_shortcuts">프롬프트 단축어</string>

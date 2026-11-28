@@ -729,7 +729,6 @@
     <string name="schedules_finished_hidden">Finished schedules are hidden</string>
     <string name="settings_personal">Personal</string>
     <string name="settings_preferences">Preferences</string>
-    <string name="settings_preferences_hint">Language, notifications, and chat behavior</string>
     <string name="settings_developer_mode">Developer mode</string>
     <string name="settings_roost_history">Roost history (beta)</string>
     <string name="settings_roost_history_hint">New conversations use Roost when the selected computer supports it. Existing conversations keep their current history.</string>
@@ -740,7 +739,6 @@
     <string name="settings_test_notification_body">If you can see this, the icon and channel work.</string>
     <string name="settings_workspace_named">Workspace · %1$s</string>
     <string name="settings_workspace_general">General</string>
-    <string name="settings_workspace_hint">Workspace settings and switching</string>
     <string name="settings_agents">Agents</string>
     <string name="settings_roles">Agent Roles</string>
     <string name="settings_shortcuts">Prompt shortcuts</string>

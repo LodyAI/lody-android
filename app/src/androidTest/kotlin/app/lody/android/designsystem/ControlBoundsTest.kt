@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.SideEffect
 import android.graphics.Insets
+import android.graphics.Rect
 import android.view.DisplayCutout
 import android.view.View
 import android.view.WindowInsets
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalView
 import androidx.test.filters.SdkSuppress
@@ -15,8 +17,13 @@ import androidx.test.platform.app.InstrumentationRegistry
 import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.compose.ui.layout.positionOnScreen
+import app.lody.android.R
+import app.lody.android.auth.Workspace
+import app.lody.android.home.ChatListUiState
 import app.lody.android.home.HomeBottomBar
+import app.lody.android.home.HomeSyncState
 import app.lody.android.home.SectionTitle
+import app.lody.android.home.SettingsHome
 import app.lody.android.home.HomeTab
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -160,6 +167,107 @@ class ControlBoundsTest {
                 instrumentation.sendPointerSync(MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, menuCenter[0], menuCenter[1], 0))
             }
             assertTrue("The label menu opens", opened.await(5, TimeUnit.SECONDS))
+        }
+    }
+
+    /** Preferences and workspace General keep single-line row metrics and navigation without subtitles. */
+    @Test fun settingsPreferencesAndGeneralUseSingleLineRows() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val ui = instrumentation.uiAutomation
+        val context = instrumentation.targetContext
+        val preferencesLabel = context.getString(R.string.settings_preferences)
+        val generalLabel = context.getString(R.string.settings_workspace_general)
+        val agentsLabel = context.getString(R.string.settings_agents)
+        val workspaceHeading = context.getString(R.string.home_settings_workspace)
+        val workspaces = listOf(Workspace("w1", "Baseline Workspace"), Workspace("w2", "Second Workspace"))
+        val state = ChatListUiState(
+            workspaceName = "Baseline Workspace",
+            initial = "B",
+            sync = HomeSyncState.Live,
+            accountName = "Settings Preview",
+            timeline = emptyList(),
+            snapshot = null,
+            userId = "u1",
+            projects = emptyList(),
+            placeholder = "",
+            workspaces = workspaces,
+            workspaceId = "w1",
+            accountEmail = "baseline@example.test",
+        )
+        fun nodes(): List<AccessibilityNodeInfo> {
+            val result = mutableListOf<AccessibilityNodeInfo>()
+            fun visit(node: AccessibilityNodeInfo) { result += node; for (i in 0 until node.childCount) node.getChild(i)?.let(::visit) }
+            val roots = ui.windows.mapNotNull { it.root }.ifEmpty { listOfNotNull(ui.rootInActiveWindow) }
+            roots.forEach(::visit)
+            return result
+        }
+        fun find(label: String) = nodes().firstOrNull { it.text?.toString() == label || it.contentDescription?.toString() == label }
+        fun waitFor(label: String): AccessibilityNodeInfo {
+            val deadline = SystemClock.uptimeMillis() + 5000
+            while (SystemClock.uptimeMillis() < deadline) {
+                find(label)?.let { return it }
+                instrumentation.waitForIdleSync()
+                SystemClock.sleep(50)
+            }
+            fail("Missing $label; visible texts: ${nodes().mapNotNull { it.text?.toString() }}")
+            error("unreachable")
+        }
+        fun clickableRow(label: String): AccessibilityNodeInfo {
+            var node = waitFor(label)
+            while (!node.isClickable && node.parent != null) node = node.parent
+            assertTrue("$label row must be clickable", node.isClickable)
+            return node
+        }
+        fun descendantTexts(root: AccessibilityNodeInfo): List<String> {
+            val texts = mutableListOf<String>()
+            fun visit(node: AccessibilityNodeInfo) {
+                node.text?.toString()?.takeIf { it.isNotBlank() }?.let(texts::add)
+                for (i in 0 until node.childCount) node.getChild(i)?.let(::visit)
+            }
+            visit(root)
+            return texts
+        }
+        val openedPreferences = CountDownLatch(1)
+        val composed = CountDownLatch(1)
+        ActivityScenario.launch(ComposerMotionProbeActivity::class.java).use { scenario ->
+            scenario.onActivity { activity -> activity.setContent {
+                LodyTheme {
+                    SideEffect { composed.countDown() }
+                    SettingsHome(
+                        state = state,
+                        padding = PaddingValues(),
+                        onSelectWorkspace = {},
+                        onSignOut = {},
+                        onAgents = {},
+                        onPreferences = { openedPreferences.countDown() },
+                        onRoles = {},
+                        onShortcuts = {},
+                        onGitHub = {},
+                        onProjects = {},
+                        onDeferred = {},
+                    )
+                }
+            } }
+            assertTrue("SettingsHome composed", composed.await(5, TimeUnit.SECONDS))
+            instrumentation.waitForIdleSync()
+
+            val preferencesRow = clickableRow(preferencesLabel)
+            val generalRow = clickableRow(generalLabel)
+            val agentsRow = clickableRow(agentsLabel)
+            assertEquals(listOf(preferencesLabel), descendantTexts(preferencesRow))
+            assertEquals(listOf(generalLabel), descendantTexts(generalRow))
+            val preferencesBounds = Rect().also(preferencesRow::getBoundsInScreen)
+            val generalBounds = Rect().also(generalRow::getBoundsInScreen)
+            val agentsBounds = Rect().also(agentsRow::getBoundsInScreen)
+            assertEquals("Preferences matches single-line Agents row height", agentsBounds.height(), preferencesBounds.height())
+            assertEquals("General matches single-line Agents row height", agentsBounds.height(), generalBounds.height())
+
+            assertTrue(preferencesRow.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            assertTrue("Preferences row still triggers navigation", openedPreferences.await(5, TimeUnit.SECONDS))
+
+            assertTrue(generalRow.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            waitFor(workspaceHeading)
+            waitFor("Second Workspace")
         }
     }
 

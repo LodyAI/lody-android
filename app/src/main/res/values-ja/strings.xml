@@ -710,7 +710,6 @@
     <string name="schedules_finished_hidden">終了済みのスケジュールは非表示です</string>
     <string name="settings_personal">個人</string>
     <string name="settings_preferences">環境設定</string>
-    <string name="settings_preferences_hint">言語、通知、チャットの動作</string>
     <string name="settings_developer_mode">開発者モード</string>
     <string name="settings_roost_history">Roost 履歴（ベータ）</string>
     <string name="settings_roost_history_hint">選択したコンピューターが対応している場合、新しい会話で Roost を使用します。既存の会話は現在の履歴が維持されます。</string>
@@ -721,7 +720,6 @@
     <string name="settings_test_notification_body">この通知が表示されていれば、アイコンと通知チャンネルは正常です。</string>
     <string name="settings_workspace_named">ワークスペース · %1$s</string>
     <string name="settings_workspace_general">一般</string>
-    <string name="settings_workspace_hint">ワークスペースの設定と切り替え</string>
     <string name="settings_agents">エージェント</string>
     <string name="settings_roles">エージェントロール</string>
     <string name="settings_shortcuts">プロンプトショートカット</string>

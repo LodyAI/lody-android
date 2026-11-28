@@ -710,7 +710,6 @@
     <string name="schedules_finished_hidden">Les planifications terminées sont masquées</string>
     <string name="settings_personal">Personnel</string>
     <string name="settings_preferences">Préférences</string>
-    <string name="settings_preferences_hint">Langue, notifications et comportement du chat</string>
     <string name="settings_developer_mode">Mode développeur</string>
     <string name="settings_roost_history">Historique Roost (bêta)</string>
     <string name="settings_roost_history_hint">Les nouvelles conversations utilisent Roost lorsque l’ordinateur sélectionné le prend en charge. Les conversations existantes conservent leur historique actuel.</string>
@@ -721,7 +720,6 @@
     <string name="settings_test_notification_body">Si vous voyez ceci, l\'icône et le canal fonctionnent.</string>
     <string name="settings_workspace_named">Espace de travail · %1$s</string>
     <string name="settings_workspace_general">Général</string>
-    <string name="settings_workspace_hint">Paramètres et changement d’espace de travail</string>
     <string name="settings_agents">Agents</string>
     <string name="settings_roles">Rôles d’agent</string>
     <string name="settings_shortcuts">Raccourcis de prompt</string>

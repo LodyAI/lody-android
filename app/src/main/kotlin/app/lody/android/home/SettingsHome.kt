@@ -41,12 +41,12 @@ internal fun SettingsHome(state: ChatListUiState, padding: PaddingValues, onSele
         }
         item {
             SettingsGroup(stringResource(R.string.settings_personal)) {
-                SettingsLine(stringResource(R.string.settings_preferences), LodyIcons.Settings, stringResource(R.string.settings_preferences_hint), onPreferences)
+                SettingsLine(stringResource(R.string.settings_preferences), LodyIcons.Settings, onClick = onPreferences)
             }
         }
         item {
             SettingsGroup(stringResource(R.string.settings_workspace_named, state.workspaceName)) {
-                SettingsLine(stringResource(R.string.settings_workspace_general), LodyIcons.ProjectGroup, stringResource(R.string.settings_workspace_hint), { sheet = "workspace" })
+                SettingsLine(stringResource(R.string.settings_workspace_general), LodyIcons.ProjectGroup, onClick = { sheet = "workspace" })
                 SettingsLine(stringResource(R.string.settings_agents), LodyIcons.Sparkles, onClick = onAgents)
                 SettingsLine(stringResource(R.string.settings_roles), LodyIcons.User, onClick = onRoles)
                 SettingsLine(stringResource(R.string.settings_shortcuts), LodyIcons.File, onClick = onShortcuts)

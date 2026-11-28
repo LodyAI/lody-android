@@ -756,7 +756,6 @@
     <string name="schedules_finished_hidden">Завершённые расписания скрыты</string>
     <string name="settings_personal">Личное</string>
     <string name="settings_preferences">Параметры</string>
-    <string name="settings_preferences_hint">Язык, уведомления и поведение чата</string>
     <string name="settings_developer_mode">Режим разработчика</string>
     <string name="settings_roost_history">История Roost (бета)</string>
     <string name="settings_roost_history_hint">Новые диалоги используют Roost, если выбранный компьютер его поддерживает. Существующие диалоги сохраняют текущую историю.</string>
@@ -767,7 +766,6 @@
     <string name="settings_test_notification_body">Если вы видите это уведомление, значок и канал работают.</string>
     <string name="settings_workspace_named">Рабочее пространство · %1$s</string>
     <string name="settings_workspace_general">Общие</string>
-    <string name="settings_workspace_hint">Настройки и переключение рабочего пространства</string>
     <string name="settings_agents">Агенты</string>
     <string name="settings_roles">Роли агентов</string>
     <string name="settings_shortcuts">Ярлыки промптов</string>
