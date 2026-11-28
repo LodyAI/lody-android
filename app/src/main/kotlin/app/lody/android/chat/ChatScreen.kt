@@ -1687,55 +1687,79 @@ internal fun BoxScope.ChatHeader(title: String, tabs: List<CatalogSession>, clos
                 }
             }
             var more by remember { mutableStateOf(false) }
+            var statusSubmenu by remember(currentId) { mutableStateOf(false) }
             Box {
-                IconButton(onClick = { more = !more }, modifier = Modifier.size(LodySize.controlLg)) {
+                IconButton(onClick = { statusSubmenu = false; more = !more }, modifier = Modifier.size(LodySize.controlLg)) {
                     Icon(LodyIcons.More, stringResource(R.string.bar_more), tint = colors.iconPrimary, modifier = Modifier.size(LodyIconSize.md))
                 }
-                DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                    // The conversation's Status view actions, as on the list rows.
-                    if (status != null) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.status_later)) },
-                            leadingIcon = { Icon(LodyIcons.Clock, null) }, onClick = { more = false; status.onLater() })
-                        if (status.settle) DropdownMenuItem(text = { Text(stringResource(R.string.status_action_settle)) },
-                            leadingIcon = { Icon(LodyIcons.Check, null) }, onClick = { more = false; status.onSettle() })
-                        if (status.focus) DropdownMenuItem(text = { Text(stringResource(R.string.status_action_focus)) },
-                            leadingIcon = { Icon(LodyIcons.Undo, null) }, onClick = { more = false; status.onFocus() })
-                    }
-                    if (onBrowseFiles != null) DropdownMenuItem(text = { Text(stringResource(R.string.files_title)) },
-                        leadingIcon = { Icon(LodyIcons.Folder, null) }, onClick = { more = false; onBrowseFiles() })
-                    if (onShareImage != null) DropdownMenuItem(text = { Text(stringResource(R.string.share_image_action)) },
-                        enabled = !shareBusy,
-                        leadingIcon = { Icon(LodyIcons.Image, null) }, onClick = { more = false; onShareImage() })
-                    if (previews != null) {
-                        previews.browserLabel?.let { label ->
-                            DropdownMenuItem(text = { Text(label) }, enabled = !previews.browserBusy,
-                                leadingIcon = { Icon(LodyIcons.ExternalLink, null) }, onClick = { more = false; previews.onBrowser() })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.preview_copy_link)) }, enabled = !previews.browserBusy,
-                                leadingIcon = { Icon(LodyIcons.Link, null) }, onClick = { more = false; previews.onCopyBrowser() })
-                            if (previews.browserActive) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(if (previews.browserCanStopProcess) R.string.preview_disconnect_remote_only else R.string.preview_stop)) },
-                                    enabled = !previews.browserBusy,
-                                    leadingIcon = { Icon(LodyIcons.Stop, null) },
-                                    onClick = { more = false; previews.onStopBrowser(false) },
-                                )
-                                if (previews.browserCanStopProcess) {
+                DropdownMenu(expanded = more, onDismissRequest = { more = false; statusSubmenu = false }) {
+                    if (statusSubmenu && status != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.status_menu_title)) },
+                            leadingIcon = { Icon(LodyIcons.Back, stringResource(R.string.chat_back)) },
+                            onClick = { statusSubmenu = false },
+                        )
+                        HorizontalDivider(color = colors.borderSubtle)
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.status_later)) },
+                            leadingIcon = { Icon(LodyIcons.Clock, null) },
+                            onClick = { more = false; statusSubmenu = false; status.onLater() },
+                        )
+                        if (status.settle) DropdownMenuItem(
+                            text = { Text(stringResource(R.string.status_action_settle)) },
+                            leadingIcon = { Icon(LodyIcons.Check, null) },
+                            onClick = { more = false; statusSubmenu = false; status.onSettle() },
+                        )
+                        if (status.focus) DropdownMenuItem(
+                            text = { Text(stringResource(R.string.status_action_focus)) },
+                            leadingIcon = { Icon(LodyIcons.Undo, null) },
+                            onClick = { more = false; statusSubmenu = false; status.onFocus() },
+                        )
+                    } else {
+                        if (onBrowseFiles != null) DropdownMenuItem(text = { Text(stringResource(R.string.files_title)) },
+                            leadingIcon = { Icon(LodyIcons.Folder, null) }, onClick = { more = false; onBrowseFiles() })
+                        if (onShareImage != null) DropdownMenuItem(text = { Text(stringResource(R.string.share_image_action)) },
+                            enabled = !shareBusy,
+                            leadingIcon = { Icon(LodyIcons.Image, null) }, onClick = { more = false; onShareImage() })
+                        if (previews != null) {
+                            previews.browserLabel?.let { label ->
+                                DropdownMenuItem(text = { Text(label) }, enabled = !previews.browserBusy,
+                                    leadingIcon = { Icon(LodyIcons.ExternalLink, null) }, onClick = { more = false; previews.onBrowser() })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.preview_copy_link)) }, enabled = !previews.browserBusy,
+                                    leadingIcon = { Icon(LodyIcons.Link, null) }, onClick = { more = false; previews.onCopyBrowser() })
+                                if (previews.browserActive) {
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.preview_disconnect_and_stop_process), color = LodyTheme.colors.dangerDefault) },
+                                        text = { Text(stringResource(if (previews.browserCanStopProcess) R.string.preview_disconnect_remote_only else R.string.preview_stop)) },
                                         enabled = !previews.browserBusy,
-                                        leadingIcon = { Icon(LodyIcons.Stop, null, tint = LodyTheme.colors.dangerDefault) },
-                                        onClick = { more = false; previews.onStopBrowser(true) },
+                                        leadingIcon = { Icon(LodyIcons.Stop, null) },
+                                        onClick = { more = false; previews.onStopBrowser(false) },
                                     )
+                                    if (previews.browserCanStopProcess) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.preview_disconnect_and_stop_process), color = LodyTheme.colors.dangerDefault) },
+                                            enabled = !previews.browserBusy,
+                                            leadingIcon = { Icon(LodyIcons.Stop, null, tint = LodyTheme.colors.dangerDefault) },
+                                            onClick = { more = false; previews.onStopBrowser(true) },
+                                        )
+                                    }
                                 }
                             }
                         }
+                        DropdownMenuItem(text = { Text(stringResource(R.string.chat_new_tab)) }, enabled = !creating && busy == null,
+                            leadingIcon = { Icon(LodyIcons.Plus, null) }, onClick = { more = false; onNewTab() })
+                        if (closedTabs.isNotEmpty()) DropdownMenuItem(text = { Text(stringResource(R.string.chat_closed_tabs)) },
+                            onClick = { more = false; history = true; expanded = true })
+                        if (status != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.status_menu_title)) },
+                                leadingIcon = { Icon(LodyIcons.StateIdle, null) },
+                                trailingIcon = { Icon(LodyIcons.Forward, null, modifier = Modifier.size(LodyIconSize.sm)) },
+                                onClick = { statusSubmenu = true },
+                            )
+                        }
+                        DropdownMenuItem(text = { Text(stringResource(R.string.chat_close_current)) }, enabled = busy == null && tabs.any { it.id == currentId },
+                            onClick = { more = false; onChangeTab(currentId, true) })
                     }
-                    DropdownMenuItem(text = { Text(stringResource(R.string.chat_new_tab)) }, enabled = !creating && busy == null,
-                        leadingIcon = { Icon(LodyIcons.Plus, null) }, onClick = { more = false; onNewTab() })
-                    if (closedTabs.isNotEmpty()) DropdownMenuItem(text = { Text(stringResource(R.string.chat_closed_tabs)) },
-                        onClick = { more = false; history = true; expanded = true })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.chat_close_current)) }, enabled = busy == null && tabs.any { it.id == currentId },
-                        onClick = { more = false; onChangeTab(currentId, true) })
                 }
             }
         }

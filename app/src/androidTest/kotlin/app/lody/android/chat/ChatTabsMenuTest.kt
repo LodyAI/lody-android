@@ -126,4 +126,78 @@ class ChatTabsMenuTest {
             waitFor("No closed conversations")
         }
     }
+
+    @Test fun statusActionsLiveInConversationStatusSubmenu() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val ui = instrumentation.uiAutomation
+        val root = CatalogSession("root", "m", "p", "Current", "idle", false, false, "")
+        val events = mutableStateOf(emptyList<String>())
+        fun nodes(): List<AccessibilityNodeInfo> {
+            val result = mutableListOf<AccessibilityNodeInfo>()
+            fun visit(node: AccessibilityNodeInfo) { result += node; for (i in 0 until node.childCount) node.getChild(i)?.let(::visit) }
+            ui.rootInActiveWindow?.let(::visit)
+            return result
+        }
+        fun find(label: String) = nodes().firstOrNull { it.text?.toString() == label || it.contentDescription?.toString() == label }
+        fun change(expected: String, action: () -> Unit) {
+            ui.executeAndWaitForEvent(action, { find(expected) != null }, 5000)
+            instrumentation.waitForIdleSync()
+        }
+        fun tap(label: String, expected: String) {
+            var node = requireNotNull(find(label)) { "Missing $label" }
+            while (!node.isClickable && node.parent != null) node = node.parent
+            change(expected) { assertTrue(node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) }
+        }
+        val context = instrumentation.targetContext
+        val more = context.getString(app.lody.android.R.string.bar_more)
+        val statusMenuLabel = context.getString(app.lody.android.R.string.status_menu_title)
+        val laterLabel = context.getString(app.lody.android.R.string.status_later)
+        val settleLabel = context.getString(app.lody.android.R.string.status_action_settle)
+        val focusLabel = context.getString(app.lody.android.R.string.status_action_focus)
+        val closeLabel = context.getString(app.lody.android.R.string.chat_close_current)
+        ActivityScenario.launch(CreateSessionProbeActivity::class.java).use { scenario ->
+            change(more) {
+                scenario.onActivity { activity ->
+                    activity.setContent {
+                        LodyTheme {
+                            Box(Modifier.fillMaxSize()) {
+                                ChatHeader(
+                                    title = events.value.joinToString(",").ifEmpty { "Current" },
+                                    tabs = listOf(root),
+                                    closedTabs = emptyList(),
+                                    currentId = "root",
+                                    creating = false,
+                                    busy = null,
+                                    onBack = {},
+                                    onSelectTab = {},
+                                    onNewTab = {},
+                                    onChangeTab = { _, _ -> },
+                                    status = StatusMenu(
+                                        settle = true,
+                                        focus = true,
+                                        onLater = { events.value = events.value + "later" },
+                                        onSettle = { events.value = events.value + "settle" },
+                                        onFocus = { events.value = events.value + "focus" },
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            tap(more, statusMenuLabel)
+            assertNull("Later must not appear directly in top-level More menu", find(laterLabel))
+            assertNull("Settle must not appear directly in top-level More menu", find(settleLabel))
+            assertNull("Move to Focus must not appear directly in top-level More menu", find(focusLabel))
+            val statusBounds = Rect(); requireNotNull(find(statusMenuLabel)).getBoundsInScreen(statusBounds)
+            val closeBounds = Rect(); requireNotNull(find(closeLabel)).getBoundsInScreen(closeBounds)
+            assertTrue("Conversation status must appear above Close current conversation", statusBounds.bottom <= closeBounds.top + 4)
+
+            tap(statusMenuLabel, laterLabel)
+            assertNotNull(find(settleLabel))
+            assertNotNull(find(focusLabel))
+            tap(settleLabel, "settle")
+            assertEquals(listOf("settle"), events.value)
+        }
+    }
 }

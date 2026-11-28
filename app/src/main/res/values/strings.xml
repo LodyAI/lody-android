@@ -1153,6 +1153,7 @@
     <string name="status_focus_drop">Drag a conversation here to focus</string>
     <string name="status_action_settle">Settle</string>
     <string name="status_action_focus">Move to Focus</string>
+    <string name="status_menu_title">Conversation status</string>
     <string name="status_action_pin">Pin</string>
     <string name="status_action_unpin">Unpin</string>
     <string name="status_action_move_section">Move to section</string>

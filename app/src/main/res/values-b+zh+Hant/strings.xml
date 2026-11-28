@@ -1131,6 +1131,7 @@
     <string name="status_focus_drop">將對話拖曳至此以移回進行中</string>
     <string name="status_action_settle">標記為已完成</string>
     <string name="status_action_focus">移回進行中</string>
+    <string name="status_menu_title">對話狀態</string>
     <string name="status_action_pin">釘選</string>
     <string name="status_action_unpin">取消釘選</string>
     <string name="status_action_move_section">移至分區</string>

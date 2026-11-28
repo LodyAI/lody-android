@@ -1183,6 +1183,7 @@
     <string name="status_focus_drop">Перетащите чат сюда, чтобы добавить в «Фокус»</string>
     <string name="status_action_settle">Завершить</string>
     <string name="status_action_focus">Перенести в «Фокус»</string>
+    <string name="status_menu_title">Статус диалога</string>
     <string name="status_action_pin">Закрепить</string>
     <string name="status_action_unpin">Открепить</string>
     <string name="status_action_move_section">Перенести в раздел</string>

@@ -1131,6 +1131,7 @@
     <string name="status_focus_drop">Arrastra una conversación aquí para moverla a Enfoque</string>
     <string name="status_action_settle">Completar</string>
     <string name="status_action_focus">Mover a Enfoque</string>
+    <string name="status_menu_title">Estado de la conversación</string>
     <string name="status_action_pin">Fijar</string>
     <string name="status_action_unpin">Dejar de fijar</string>
     <string name="status_action_move_section">Mover a sección</string>

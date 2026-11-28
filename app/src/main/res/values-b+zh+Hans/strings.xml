@@ -1140,6 +1140,7 @@
     <string name="status_focus_drop">将对话拖到这里以移回进行中</string>
     <string name="status_action_settle">标记为已完成</string>
     <string name="status_action_focus">移回进行中</string>
+    <string name="status_menu_title">对话状态</string>
     <string name="status_action_pin">置顶</string>
     <string name="status_action_unpin">取消置顶</string>
     <string name="status_action_move_section">移动到分组</string>

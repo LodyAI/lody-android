@@ -1131,6 +1131,7 @@
     <string name="status_focus_drop">대화를 여기로 끌어다 집중으로 이동</string>
     <string name="status_action_settle">완료 처리</string>
     <string name="status_action_focus">집중으로 이동</string>
+    <string name="status_menu_title">대화 상태</string>
     <string name="status_action_pin">고정</string>
     <string name="status_action_unpin">고정 해제</string>
     <string name="status_action_move_section">섹션으로 이동</string>

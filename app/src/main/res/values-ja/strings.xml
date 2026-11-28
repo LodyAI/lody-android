@@ -1131,6 +1131,7 @@
     <string name="status_focus_drop">ここに会話をドラッグしてフォーカス</string>
     <string name="status_action_settle">完了にする</string>
     <string name="status_action_focus">フォーカスに移動</string>
+    <string name="status_menu_title">会話ステータス</string>
     <string name="status_action_pin">ピン留め</string>
     <string name="status_action_unpin">ピン留めを解除</string>
     <string name="status_action_move_section">セクションへ移動</string>

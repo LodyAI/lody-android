@@ -1131,6 +1131,7 @@
     <string name="status_focus_drop">Glissez une conversation ici pour la placer dans Focus</string>
     <string name="status_action_settle">Marquer comme terminée</string>
     <string name="status_action_focus">Déplacer vers Focus</string>
+    <string name="status_menu_title">Statut de la conversation</string>
     <string name="status_action_pin">Épingler</string>
     <string name="status_action_unpin">Désépingler</string>
     <string name="status_action_move_section">Déplacer vers une section</string>
