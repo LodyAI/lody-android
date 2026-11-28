@@ -186,6 +186,8 @@
     <string name="chat_forget_message">This removes the local pending message. The computer may still receive or process it.</string>
     <string name="chat_forget_action">Remove locally</string>
     <string name="chat_forget_failed">Could not remove the pending message. Try again.</string>
+    <string name="chat_recover_action">Check and continue</string>
+    <string name="chat_recover_failed">Could not confirm delivery. The message is still pending; check the connection and try again.</string>
     <string name="chat_member">Member</string>
     <string name="chat_worked_for">Worked for %1$s</string>
     <string name="chat_composer_placeholder">Reply…</string>

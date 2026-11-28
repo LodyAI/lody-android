@@ -471,7 +471,10 @@ private fun UserTurn(entry: ChatEntry.User, actions: MessageActionState, onForge
             }
             if (onRetryPending != null) {
                 androidx.compose.material3.TextButton(onClick = { onRetryPending(entry.id) }) {
-                    Text(stringResource(R.string.chat_retry), style = LodyTheme.typography.footnote)
+                    Text(
+                        stringResource(if (entry.delivery == Delivery.Unknown) R.string.chat_recover_action else R.string.chat_retry),
+                        style = LodyTheme.typography.footnote,
+                    )
                 }
             }
             if (entry.delivery == Delivery.Unknown && onForgetPending != null) {

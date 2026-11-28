@@ -167,6 +167,8 @@
     <string name="chat_forget_title">Удалить неподтверждённое сообщение?</string>
     <string name="chat_forget_message">Это удалит локальное сообщение из очереди отправки. Компьютер всё ещё может получить или обработать его.</string>
     <string name="chat_forget_action">Удалить локально</string>
+    <string name="chat_recover_action">Проверить и продолжить</string>
+    <string name="chat_recover_failed">Не удалось подтвердить доставку. Сообщение ещё ожидает отправки; проверьте подключение и повторите попытку.</string>
     <string name="chat_forget_failed">Не удалось удалить ожидающее сообщение. Попробуйте ещё раз.</string>
     <string name="chat_member">Участник</string>
     <string name="chat_worked_for">Выполнено за %1$s</string>

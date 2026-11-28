@@ -168,6 +168,8 @@ sealed interface RuntimeResult {
     data class Plan(val tier: String?) : RuntimeResult
     /** Upstream send state (`sent` / `queued` / `not_sent` / `unknown`); a machine ACK is delivery only. */
     data class Sent(val state: String, val reason: String? = null) : RuntimeResult
+    /** Authoritative pending-input reconciliation outcome (`pending` / `accepted` / `queued` / `settled` / `not_saved` / `terminal`). */
+    data class PendingInputRetried(val state: String) : RuntimeResult
     data object Accepted : RuntimeResult
     data class SnoozePresets(val value: List<SnoozePreset>) : RuntimeResult
     /** Session metadata patches and pin-section rows a Status view command wrote; 0 is refused or a no-op. */

@@ -269,12 +269,14 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
             }
         } finally { repair.close() }
     }
-    // A sent turn leaves the optimistic list once the transcript carries its id.
+    // A sent turn leaves the optimistic list once the transcript carries its id; unconfirmed
+    // (`unknown`/`uploaded`) records stay actionable until settled or taken over by Roost.
     val authorsByMessage = remember(messages) { messages.associate { it.id to it.userId } }
+    val settledMessages = remember(messages) { settledTurnIds(messages) }
     val outboxState by application.sessionOutbox.state.collectAsState()
     val outboxRecord = outboxState[application.sessionOutbox.key(scope, id)]
-    LaunchedEffect(scope, id, authorsByMessage) {
-        if (authorsByMessage.isNotEmpty()) application.sessionOutbox.acknowledge(scope, id, authorsByMessage.keys)
+    LaunchedEffect(scope, id, authorsByMessage, settledMessages) {
+        if (authorsByMessage.isNotEmpty()) application.sessionOutbox.acknowledge(scope, id, authorsByMessage.keys, settledMessages)
     }
     val firstTurn = creation?.takeUnless { it.request.turnId in forgotten }?.let {
         Outgoing(it.request.turnId, it.request.text, it.at, when (it.state) {
@@ -293,11 +295,13 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         (listOfNotNull(firstTurn, outboxTurn) + outgoing.filter { o -> o.turnId != outboxTurn?.turnId }).filter { it.turnId !in authorsByMessage }
     }
     // Composer focus / IME animation must not rebuild every sender row in a long chat.
-    val all = remember(entries, authorsByMessage, members, context.me, memberLabel, pending, mentions.catalogs, forgotten) {
+    val unconfirmedOutboxId = outboxRecord?.takeIf { it.phase in setOf("unknown", "uploaded") && it.turnId !in forgotten }?.turnId
+    val all = remember(entries, authorsByMessage, members, context.me, memberLabel, pending, mentions.catalogs, forgotten, unconfirmedOutboxId) {
         entries.filterNot { it is ChatEntry.User && it.delivery == Delivery.Unknown && it.id in forgotten }.map { entry ->
             if (entry is ChatEntry.User) {
                 val userId = authorsByMessage[entry.id]
-                entry.copy(who = senderIdentity(userId, context.me, members[userId ?: context.me?.id], memberLabel, entry.who.time))
+                val delivery = if (entry.id == unconfirmedOutboxId && entry.delivery == Delivery.Sent) Delivery.Unknown else entry.delivery
+                entry.copy(who = senderIdentity(userId, context.me, members[userId ?: context.me?.id], memberLabel, entry.who.time), delivery = delivery)
             } else entry
         } + pending.map {
             // The composer's own labels and chips (the new chat's first turn carries them, as this
@@ -466,9 +470,10 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         StatusMenu(settle = !settled, focus = settled || later, { statusActions!!.later(target) }, { statusActions!!.settle(target) }, { statusActions!!.focus(target) })
     }
     val forgetFailure = stringResource(R.string.chat_forget_failed)
+    val recoverFailure = stringResource(R.string.chat_recover_failed)
     val retryablePendingIds = remember(messages, outboxRecord) {
         messages.filter { it.inputRetryable }.map { it.id }.toSet() +
-            setOfNotNull(outboxRecord?.takeIf { it.phase == "failed" }?.turnId)
+            setOfNotNull(outboxRecord?.takeIf { it.phase in setOf("failed", "unknown", "uploaded") }?.turnId)
     }
     forgetId?.let { inputId ->
         AlertDialog(onDismissRequest = { forgetId = null },
@@ -478,6 +483,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                 forgetId = null
                 coroutines.launch {
                     if (outboxRecord?.turnId == inputId) {
+                        runCatching { repository.forgetPendingInput(scope, id, inputId) }
                         application.sessionOutbox.forget(scope, id, inputId)
                         outgoing = outgoing.filterNot { it.turnId == inputId }
                         forgotten = forgotten + inputId
@@ -1302,9 +1308,15 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                             if (outboxRecord?.turnId == inputId && outboxRecord.phase == "failed") {
                                 application.sessionOutbox.retry(scope, id, inputId)
                             } else coroutines.launch {
-                                try { repository.retryPendingInput(scope, id, inputId) }
+                                try {
+                                    val outcome = repository.retryPendingInput(scope, id, inputId)
+                                    val reconciled = application.sessionOutbox.reconcile(scope, id, inputId, outcome)
+                                    if (reconciled && (outcome == "not_saved" || outcome == "terminal")) {
+                                        snackbar.showSnackbar(failedText)
+                                    }
+                                }
                                 catch (cancelled: CancellationException) { throw cancelled }
-                                catch (_: Exception) { snackbar.showSnackbar(failedText) }
+                                catch (_: Exception) { snackbar.showSnackbar(recoverFailure) }
                             }
                         }),
                         actions = if (selectingForShare) MessageActionState() else messageActions,

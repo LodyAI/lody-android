@@ -7,6 +7,7 @@ import app.lody.android.catalog.ConnectionPhase
 import app.lody.android.home.AppPreferences
 import app.lody.android.runtime.*
 import java.time.Instant
+import java.util.UUID
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import org.json.JSONArray
@@ -55,14 +56,14 @@ class SessionOutbox(
         val reason: String? = null,
     ) {
         val blocksInput: Boolean
-            get() = phase == "waiting" || phase == "sending" || phase == "unknown"
+            get() = phase == "waiting" || phase == "sending" || phase == "unknown" || phase == "uploaded"
 
         fun delivery(sessionLive: Boolean): Delivery = when (phase) {
             "waiting" -> if (sessionLive) Delivery.Sending else Delivery.Waiting
-            "sending", "uploaded" -> Delivery.Sending
+            "sending" -> Delivery.Sending
             "queued" -> Delivery.Queued
             "failed" -> Delivery.Failed
-            "unknown" -> Delivery.Unknown
+            "unknown", "uploaded" -> Delivery.Unknown
             else -> Delivery.Sent
         }
     }
@@ -133,13 +134,34 @@ class SessionOutbox(
         val k = key(scope, sessionId)
         val existing = mutable.value[k] ?: return
         if (existing.turnId != turnId || k in inflight) return
-        if (existing.phase in setOf("unknown", "failed", "waiting")) remove(k)
+        if (existing.phase in setOf("unknown", "uploaded", "failed", "waiting")) remove(k)
     }
 
-    fun acknowledge(scope: RuntimeScope, sessionId: String, landedTurnIds: Set<String>) {
+    fun reconcile(
+        scope: RuntimeScope,
+        sessionId: String,
+        turnId: String,
+        state: String,
+        replacementId: () -> String = { UUID.randomUUID().toString() },
+    ): Boolean {
+        val k = key(scope, sessionId)
+        val existing = mutable.value[k] ?: return false
+        if (existing.turnId != turnId || k in inflight) return false
+        if (existing.phase !in setOf("unknown", "uploaded")) return false
+        val next = reconcileOutboxRecord(existing, state, replacementId)
+        if (next == null) remove(k) else if (next != existing) put(k, next)
+        return true
+    }
+
+    fun acknowledge(
+        scope: RuntimeScope,
+        sessionId: String,
+        landedTurnIds: Set<String>,
+        settledTurnIds: Set<String> = landedTurnIds,
+    ) {
         val k = key(scope, sessionId)
         val existing = mutable.value[k] ?: return
-        if (existing.turnId in landedTurnIds && k !in inflight) remove(k)
+        if (k !in inflight && shouldAcknowledgeOutbox(existing, landedTurnIds, settledTurnIds)) remove(k)
     }
 
     fun clear() {
@@ -416,5 +438,62 @@ class SessionOutbox(
     companion object {
         private const val FILE = "session-outbox-v1"
         private const val MAX_BACKGROUND_SENDS = 8
+    }
+}
+
+private val SettledUserStatuses = setOf(
+    "seen", "processing", "handled", "failed", "canceled", "completed", "done", "queued",
+    // Roost pendingRoostInputs owns visual state & recovery for these turns once projected.
+    "delivery_unknown", "sending",
+)
+
+/**
+ * Turns that the transcript authoritatively proves settled, picked up by the computer,
+ * replied to, or taken over by Roost's pending-input coordinator.
+ */
+internal fun settledTurnIds(messages: List<SessionMessage>): Set<String> {
+    val settled = mutableSetOf<String>()
+    var latestUserId: String? = null
+    for (message in messages) {
+        when (message.role) {
+            "user" -> {
+                latestUserId = message.id
+                if (message.status in SettledUserStatuses) settled += message.id
+            }
+            "assistant" -> {
+                if (latestUserId != null) settled += latestUserId
+            }
+        }
+    }
+    return settled
+}
+
+internal fun shouldAcknowledgeOutbox(
+    record: SessionOutbox.Record,
+    landedTurnIds: Set<String>,
+    settledTurnIds: Set<String>,
+): Boolean = when (record.phase) {
+    "sent", "queued" -> record.turnId in landedTurnIds
+    "unknown", "uploaded" -> record.turnId in settledTurnIds
+    else -> false
+}
+
+/**
+ * Apply an authoritative `retryPendingInput` outcome to an `unknown`/`uploaded` outbox record.
+ * Returns null when the record should be removed (`settled`), or the next record state.
+ */
+internal fun reconcileOutboxRecord(
+    record: SessionOutbox.Record,
+    state: String,
+    replacementId: () -> String = { UUID.randomUUID().toString() },
+): SessionOutbox.Record? {
+    if (record.phase !in setOf("unknown", "uploaded")) return record
+    return when (state) {
+        "settled" -> null
+        "accepted" -> record.copy(phase = "sent", reason = null)
+        "queued" -> record.copy(phase = "queued", reason = null)
+        "not_saved" -> record.copy(phase = "failed", reason = "not_saved")
+        "terminal" -> record.copy(turnId = replacementId(), phase = "failed", reason = "input_already_terminal")
+        else -> record
     }
 }

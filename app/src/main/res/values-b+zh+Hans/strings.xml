@@ -184,6 +184,8 @@
     <string name="chat_forget_title">移除未确认的消息？</string>
     <string name="chat_forget_message">这会移除本地待确认消息，电脑仍可能收到或处理该消息。</string>
     <string name="chat_forget_action">本地移除</string>
+    <string name="chat_recover_action">核对并继续</string>
+    <string name="chat_recover_failed">暂时无法确认交接，消息仍待确认。请检查连接后重试。</string>
     <string name="chat_forget_failed">无法移除待确认消息，请重试。</string>
     <string name="chat_member">成员</string>
     <string name="chat_worked_for">工作了 %1$s</string>

@@ -165,6 +165,8 @@
     <string name="chat_forget_title">Supprimer le message non confirmé ?</string>
     <string name="chat_forget_message">Cela supprime le message local en attente. L’ordinateur pourrait tout de même le recevoir ou le traiter.</string>
     <string name="chat_forget_action">Supprimer localement</string>
+    <string name="chat_recover_action">Vérifier et continuer</string>
+    <string name="chat_recover_failed">Impossible de confirmer l’envoi. Le message est toujours en attente ; vérifiez la connexion et réessayez.</string>
     <string name="chat_forget_failed">Impossible de supprimer le message en attente. Réessayez.</string>
     <string name="chat_member">Membre</string>
     <string name="chat_worked_for">A travaillé pendant %1$s</string>

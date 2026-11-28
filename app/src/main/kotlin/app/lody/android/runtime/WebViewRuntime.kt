@@ -205,8 +205,8 @@ open class WebViewRuntime internal constructor(
             RuntimeResult.Accepted
         }
         is RuntimeCommand.RetryPendingInput -> {
-            call("retryPendingInput", JSONArray().put(command.sessionId).put(command.inputId), CommandDeadline.WRITE)
-            RuntimeResult.Accepted
+            val value = call("retryPendingInput", JSONArray().put(command.sessionId).put(command.inputId), CommandDeadline.WRITE) as? JSONObject
+            RuntimeResult.PendingInputRetried(value?.optString("state")?.ifBlank { null } ?: "pending")
         }
         is RuntimeCommand.ForgetPendingInput -> {
             call("forgetPendingInput", JSONArray().put(command.sessionId).put(command.inputId), CommandDeadline.WRITE)

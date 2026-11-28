@@ -165,6 +165,8 @@
     <string name="chat_forget_title">移除未確認的訊息？</string>
     <string name="chat_forget_message">這會移除本機的待確認訊息，電腦仍可能收到或處理該訊息。</string>
     <string name="chat_forget_action">從本機移除</string>
+    <string name="chat_recover_action">檢查並繼續</string>
+    <string name="chat_recover_failed">無法確認送達，訊息仍處於等待確認狀態。請檢查連線後再試。</string>
     <string name="chat_forget_failed">無法移除待確認訊息，請再試一次。</string>
     <string name="chat_member">成員</string>
     <string name="chat_worked_for">已工作 %1$s</string>

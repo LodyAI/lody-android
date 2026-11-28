@@ -165,6 +165,8 @@
     <string name="chat_forget_title">미확인 메시지를 삭제할까요?</string>
     <string name="chat_forget_message">기기에 대기 중인 메시지를 삭제합니다. 컴퓨터에서는 여전히 메시지를 수신하거나 처리할 수 있습니다.</string>
     <string name="chat_forget_action">기기에서 삭제</string>
+    <string name="chat_recover_action">확인 후 계속</string>
+    <string name="chat_recover_failed">전송을 확인할 수 없습니다. 메시지가 아직 대기 중입니다. 연결 상태를 확인한 후 다시 시도하세요.</string>
     <string name="chat_forget_failed">대기 중인 메시지를 삭제할 수 없습니다. 다시 시도하세요.</string>
     <string name="chat_member">멤버</string>
     <string name="chat_worked_for">%1$s 동안 작업함</string>

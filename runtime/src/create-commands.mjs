@@ -118,7 +118,9 @@ export function createCommands(runtime, sendTurn, identity) {
    }
    try {
     signal?.throwIfAborted();
-    const sent=await sendTurn({billingEntitlement:billingEntitlement(input.billingEntitlement),id:input.turnId,sessionId:input.sessionId,machineId:input.machineId,userId:scope.userId,text,...(quotes.length?{quotes,quoteMain:input.text.trim()}:{}),cliType:input.cliType,agentType:input.agentType,...choice,...(attachments.length?{attachmentBlocks:attachments}:{}),...(input.resume?{resume:input.resume}:{}),...(input.guide===true?{guide:true}:input.queue?{queue:true}:{})});
+    const budget=AbortSignal.timeout(105000);
+    const sendSignal=signal ? AbortSignal.any([signal, budget]) : budget;
+    const sent=await sendTurn({billingEntitlement:billingEntitlement(input.billingEntitlement),id:input.turnId,sessionId:input.sessionId,machineId:input.machineId,userId:scope.userId,text,...(quotes.length?{quotes,quoteMain:input.text.trim()}:{}),cliType:input.cliType,agentType:input.agentType,...choice,...(attachments.length?{attachmentBlocks:attachments}:{}),...(input.resume?{resume:input.resume}:{}),...(input.guide===true?{guide:true}:input.queue?{queue:true}:{})}, sendSignal);
     return {state:sent.state,reason:sent.reason};
    } catch {return {state:'unknown'};}
   },
@@ -176,7 +178,9 @@ export function createCommands(runtime, sendTurn, identity) {
     signal?.throwIfAborted();
     await runtime.ensureSession({sessionId:input.sessionId});
     signal?.throwIfAborted();
-    const sent=await sendTurn({billingEntitlement:billing,id:input.turnId,sessionId:input.sessionId,machineId:agent.machineId,userId:scope.userId,text:input.text,...(attachments.length?{attachmentBlocks:attachments}:{}),cliType:agent.cliType,agentType:agent.agentType,modelId:input.modelId,modeId:input.modeId,reasoningEffort:input.effort,reasoningEffortConfigId:capability?.reasoningEffortConfigId,...(pinned?{configOptionValues:pinned}:{}),...(role?{agentRoleId:role.id,agentConfigId:agent.id}:{})});
+    const budget=AbortSignal.timeout(105000);
+    const sendSignal=signal ? AbortSignal.any([signal, budget]) : budget;
+    const sent=await sendTurn({billingEntitlement:billing,id:input.turnId,sessionId:input.sessionId,machineId:agent.machineId,userId:scope.userId,text:input.text,...(attachments.length?{attachmentBlocks:attachments}:{}),cliType:agent.cliType,agentType:agent.agentType,modelId:input.modelId,modeId:input.modeId,reasoningEffort:input.effort,reasoningEffortConfigId:capability?.reasoningEffortConfigId,...(pinned?{configOptionValues:pinned}:{}),...(role?{agentRoleId:role.id,agentConfigId:agent.id}:{})}, sendSignal);
     return {state:sent.state,sessionId:input.sessionId,...(sent.state==='not_sent'&&sent.reason?{reason:sent.reason}:{})};
    } catch {return {state:'unknown',sessionId:input.sessionId};}
   },

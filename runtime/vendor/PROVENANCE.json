@@ -600,5 +600,19 @@
       "src/runtime/session-live-status.ts"
     ],
     "note": "Manual schedule Run now pre-check: derives scheduleOwnSessionId (UUIDv8) so created/active own_session schedules populate destinationSessionId alongside existing_session, exposes live session presence from watchMachinePresence, and adds the workspace-scoped sessionLiveStatus call (presence -> fresh pending pointer -> daemon session/live-status RPC -> post-await local re-read). Mirrored verbatim from the merged iOS runtime source commit; dependencies and licenses are unchanged."
+  },
+  "sendOutboxRecovery": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "308d1b7e89025e250243d84f9c4ad19a8277584d",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/213",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/methods.ts",
+      "src/contract/sessions.ts",
+      "src/runtime/handlers/sessions.ts",
+      "src/runtime/index.ts",
+      "src/runtime/session.ts"
+    ],
+    "note": "Stages Loro history and mq writes on a forked LoroDoc before importing accepted updates into the live replica (tracking ambiguous IDs separately so local caches stay clean without allowing duplicate replays), aligns durable handoff with Web by confirming sendTurn with rpcAccepted=false once history and :meta.latestUserMsgId land, refreshes local meta projections on markDispatch, repairs :meta.latestUserMsgId with a newer-pointer guard during recoverLoroInput, returns deterministic RetryPendingInputResult states (pending, accepted, queued, settled, not_saved, terminal) including mq and Roost inputAcceptance lookup, and aligns send/recovery timeouts with abort propagation and incremental catch-up. Selectively mirrored from the merged iOS runtime commit while #191/#192 (Streams SDK 0.16 and loro-ds-v1 WebSocket transport) remain outside this snapshot; dependencies and licenses are unchanged."
   }
 }

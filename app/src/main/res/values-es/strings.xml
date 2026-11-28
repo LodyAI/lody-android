@@ -165,6 +165,8 @@
     <string name="chat_forget_title">¿Eliminar el mensaje sin confirmar?</string>
     <string name="chat_forget_message">Esto elimina el mensaje pendiente local. Es posible que el equipo aún lo reciba o lo procese.</string>
     <string name="chat_forget_action">Eliminar localmente</string>
+    <string name="chat_recover_action">Comprobar y continuar</string>
+    <string name="chat_recover_failed">No se pudo confirmar la entrega. El mensaje sigue pendiente; comprueba la conexión e inténtalo de nuevo.</string>
     <string name="chat_forget_failed">No se pudo eliminar el mensaje pendiente. Inténtalo de nuevo.</string>
     <string name="chat_member">Miembro</string>
     <string name="chat_worked_for">Trabajó durante %1$s</string>

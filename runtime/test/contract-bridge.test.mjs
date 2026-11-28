@@ -225,6 +225,9 @@ test('session writes satisfy the shared runtime contract, which rejects a missin
  for(const action of ['read','send'])
   assert.equal((await bridge.editSession({action,sessionId:'s',expectedUserTurnId:'t',...(action==='send'?{id:'u',text:'edited',retainedIds:[]}:{}),workspaceId:'workspace',userId:'user'})).state,'created');
  assert.equal((await bridge.forkSession({action:'send',sourceSessionId:'s',sourceTurnId:'t',targetSessionId:'11111111-1111-4111-8111-111111111112',workspaceId:'workspace',userId:'user'})).state,'created');
+ for(const state of ['pending','accepted','queued','settled','not_saved','terminal'])
+  assert.equal(runtimeCalls.retryPendingInput.result.safeParse({id:'i',state}).success,true,state);
+ assert.equal(runtimeCalls.sendTurn.result.safeParse({id:'i',state:'accepted',rpcAccepted:false}).success,true);
  delete globalThis.androidRuntimeMessage;
 });
 

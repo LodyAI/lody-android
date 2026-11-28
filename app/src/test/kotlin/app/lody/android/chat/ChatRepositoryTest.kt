@@ -23,9 +23,24 @@ class ChatRepositoryTest {
             return when (command) {
                 is RuntimeCommand.WorkspaceChanges -> RuntimeResult.WorkspaceChanges(WorkspaceChanges.Ready(emptyList()))
                 is RuntimeCommand.FileDiff -> RuntimeResult.Diff(FileDiff(command.path, "", ""))
+                is RuntimeCommand.RetryPendingInput -> RuntimeResult.PendingInputRetried(retryOutcomes.removeFirstOrNull() ?: "pending")
                 else -> RuntimeResult.Accepted
             }
         }
+        val retryOutcomes = ArrayDeque<String>()
+    }
+
+    @Test fun retryPendingInputReturnsAuthoritativeReconciliationStates() = runTest {
+        val scope = RuntimeScope("account", "workspace")
+        val fake = Fake(scope)
+        val expected = listOf("accepted", "queued", "settled", "not_saved", "terminal", "pending")
+        fake.retryOutcomes.addAll(expected)
+        val owner = RuntimeOwner({ fake }, StandardTestDispatcher(testScheduler))
+        owner.activate(scope); runCurrent()
+        val repository = ChatRepository(owner)
+        val actual = expected.map { repository.retryPendingInput(scope, "s", "input-1") }
+        assertEquals(expected, actual)
+        owner.clear()
     }
 
     @Test fun workspaceReadsCarryTheirComparisonScope() = runTest {

@@ -42,6 +42,7 @@ async function fixture({ failAt, target, owner, subscribe, readControl, observe 
         if (request.method !== 'session/history-unsubscribe') replies.set(request.replyTo, request);
       } else {
         calls.push('history');
+        if (failAt === 'history-unsaved') throw new Error('network_error');
         doc.import(part.body.subarray(4));
         if (failAt === 'history') throw new Error('lost_ack');
       }
@@ -57,7 +58,7 @@ async function fixture({ failAt, target, owner, subscribe, readControl, observe 
         } };
       }
     }
-    async readOnce({ signal } = {}) {
+    async readOnce({ signal, live } = {}) {
       if (this.url.includes(':rpc:res:')) {
         const request = replies.get(this.url.split('/ds/lody/')[1]);
         const result = owner ? await owner(request, signal) : { result: { accepted: true } };
@@ -66,6 +67,7 @@ async function fixture({ failAt, target, owner, subscribe, readControl, observe 
       if (this.url.endsWith(':s:s')) {
         const read = readControl?.();
         if (read) return read;
+        if (!live) return ok({ nextOffset: '1', upToDate: true, closed: false });
       }
       return new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }));
     }
@@ -84,7 +86,10 @@ async function fixture({ failAt, target, owner, subscribe, readControl, observe 
     if (event.session && JSON.parse(event.session).status === 'live') ready();
     observe?.(event);
   };
-  const markDispatch = async () => calls.push('dispatch-pointer');
+  const markDispatch = async () => {
+    calls.push('dispatch-pointer');
+    if (failAt === 'dispatch-pointer') throw new Error('meta_failed');
+  };
   const reopen = () => runtime.openSession('s', 'w', getGrant, emit, markDispatch, true, resolver);
   await reopen();
   await opened;
@@ -101,18 +106,51 @@ async function fixture({ failAt, target, owner, subscribe, readControl, observe 
   return { doc, calls, reopen, close() { runtime.stopSessions(); void runtime.stopAcceptedInputs(); doc.free(); delete globalThis.__androidStream; if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator); else delete globalThis.navigator; } };
 }
 
-for (const [failure, expected] of [[undefined, 'accepted'], ['history', 'unknown'], ['rpc', 'uploaded']]) {
+for (const [failure, expected, rpcAccepted] of [
+  [undefined, 'accepted', undefined],
+  ['history', 'unknown', undefined],
+  ['dispatch-pointer', 'uploaded', undefined],
+  ['rpc', 'accepted', false],
+]) {
   test(`Loro send preserves durable ordering and does not replay after ${failure ?? 'success'}`, async () => {
     const f = await fixture({ failAt: failure });
     try {
       const result = await runtime.sendTurn(args), duplicate = await runtime.sendTurn(args);
       assert.equal(result.state, expected);
+      assert.equal(result.rpcAccepted, rpcAccepted);
       assert.equal(duplicate.state, 'unknown');
       assert.equal(f.doc.toJSON().history[0].items[0].text, 'hello');
-      assert.deepEqual(f.calls, failure === 'history' ? ['history'] : ['history', 'dispatch-pointer', 'reply-stream', 'rpc']);
+      const expectedCalls = failure === 'history'
+        ? ['history']
+        : failure === 'dispatch-pointer'
+          ? ['history', 'dispatch-pointer']
+          : ['history', 'dispatch-pointer', 'reply-stream', 'rpc'];
+      assert.deepEqual(f.calls, expectedCalls);
     } finally { f.close(); }
   });
 }
+
+test('Loro staging fork keeps local doc clean on unsaved upload and recovery returns deterministic states', async () => {
+  let latestEnvelope = null;
+  const f = await fixture({
+    failAt: 'history-unsaved',
+    observe(event) {
+      if (event.type === 'session') latestEnvelope = JSON.parse(event.session);
+    },
+  });
+  try {
+    const failed = await runtime.sendTurn(args);
+    assert.equal(failed.state, 'unknown');
+    assert.deepEqual(latestEnvelope?.entries ?? [], [], 'unconfirmed write must not pollute local transcript projection');
+    const duplicate = await runtime.sendTurn(args);
+    assert.equal(duplicate.state, 'unknown');
+    assert.equal(duplicate.reason, 'turn_already_exists');
+    const recovered = await runtime.actOnPendingInput('s', args.id, 'retry', () => ({ userId: 'u', machineId: 'm', latestUserMsgId: null }));
+    assert.deepEqual(recovered, { state: 'not_saved' });
+    const tombstoned = await runtime.actOnPendingInput('s', args.id, 'retry', () => ({ userId: 'u', machineId: 'm', missingHistory: true }));
+    assert.deepEqual(tombstoned, { state: 'terminal' });
+  } finally { f.close(); }
+});
 
 test('Android Roost waits for control-stream recovery even after owner history catches up', { timeout: 8_000 }, async (t) => {
   const blocked = Promise.withResolvers();

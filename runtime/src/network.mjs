@@ -82,7 +82,7 @@ const detail={
 // A quoted turn expands mentions in its main text only, then appends the quote blocks and comments
 // (Web order), so a quote's snapshot is never rewritten. `/shortcut:<slug>` tokens (a shortcut
 // chosen before its body was read) expand first, as the shared `sendTurn` handler does.
-const sendWithReferences = ({quotes,quoteMain,...args}) => sendTurn(args, async text => {
+const sendWithReferences = ({quotes,quoteMain,...args}, signal) => sendTurn(args, async text => {
  const items = [];
  const source = quotes?.length ? quoteMain : text;
  if (!source && quotes?.length) return appendMessageQuotes('', [], quotes);
@@ -104,11 +104,12 @@ const sendWithReferences = ({quotes,quoteMain,...args}) => sendTurn(args, async 
 // persisted selection, [] included (the shared `sendTurn` handler, iOS #156).
 persisted => {
  const workspaceId=identity.workspaceId;
+ const mcpTimeout=AbortSignal.timeout(15000);
  return sessionMcpSelection(workspaceId, async () => {
   const value=await runtime.requestGrant();
   if(identity?.workspaceId!==workspaceId)throw Error('workspace_changed');
   return value;
- }, persisted, AbortSignal.timeout(30000));
-});
+ }, persisted, signal ? AbortSignal.any([signal, mcpTimeout]) : mcpTimeout);
+}, signal);
 globalThis.androidDispatch=createDispatcher(core,emit,{...cloud,...createCommands(runtime,sendWithReferences,()=>identity),...scheduleCommands(runtime,()=>identity),...proposalCommands(runtime,()=>identity),...providerCommands(runtime,()=>identity),...roleCommands(runtime,()=>identity),...shortcutCommands(runtime,()=>identity),...detail});
 emit({type:'hostReady',protocol:HOST_PROTOCOL,capabilities:[...CORE_CAPABILITIES,'connect','grant','watchSession','closeSession','loadOlderSession','forgetPendingInput','retryPendingInput','creationOptions','createAndSend','sendText','turnQuota','itemDetail','createTab','turnDiff','workspaceChanges','fileDiff','listDir','readFile','conversationShareMessages','controlTurn','respondPermission','agentRoles','mentionCatalog','localProjects','shortcutBody','projectGroups','messageAction','setTabClosed','archiveSession','statusViewCommand','snoozePresets','markSessionRead','schedules','scheduleDetail','scheduleCommand','sessionLiveStatus','decideProposal','inspectProposal','agentProviders','agentProviderDetail','agentProviderProbe','agentProviderAuth','agentProviderOperation','agentRoleSettings','shortcutSettings','sessionPreview','iosSimulatorControl','androidEmulatorControl','machineTokenReply']});
