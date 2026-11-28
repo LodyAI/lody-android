@@ -174,8 +174,6 @@
     <string name="chat_composer_unavailable">En attente de connexion à la conversation…</string>
     <string name="chat_connection_connecting">Connexion en cours</string>
     <string name="chat_connection_paused">Connexion en pause, touchez pour resynchroniser</string>
-    <string name="chat_history_sync_machine">Historique de l’ordinateur distant</string>
-    <string name="chat_history_sync_streams">Historique de Lody Streams</string>
     <string name="chat_history_sync_checking">Vérification de l’historique dans le cloud</string>
     <string name="chat_history_sync_owner_required">L’ordinateur distant doit confirmer l’accès à cet historique</string>
     <string name="chat_history_sync_pending">En attente de la publication de l’historique dans le cloud</string>

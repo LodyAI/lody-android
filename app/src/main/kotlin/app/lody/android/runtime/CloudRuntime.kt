@@ -480,6 +480,10 @@ data class RoostHistorySync(
         Retrying("retrying"),
         Refused("refused"),
     }
+
+    /** Web `hasRoostHistorySyncNotice`: healthy history (`idle` / `ready` at current version) shows nothing. */
+    val hasNotice: Boolean
+        get() = (phase != Phase.Idle && phase != Phase.Ready) || (source == Source.Streams && newerVersionPending)
 }
 
 /** [preview]: the session's managed web preview candidate, null without one. */

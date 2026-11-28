@@ -174,8 +174,6 @@
     <string name="chat_composer_unavailable">Esperando a que la conversación se conecte…</string>
     <string name="chat_connection_connecting">Conectando</string>
     <string name="chat_connection_paused">Conexión en pausa; toca para resincronizar</string>
-    <string name="chat_history_sync_machine">Historial del equipo de destino</string>
-    <string name="chat_history_sync_streams">Historial de Lody Streams</string>
     <string name="chat_history_sync_checking">Comprobando el historial en la nube</string>
     <string name="chat_history_sync_owner_required">El equipo de destino debe confirmar el acceso a este historial</string>
     <string name="chat_history_sync_pending">Esperando a que el historial se publique en la nube</string>

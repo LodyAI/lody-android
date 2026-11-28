@@ -193,8 +193,6 @@
     <string name="chat_composer_unavailable">正在连接对话…</string>
     <string name="chat_connection_connecting">正在连接</string>
     <string name="chat_connection_paused">连接已暂停，点击重新同步</string>
-    <string name="chat_history_sync_machine">历史来自目标机器</string>
-    <string name="chat_history_sync_streams">历史来自 Lody Streams</string>
     <string name="chat_history_sync_checking">正在确认云端历史</string>
     <string name="chat_history_sync_owner_required">需要目标机器确认历史读取权限</string>
     <string name="chat_history_sync_pending">等待发布云端历史</string>

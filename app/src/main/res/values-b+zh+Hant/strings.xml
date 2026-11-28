@@ -174,8 +174,6 @@
     <string name="chat_composer_unavailable">正在等待對話連線…</string>
     <string name="chat_connection_connecting">連線中</string>
     <string name="chat_connection_paused">連線已暫停，點擊重新同步</string>
-    <string name="chat_history_sync_machine">歷史來自目標電腦</string>
-    <string name="chat_history_sync_streams">歷史來自 Lody Streams</string>
     <string name="chat_history_sync_checking">正在確認雲端歷史</string>
     <string name="chat_history_sync_owner_required">需要目標電腦確認歷史讀取權限</string>
     <string name="chat_history_sync_pending">等待發布雲端歷史</string>

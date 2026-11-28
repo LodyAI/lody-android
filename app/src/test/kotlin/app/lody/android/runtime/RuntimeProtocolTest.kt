@@ -99,6 +99,31 @@ class RuntimeProtocolTest {
   assertEquals(RoostHistorySync(RoostHistorySync.Source.Streams, RoostHistorySync.Phase.OwnerRequired, null, false), event.snapshot.historySync)
   assertFalse(event.snapshot.controlReady)
  }
+ @Test fun roostHistoryNoticeHidesHealthySourcesAndFormatsActionablePhases() {
+  assertNull(app.lody.android.chat.historySyncNotice(RoostHistorySync(RoostHistorySync.Source.Machine, RoostHistorySync.Phase.Idle, null, false)))
+  assertNull(app.lody.android.chat.historySyncNotice(RoostHistorySync(RoostHistorySync.Source.Streams, RoostHistorySync.Phase.Ready, null, false)))
+  assertNull(app.lody.android.chat.historySyncNotice(RoostHistorySync(RoostHistorySync.Source.Machine, RoostHistorySync.Phase.Ready, null, true)))
+  assertEquals(
+   app.lody.android.chat.HistorySyncNotice(detailRes = app.lody.android.R.string.chat_history_sync_pending),
+   app.lody.android.chat.historySyncNotice(RoostHistorySync(RoostHistorySync.Source.Streams, RoostHistorySync.Phase.Pending, null, false)),
+  )
+  assertEquals(
+   app.lody.android.chat.HistorySyncNotice(previousRes = app.lody.android.R.string.chat_history_sync_previous),
+   app.lody.android.chat.historySyncNotice(RoostHistorySync(RoostHistorySync.Source.Streams, RoostHistorySync.Phase.Ready, null, true)),
+  )
+  assertEquals(
+   app.lody.android.chat.HistorySyncNotice(
+    detailRes = app.lody.android.R.string.chat_history_sync_retrying_http,
+    detailArg = 503,
+    previousRes = app.lody.android.R.string.chat_history_sync_previous,
+   ),
+   app.lody.android.chat.historySyncNotice(RoostHistorySync(RoostHistorySync.Source.Streams, RoostHistorySync.Phase.Retrying, 503, true)),
+  )
+  assertEquals(
+   app.lody.android.chat.HistorySyncNotice(detailRes = app.lody.android.R.string.chat_history_sync_denied),
+   app.lody.android.chat.historySyncNotice(RoostHistorySync(RoostHistorySync.Source.Streams, RoostHistorySync.Phase.Refused, 403, false)),
+  )
+ }
  @Test fun usageProjectionPrefersContextThenFiveHours() {
   fun usage(json: String): SessionUsage? = (RuntimeProtocol.event(JSONObject().put("type", "session").put("sessionId", "s")
    .put("session", """{"v":1,"status":"live","entries":[],"usage":$json}""")) as RuntimeEvent.SessionUpdated).snapshot.usage

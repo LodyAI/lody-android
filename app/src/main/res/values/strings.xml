@@ -194,8 +194,6 @@
     <string name="chat_composer_unavailable">Waiting for the conversation to connect…</string>
     <string name="chat_connection_connecting">Connecting</string>
     <string name="chat_connection_paused">Connection paused, tap to resync</string>
-    <string name="chat_history_sync_machine">History from the target machine</string>
-    <string name="chat_history_sync_streams">History from Lody Streams</string>
     <string name="chat_history_sync_checking">Checking cloud history</string>
     <string name="chat_history_sync_owner_required">The target machine must confirm access to this history</string>
     <string name="chat_history_sync_pending">Waiting for cloud publication</string>

@@ -1348,16 +1348,17 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = top).padding(horizontal = TranscriptMargin),
                         style = LodyTheme.typography.footnote, color = colors.textSecondary)
                 }
+                val closedOrDraft = context.session?.isTabClosed == true || creationUnconfirmed || isDraftTab
+                val historyLabel = if (closedOrDraft) null else historySync?.let { historySyncLabel(it) }
                 val connectionSlot = when {
-                    context.session?.isTabClosed == true || creationUnconfirmed || isDraftTab -> null
+                    closedOrDraft -> null
                     status == "offline" -> "paused"
                     status != "live" && connectingShown -> "connecting"
-                    historySync != null -> "history"
+                    historyLabel != null -> "history"
                     else -> null
                 }
                 if (connectionSlot != null) {
                     val paused = connectionSlot == "paused"
-                    val historyLabel = historySync?.let { historySyncLabel(it) }
                     val connectionLabel = when (connectionSlot) {
                         "paused" -> stringResource(R.string.chat_connection_paused)
                         "connecting" -> stringResource(R.string.chat_connection_connecting)
@@ -1622,31 +1623,47 @@ private const val UncommittedCacheTtlMs = 5_000L
 /** The conversation page's Status view actions; [tier] decides which apply. */
 internal class StatusMenu(val settle: Boolean, val focus: Boolean, val onLater: () -> Unit, val onSettle: () -> Unit, val onFocus: () -> Unit)
 
-@Composable
-private fun historySyncLabel(sync: RoostHistorySync): String {
-    val source = stringResource(if (sync.source == RoostHistorySync.Source.Machine)
-        R.string.chat_history_sync_machine else R.string.chat_history_sync_streams)
+internal data class HistorySyncNotice(
+    val detailRes: Int? = null,
+    val detailArg: Int? = null,
+    val previousRes: Int? = null,
+)
+
+/** Web `RoostHistorySyncIndicator`: omit source labels and surface only non-healthy or superseded states. */
+internal fun historySyncNotice(sync: RoostHistorySync): HistorySyncNotice? {
+    if (!sync.hasNotice) return null
     val httpStatus = sync.httpStatus
-    val detail = when (sync.phase) {
-        RoostHistorySync.Phase.Idle, RoostHistorySync.Phase.Ready -> null
-        RoostHistorySync.Phase.Checking -> stringResource(R.string.chat_history_sync_checking)
-        RoostHistorySync.Phase.Pending -> stringResource(R.string.chat_history_sync_pending)
-        RoostHistorySync.Phase.OwnerRequired -> stringResource(R.string.chat_history_sync_owner_required)
-        RoostHistorySync.Phase.Syncing -> stringResource(R.string.chat_history_sync_syncing)
+    val (detailRes, detailArg) = when (sync.phase) {
+        RoostHistorySync.Phase.Idle, RoostHistorySync.Phase.Ready -> null to null
+        RoostHistorySync.Phase.Checking -> R.string.chat_history_sync_checking to null
+        RoostHistorySync.Phase.Pending -> R.string.chat_history_sync_pending to null
+        RoostHistorySync.Phase.OwnerRequired -> R.string.chat_history_sync_owner_required to null
+        RoostHistorySync.Phase.Syncing -> R.string.chat_history_sync_syncing to null
         RoostHistorySync.Phase.Retrying -> when (httpStatus) {
-            403 -> stringResource(R.string.chat_history_sync_unconfirmed)
-            null -> stringResource(R.string.chat_history_sync_retrying)
-            else -> stringResource(R.string.chat_history_sync_retrying_http, httpStatus)
+            403 -> R.string.chat_history_sync_unconfirmed to null
+            null -> R.string.chat_history_sync_retrying to null
+            else -> R.string.chat_history_sync_retrying_http to httpStatus
         }
         RoostHistorySync.Phase.Refused -> when (httpStatus) {
-            401, 403 -> stringResource(R.string.chat_history_sync_denied)
-            null -> stringResource(R.string.chat_history_sync_unavailable)
-            else -> stringResource(R.string.chat_history_sync_refused, httpStatus)
+            401, 403 -> R.string.chat_history_sync_denied to null
+            null -> R.string.chat_history_sync_unavailable to null
+            else -> R.string.chat_history_sync_refused to httpStatus
         }
     }
-    val previous = if (sync.source == RoostHistorySync.Source.Streams && sync.newerVersionPending)
-        stringResource(R.string.chat_history_sync_previous) else null
-    return listOfNotNull(source, previous, detail).joinToString("\n")
+    val previousRes = if (sync.source == RoostHistorySync.Source.Streams && sync.newerVersionPending)
+        R.string.chat_history_sync_previous else null
+    if (detailRes == null && previousRes == null) return null
+    return HistorySyncNotice(detailRes, detailArg, previousRes)
+}
+
+@Composable
+private fun historySyncLabel(sync: RoostHistorySync): String? {
+    val notice = historySyncNotice(sync) ?: return null
+    val detail = notice.detailRes?.let { res ->
+        if (notice.detailArg != null) stringResource(res, notice.detailArg) else stringResource(res)
+    }
+    val previous = notice.previousRes?.let { stringResource(it) }
+    return listOfNotNull(detail, previous).takeIf { it.isNotEmpty() }?.joinToString("\n")
 }
 
 /** Floating header: title over the tappable machine subtitle, with conditional Tabs and More. */
