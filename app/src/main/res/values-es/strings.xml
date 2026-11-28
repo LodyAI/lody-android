@@ -1192,4 +1192,12 @@
     </plurals>
     <string name="preferences_usage_sharing">Compartir datos de uso de la app para ayudar a mejorar Lody</string>
     <string name="preferences_sharing_retry">No se pudo confirmar la configuración. Toca para reintentar.</string>
+    <string name="schedules_run_now_confirm">Ejecutar de todos modos</string>
+    <string name="schedules_run_now_busy_title">“%1$s” se está ejecutando ahora</string>
+    <string name="schedules_run_now_busy_help">Ejecutar “%1$s” ahora enviará un nuevo turno a este chat según su comportamiento actual de cola o dirección. ¿Ejecutar de todos modos?</string>
+    <string name="schedules_run_now_busy_detail_help">Ejecutar “%1$s” ahora usa la última programación guardada (se excluyen los cambios sin guardar) y enviará un nuevo turno a este chat según su comportamiento actual de cola o dirección. ¿Ejecutar de todos modos?</string>
+    <string name="schedules_run_now_status_unknown_title">No se pudo confirmar si “%1$s” está en ejecución</string>
+    <string name="schedules_run_now_status_unknown_help">El estado en vivo de este chat no está disponible en este momento. Ejecutar “%1$s” ahora puede ponerse en cola o ejecutarse junto con trabajo activo. ¿Ejecutar de todos modos?</string>
+    <string name="schedules_run_now_status_unknown_detail_help">El estado en vivo de este chat no está disponible en este momento. Ejecutar “%1$s” usa la última programación guardada (se excluyen los cambios sin guardar) y puede ponerse en cola o ejecutarse junto con trabajo activo. ¿Ejecutar de todos modos?</string>
+    <string name="schedules_destination_untitled_chat">Chat sin título</string>
 </resources>

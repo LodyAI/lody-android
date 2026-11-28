@@ -107,6 +107,8 @@ sealed interface RuntimeCommand {
     data class ScheduleDetail(val scheduleId: String) : RuntimeCommand
     /** An owner write (create / edit / pause / resume / run / delete); never retried here. */
     data class ScheduleCommand(val request: ScheduleCommandRequest) : RuntimeCommand
+    /** Live-status check for a schedule's bound chat before manual Run now. Read only. */
+    data class SessionLiveStatus(val sessionId: String, val machineId: String? = null) : RuntimeCommand
     /** The watched session's managed web preview: create (or reuse), check status, or revoke. Never retried. */
     data class SessionPreview(
         val sessionId: String,
@@ -156,6 +158,7 @@ sealed interface RuntimeResult {
     data class Schedule(val value: app.lody.android.runtime.ScheduleDetail) : RuntimeResult
     /** The schedule a command wrote. */
     data class ScheduleWritten(val scheduleId: String) : RuntimeResult
+    data class SessionLiveStatus(val value: app.lody.android.runtime.SessionLiveStatus) : RuntimeResult
     /** A proposal's recorded outcome (`saved` / `created` / `applied` / `dismissed`). */
     data class ProposalDecided(val outcome: String, val scheduleId: String? = null) : RuntimeResult
     data class ProposalInspected(val value: ProposalInspection) : RuntimeResult

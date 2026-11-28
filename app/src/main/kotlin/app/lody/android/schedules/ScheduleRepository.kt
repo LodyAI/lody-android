@@ -14,6 +14,9 @@ interface ScheduleService {
     suspend fun detail(scope: RuntimeScope, scheduleId: String): ScheduleDetail
     /** One write; never retried. Returns the schedule id it wrote. */
     suspend fun command(scope: RuntimeScope, request: ScheduleCommandRequest): String
+    /** Live-status check for a schedule's bound chat before manual Run now. */
+    suspend fun sessionLiveStatus(scope: RuntimeScope, sessionId: String, machineId: String): SessionLiveStatus =
+        SessionLiveStatus(sessionId, "unknown", source = "none", reason = "rpc_failed")
 }
 
 /** Uses the existing account/workspace lease, like creation. */
@@ -39,6 +42,13 @@ class RuntimeScheduleService(private val owner: RuntimeOwner, override val displ
                 else -> ScheduleCodes.WRITE_UNKNOWN
             },
         )
+    }
+
+    override suspend fun sessionLiveStatus(scope: RuntimeScope, sessionId: String, machineId: String): SessionLiveStatus = try {
+        owner.use(scope) { (it.execute(RuntimeCommand.SessionLiveStatus(sessionId, machineId)) as RuntimeResult.SessionLiveStatus).value }
+    } catch (cancelled: CancellationException) { throw cancelled }
+    catch (_: app.lody.android.runtime.RuntimeException) {
+        SessionLiveStatus(sessionId, "unknown", source = "none", reason = "rpc_failed")
     }
 
     private suspend fun <T> read(block: suspend () -> T): T = try { block() }

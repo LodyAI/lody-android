@@ -1229,4 +1229,12 @@
     <plurals name="share_image_selected_count">
         <item quantity="other">已选择 %d 条</item>
     </plurals>
+    <string name="schedules_run_now_confirm">仍然运行</string>
+    <string name="schedules_run_now_busy_title">对话“%1$s”正在运行中</string>
+    <string name="schedules_run_now_busy_help">立即运行“%1$s”将按当前队列或引导策略向该对话发送新一轮任务。确定要继续吗？</string>
+    <string name="schedules_run_now_busy_detail_help">立即运行“%1$s”将使用上次保存的配置（不包含未保存修改），并按当前队列或引导策略向该对话发送新一轮任务。确定要继续吗？</string>
+    <string name="schedules_run_now_status_unknown_title">无法确认“%1$s”是否正在运行</string>
+    <string name="schedules_run_now_status_unknown_help">当前无法获取该对话的实时运行状态。立即运行“%1$s”可能会排队或与正在进行的工作并行。确定要继续吗？</string>
+    <string name="schedules_run_now_status_unknown_detail_help">当前无法获取该对话的实时运行状态。立即运行“%1$s”将使用上次保存的配置（不包含未保存修改），可能会排队或与正在进行的工作并行。确定要继续吗？</string>
+    <string name="schedules_destination_untitled_chat">未命名对话</string>
 </resources>

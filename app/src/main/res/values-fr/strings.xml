@@ -1192,4 +1192,12 @@
     </plurals>
     <string name="preferences_usage_sharing">Partager les données d’utilisation pour améliorer Lody</string>
     <string name="preferences_sharing_retry">Impossible de confirmer le réglage. Appuyez pour réessayer.</string>
+    <string name="schedules_run_now_confirm">Exécuter quand même</string>
+    <string name="schedules_run_now_busy_title">« %1$s » est en cours d’exécution</string>
+    <string name="schedules_run_now_busy_help">Exécuter « %1$s » maintenant enverra un nouveau tour à cette discussion selon son comportement actuel de file d’attente ou de guidage. Exécuter quand même ?</string>
+    <string name="schedules_run_now_busy_detail_help">Exécuter « %1$s » maintenant utilise la dernière planification enregistrée (les modifications non enregistrées sont exclues) et enverra un nouveau tour à cette discussion selon son comportement actuel de file d’attente ou de guidage. Exécuter quand même ?</string>
+    <string name="schedules_run_now_status_unknown_title">Impossible de confirmer si « %1$s » est en cours d’exécution</string>
+    <string name="schedules_run_now_status_unknown_help">L’état en direct de cette discussion est actuellement indisponible. Exécuter « %1$s » maintenant peut mettre en file ou s’exécuter en parallèle d’un travail actif. Exécuter quand même ?</string>
+    <string name="schedules_run_now_status_unknown_detail_help">L’état en direct de cette discussion est actuellement indisponible. Exécuter « %1$s » utilise la dernière planification enregistrée (les modifications non enregistrées sont exclues) et peut mettre en file ou s’exécuter en parallèle d’un travail actif. Exécuter quand même ?</string>
+    <string name="schedules_destination_untitled_chat">Discussion sans titre</string>
 </resources>

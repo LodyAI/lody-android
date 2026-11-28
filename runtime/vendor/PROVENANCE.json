@@ -583,5 +583,22 @@
     "commit": "2d332da86c01796e8f52bdf9e8b676e3afb2c377",
     "pullRequest": "https://github.com/LodyAI/lody-ios/pull/178",
     "note": "Uses the browser bundle built with the published Roost SDK 0.3.2 and its Streams Client 0.16.0 for framed Roost history reads. Includes the matching licenses."
+  },
+  "scheduleBoundLiveStatus": {
+    "repository": "LodyAI/lody-ios",
+    "commit": "0cc258dbf521c8308b9910791fc28f26cf674303",
+    "pullRequest": "https://github.com/LodyAI/lody-ios/pull/208",
+    "files": [
+      "contract/runtime-contract.json",
+      "src/contract/methods.ts",
+      "src/contract/schedules.ts",
+      "src/protocol/schedules.ts",
+      "src/runtime/handlers/context.ts",
+      "src/runtime/handlers/schedules.ts",
+      "src/runtime/index.ts",
+      "src/runtime/machine-presence.ts",
+      "src/runtime/session-live-status.ts"
+    ],
+    "note": "Manual schedule Run now pre-check: derives scheduleOwnSessionId (UUIDv8) so created/active own_session schedules populate destinationSessionId alongside existing_session, exposes live session presence from watchMachinePresence, and adds the workspace-scoped sessionLiveStatus call (presence -> fresh pending pointer -> daemon session/live-status RPC -> post-await local re-read). Mirrored verbatim from the merged iOS runtime source commit; dependencies and licenses are unchanged."
   }
 }

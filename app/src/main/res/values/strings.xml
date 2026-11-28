@@ -1247,4 +1247,12 @@
         <item quantity="one">%d selected</item>
         <item quantity="other">%d selected</item>
     </plurals>
+    <string name="schedules_run_now_confirm">Run anyway</string>
+    <string name="schedules_run_now_busy_title">“%1$s” is currently running</string>
+    <string name="schedules_run_now_busy_help">Running “%1$s” now will send a new turn to this chat using its current queue or steer behavior. Run anyway?</string>
+    <string name="schedules_run_now_busy_detail_help">Running “%1$s” now uses the last saved schedule (unsaved edits are excluded) and will send a new turn to this chat using its current queue or steer behavior. Run anyway?</string>
+    <string name="schedules_run_now_status_unknown_title">Couldn’t confirm whether “%1$s” is running</string>
+    <string name="schedules_run_now_status_unknown_help">Live status for this chat is unavailable right now. Running “%1$s” now may queue or run alongside active work in this chat. Run anyway?</string>
+    <string name="schedules_run_now_status_unknown_detail_help">Live status for this chat is unavailable right now. Running “%1$s” uses the last saved schedule (unsaved edits are excluded) and may queue or run alongside active work in this chat. Run anyway?</string>
+    <string name="schedules_destination_untitled_chat">Untitled chat</string>
 </resources>

@@ -93,10 +93,11 @@ export function contractBridge(runtime, emit) {
   listDir:args=>invoke('listDir',args),
   readFile:args=>invoke('readFile',args),
   conversationShareMessages:args=>invoke('conversationShareMessages',args),
-  // Schedules: the list with time zones, one schedule's detail, and owner writes (the runtime's 70 s budget).
+  // Schedules: the list with time zones, one schedule's detail, owner writes (the runtime's 70 s budget), and bound-chat live status.
   schedules:args=>invoke('schedules',args),
   scheduleDetail:args=>invoke('scheduleDetail',args),
   scheduleCommand:args=>invoke('scheduleCommand',args),
+  sessionLiveStatus:args=>invoke('sessionLiveStatus',args),
   // Managed web preview (create / revoke) and device previews (list / start / status / stop); results carry {error} in band.
   sessionPreview:args=>invoke('sessionPreview',args),
   iosSimulatorControl:args=>invoke('iosSimulatorControl',args),

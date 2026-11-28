@@ -28,9 +28,11 @@ class ScheduleFormTest {
     private class Service(override val displayCache: ScheduleDisplayCache? = null) : ScheduleService {
         var read: suspend () -> ScheduleList = { error("missing fixture") }
         var write: suspend () -> String = { "s1" }
+        var liveStatus: suspend (String, String) -> SessionLiveStatus = { sessionId, _ -> SessionLiveStatus(sessionId, "idle", source = "rpc") }
         override suspend fun list(scope: RuntimeScope) = read()
         override suspend fun detail(scope: RuntimeScope, scheduleId: String): ScheduleDetail = error("unused")
         override suspend fun command(scope: RuntimeScope, request: ScheduleCommandRequest) = write()
+        override suspend fun sessionLiveStatus(scope: RuntimeScope, sessionId: String, machineId: String) = liveStatus(sessionId, machineId)
     }
 
     @Test fun coldStartShowsCacheBeforeLiveReadAndRetainsItOnFailure() = runTest {
@@ -241,5 +243,68 @@ class ScheduleFormTest {
         val list = ScheduleJson.list(JSONObject("""{"items":[],"deviceTimeZone":"Europe/Paris","machineTimeZones":{"m":"Asia/Tokyo"}}"""))
         assertEquals("Asia/Tokyo", list.timeZone("m"))
         assertEquals("Europe/Paris", list.timeZone("other"))
+    }
+
+    @Test fun sessionLiveStatusJsonParsesFieldsAndFallsBackSafely() {
+        val busy = ScheduleJson.sessionLiveStatus(
+            JSONObject("""{"sessionId":"sess-1","state":"busy","detail":"running","source":"presence"}"""),
+            "fallback",
+        )
+        assertEquals(SessionLiveStatus("sess-1", "busy", detail = "running", source = "presence"), busy)
+        val fallback = ScheduleJson.sessionLiveStatus(JSONObject("{}"), "fallback")
+        assertEquals(SessionLiveStatus("fallback", "unknown"), fallback)
+    }
+
+    @Test fun boundSessionIdResolvesExistingOwnedAndNewDestinations() {
+        val base = detail("""{"kind":"manual"}""").item
+        assertEquals("sess-1", boundSessionId(base.copy(destination = ScheduleForm.EXISTING_SESSION, destinationSessionId = "sess-1")))
+        assertEquals("own-1", boundSessionId(base.copy(destination = ScheduleForm.OWN_SESSION, destinationSessionId = "own-1", lastSessionId = "old-1")))
+        assertEquals("own-last", boundSessionId(base.copy(destination = ScheduleForm.OWN_SESSION, destinationSessionId = null, lastSessionId = "own-last")))
+        assertNull(boundSessionId(base.copy(destination = ScheduleForm.OWN_SESSION, destinationSessionId = null, lastSessionId = null)))
+        assertNull(boundSessionId(base.copy(destination = ScheduleForm.NEW_SESSION, destinationSessionId = "ignored", lastSessionId = "ignored")))
+    }
+
+    @Test fun inspectManualRunGatesBusyUnknownDuplicateAndScopeRetiredRuns() = runTest {
+        val base = detail("""{"kind":"manual"}""").item
+        val store = Store(null)
+        val cache = ScheduleDisplayCache(store)
+        val service = Service(cache).apply { read = { ScheduleList(listOf(base), "UTC", emptyMap(), setOf("m")) } }
+        var liveCalls = 0
+        service.liveStatus = { sessionId, _ ->
+            liveCalls += 1
+            SessionLiveStatus(sessionId, "busy", detail = "running", source = "presence")
+        }
+        val state = SchedulesState(service, scope)
+
+        // new_session skips live-status check and runs immediately.
+        assertEquals(ManualRunCheck.RunImmediately, state.inspectManualRun(base.copy(destination = ScheduleForm.NEW_SESSION)))
+        assertEquals(0, liveCalls)
+
+        // existing_session busy requests confirmation.
+        val existing = base.copy(destination = ScheduleForm.EXISTING_SESSION, destinationSessionId = "sess-1")
+        assertEquals(ManualRunCheck.ConfirmBusy(existing, "sess-1"), state.inspectManualRun(existing))
+        assertEquals(1, liveCalls)
+
+        // existing_session idle runs immediately.
+        service.liveStatus = { sessionId, _ -> SessionLiveStatus(sessionId, "idle", source = "rpc") }
+        assertEquals(ManualRunCheck.RunImmediately, state.inspectManualRun(existing))
+
+        // unknown status or thrown failure requests unknown-status confirmation.
+        service.liveStatus = { sessionId, _ -> SessionLiveStatus(sessionId, "unknown", source = "none", reason = "machine_offline") }
+        assertEquals(ManualRunCheck.ConfirmUnknown(existing, "sess-1"), state.inspectManualRun(existing))
+        service.liveStatus = { _, _ -> throw RuntimeException("network") }
+        assertEquals(ManualRunCheck.ConfirmUnknown(existing, "sess-1"), state.inspectManualRun(existing))
+
+        // Concurrent duplicate click while check is in flight returns null; retired scope returns null.
+        val gate = CompletableDeferred<SessionLiveStatus>()
+        service.liveStatus = { _, _ -> gate.await() }
+        val first = async { state.inspectManualRun(existing) }
+        runCurrent()
+        assertTrue(state.isPending(existing.scheduleId))
+        assertNull(state.inspectManualRun(existing))
+        cache.invalidate()
+        gate.complete(SessionLiveStatus("sess-1", "idle", source = "rpc"))
+        assertNull(first.await())
+        assertFalse(state.isPending(existing.scheduleId))
     }
 }

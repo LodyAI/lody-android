@@ -126,6 +126,14 @@ internal object ScheduleJson {
         json.optJSONObject("project")?.let(::project),
     )
 
+    fun sessionLiveStatus(json: JSONObject, fallbackSessionId: String) = SessionLiveStatus(
+        sessionId = json.text("sessionId") ?: fallbackSessionId,
+        state = json.text("state") ?: "unknown",
+        detail = json.text("detail"),
+        source = json.text("source"),
+        reason = json.text("reason"),
+    )
+
     fun command(request: ScheduleCommandRequest): JSONObject = JSONObject().apply {
         put("action", request.action).put("scheduleId", request.scheduleId).put("requestId", request.requestId)
         request.draft?.let { draft ->

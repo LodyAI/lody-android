@@ -56,9 +56,11 @@ import app.lody.android.designsystem.LodySize
 import app.lody.android.designsystem.LodySpacing
 import app.lody.android.designsystem.LodyTextButton
 import app.lody.android.designsystem.LodyTheme
+import app.lody.android.runtime.CatalogSnapshot
 import app.lody.android.runtime.RuntimeScope
 import app.lody.android.runtime.ScheduleItem
 import app.lody.android.runtime.ScheduleList
+import app.lody.android.runtime.SessionLiveStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -110,6 +112,33 @@ class SchedulesState(private val service: ScheduleService, val scope: RuntimeSco
     }
 
     suspend fun detail(scheduleId: String) = service.detail(scope, scheduleId)
+
+    /**
+     * Checks whether a schedule's bound chat is currently running before manual Run now.
+     * Returns null when the scope retired or a check/command for this schedule is already in flight.
+     */
+    suspend fun inspectManualRun(item: ScheduleItem): ManualRunCheck? {
+        if (!current() || item.scheduleId in pending) return null
+        val sessionId = boundSessionId(item) ?: return ManualRunCheck.RunImmediately
+        pending = pending + item.scheduleId
+        val status = try {
+            try {
+                service.sessionLiveStatus(scope, sessionId, item.machineId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                SessionLiveStatus(sessionId, "unknown", source = "none", reason = "rpc_failed")
+            }
+        } finally {
+            pending = pending - item.scheduleId
+        }
+        if (!current()) return null
+        return when (status.state) {
+            "idle" -> ManualRunCheck.RunImmediately
+            "busy" -> ManualRunCheck.ConfirmBusy(item, sessionId)
+            else -> ManualRunCheck.ConfirmUnknown(item, sessionId)
+        }
+    }
 
     suspend fun command(request: app.lody.android.runtime.ScheduleCommandRequest): String {
         if (!current()) throw ScheduleFailure("workspace_changed")
@@ -165,6 +194,7 @@ fun SchedulesList(
     onNew: () -> Unit,
     onOpenSession: (String) -> Unit,
     onNotice: (String) -> Unit,
+    snapshot: CatalogSnapshot? = null,
 ) {
     val colors = LodyTheme.colors
     val scope = rememberCoroutineScope()
@@ -177,16 +207,30 @@ fun SchedulesList(
     val list = state.list
     val failure = state.failure
     var deleting by remember { mutableStateOf<ScheduleItem?>(null) }
+    var confirmRun by remember { mutableStateOf<ManualRunCheck?>(null) }
     val runStarted = stringResource(R.string.schedules_run_started)
     val untitled = stringResource(R.string.schedules_untitled)
     val failures = FailureTexts.current()
-    val run: (ScheduleItem, String) -> Unit = { item, action ->
+    val dispatch: (ScheduleItem, String) -> Unit = { item, action ->
         scope.launch {
             try {
                 state.command(ScheduleForms.request(action, item.scheduleId, null, null))
                 if (action == "run") onNotice(runStarted.format(item.title.ifBlank { untitled }))
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: ScheduleFailure) { onNotice(failures(error.code)) }
+        }
+    }
+    val run: (ScheduleItem, String) -> Unit = { item, action ->
+        if (action == "run") {
+            scope.launch {
+                when (val decision = state.inspectManualRun(item)) {
+                    ManualRunCheck.RunImmediately -> dispatch(item, "run")
+                    is ManualRunCheck.ConfirmBusy, is ManualRunCheck.ConfirmUnknown -> confirmRun = decision
+                    null -> Unit
+                }
+            }
+        } else {
+            dispatch(item, action)
         }
     }
     PullToRefreshBox(
@@ -244,8 +288,38 @@ fun SchedulesList(
         }
     }
     deleting?.let { item ->
-        DeleteDialog(item, onDismiss = { deleting = null }) { deleting = null; run(item, "delete") }
+        DeleteDialog(item, onDismiss = { deleting = null }) { deleting = null; dispatch(item, "delete") }
     }
+    confirmRun?.let { decision ->
+        RunNowConfirmDialog(
+            decision = decision,
+            snapshot = snapshot,
+            detail = false,
+            onDismiss = { confirmRun = null },
+            onConfirm = {
+                val target = when (decision) {
+                    is ManualRunCheck.ConfirmBusy -> decision.item
+                    is ManualRunCheck.ConfirmUnknown -> decision.item
+                    ManualRunCheck.RunImmediately -> null
+                }
+                confirmRun = null
+                target?.let { dispatch(it, "run") }
+            },
+        )
+    }
+}
+
+/** Bound chat id when a manual run targets an existing or already-created owned chat. */
+internal fun boundSessionId(item: ScheduleItem): String? = when (item.destination) {
+    ScheduleForm.EXISTING_SESSION -> item.destinationSessionId?.takeIf { it.isNotBlank() }
+    ScheduleForm.OWN_SESSION -> (item.destinationSessionId ?: item.lastSessionId)?.takeIf { it.isNotBlank() }
+    else -> null
+}
+
+sealed interface ManualRunCheck {
+    data object RunImmediately : ManualRunCheck
+    data class ConfirmBusy(val item: ScheduleItem, val sessionId: String) : ManualRunCheck
+    data class ConfirmUnknown(val item: ScheduleItem, val sessionId: String) : ManualRunCheck
 }
 
 /** Failure copy resolved in composition, for use from callbacks. */

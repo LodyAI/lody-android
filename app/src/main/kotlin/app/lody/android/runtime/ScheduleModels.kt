@@ -91,3 +91,12 @@ data class ScheduleDraft(
  * same attempt after `schedule_write_unknown`. [draft] goes with `create` / `edit` only.
  */
 data class ScheduleCommandRequest(val action: String, val scheduleId: String, val requestId: String, val draft: ScheduleDraft? = null)
+
+/** Live-status result for a schedule's bound chat before manual Run now (`sessionLiveStatus`). */
+data class SessionLiveStatus(
+    val sessionId: String,
+    val state: String,
+    val detail: String? = null,
+    val source: String? = null,
+    val reason: String? = null,
+)

@@ -52,5 +52,13 @@ export function scheduleCommands(runtime, identity) {
     return await runtime.scheduleCommand({workspaceId, action:input.action, scheduleId:input.scheduleId, requestId:input.requestId, ...(writesDraft ? {draft:input.draft} : {})});
    } catch (error) { return failure(error, 'schedule_write_unknown'); }
   },
+  // Authoritative live-status check for a schedule's bound chat before manual Run now; a read.
+  async sessionLiveStatus(sessionId, machineId) {
+   const workspaceId = workspace(); if (!workspaceId) return {error:'not_connected'};
+   if (!id(sessionId) || (machineId !== undefined && machineId !== null && !id(machineId))) return {error:'invalid_request'};
+   try {
+    return await runtime.sessionLiveStatus({workspaceId, sessionId, ...(machineId ? {machineId} : {})});
+   } catch (error) { return failure(error, 'session_live_status_failed'); }
+  },
  };
 }

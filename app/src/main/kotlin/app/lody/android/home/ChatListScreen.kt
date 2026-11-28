@@ -473,6 +473,7 @@ fun ChatListScreen(
                 onNew = { scheduleEditor = NEW_SCHEDULE },
                 onOpenSession = onOpenSession,
                 onNotice = notice,
+                snapshot = state.snapshot,
             )
             // First run (web `showChatOnboarding`): a loaded catalog with no computers and no chats at all,
             // archived included, regardless of the view menu's scope. Never while loading, searching or archived.

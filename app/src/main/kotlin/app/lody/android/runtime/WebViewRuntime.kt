@@ -105,6 +105,19 @@ open class WebViewRuntime internal constructor(
             val value = ScheduleJson.checked(call("scheduleCommand", JSONArray().put(ScheduleJson.command(command.request)), CommandDeadline.WRITE))
             RuntimeResult.ScheduleWritten(value.optString("scheduleId").ifEmpty { command.request.scheduleId })
         }
+        is RuntimeCommand.SessionLiveStatus -> {
+            val args = JSONArray().put(command.sessionId).apply { command.machineId?.let { put(it) } }
+            try {
+                val value = ScheduleJson.checked(call("sessionLiveStatus", args, CommandDeadline.QUERY))
+                RuntimeResult.SessionLiveStatus(ScheduleJson.sessionLiveStatus(value, command.sessionId))
+            } catch (error: RuntimeException) {
+                if (error.fault.code == "unsupported_command") {
+                    RuntimeResult.SessionLiveStatus(
+                        SessionLiveStatus(command.sessionId, "unknown", source = "none", reason = "unsupported_command"),
+                    )
+                } else throw error
+            }
+        }
         is RuntimeCommand.DecideProposal -> {
             val request = JSONObject().put("sessionId", command.sessionId).put("entryId", command.entryId)
                 .put("itemId", command.itemId).put("decision", if (command.accept) "accept" else "dismiss")

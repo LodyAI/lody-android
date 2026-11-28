@@ -1252,4 +1252,12 @@
     </plurals>
     <string name="preferences_usage_sharing">Делиться данными об использовании приложения, чтобы помогать улучшать Lody</string>
     <string name="preferences_sharing_retry">Не удалось подтвердить настройку. Нажмите, чтобы повторить.</string>
+    <string name="schedules_run_now_confirm">Всё равно запустить</string>
+    <string name="schedules_run_now_busy_title">Чат «%1$s» сейчас выполняется</string>
+    <string name="schedules_run_now_busy_help">Запуск «%1$s» сейчас отправит новый ход в этот чат согласно текущим правилам очереди или направления. Всё равно запустить?</string>
+    <string name="schedules_run_now_busy_detail_help">Запуск «%1$s» сейчас использует последнее сохранённое расписание (без несохранённых правок) и отправит новый ход в этот чат согласно текущим правилам очереди или направления. Всё равно запустить?</string>
+    <string name="schedules_run_now_status_unknown_title">Не удалось проверить, выполняется ли «%1$s»</string>
+    <string name="schedules_run_now_status_unknown_help">Текущий статус выполнения этого чата недоступен. Запуск «%1$s» сейчас может встать в очередь или выполняться параллельно с активной работой. Всё равно запустить?</string>
+    <string name="schedules_run_now_status_unknown_detail_help">Текущий статус выполнения этого чата недоступен. Запуск «%1$s» использует последнее сохранённое расписание (без несохранённых правок) и может встать в очередь или выполняться параллельно с активной работой. Всё равно запустить?</string>
+    <string name="schedules_destination_untitled_chat">Чат без названия</string>
 </resources>

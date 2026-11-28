@@ -118,6 +118,8 @@ fun ScheduleEditorScreen(
     // The last write whose outcome is unknown: retrying the same change reuses its request id.
     var unknown by remember { mutableStateOf<ScheduleCommandRequest?>(null) }
     var deleting by remember { mutableStateOf(false) }
+    var confirmRun by remember { mutableStateOf<ManualRunCheck?>(null) }
+    var dirty by remember { mutableStateOf(false) }
     val zoneId = state.list?.timeZone(form?.machineId) ?: java.time.ZoneId.systemDefault().id
     val zone = zoneOf(zoneId)
 
@@ -211,14 +213,34 @@ fun ScheduleEditorScreen(
                 verticalArrangement = Arrangement.spacedBy(LodySpacing.xxl),
             ) {
                 val fields = editable && !busy
-                val edit = { next: ScheduleForm -> form = next; error = null }
+                val edit = { next: ScheduleForm -> form = next; dirty = true; error = null }
                 when {
                     current?.scheduledMessage == true -> Note(stringResource(R.string.schedules_message_read_only))
                     current != null && !current.isOwner -> Note(stringResource(R.string.schedules_read_only))
                     current?.destination == ScheduleForm.EXISTING_SESSION -> Note(stringResource(R.string.schedules_existing_read_only))
                 }
                 if (current != null) ScheduleHero(current, busy,
-                    onCommand = { action -> write(action) { if (action == "run") onNotice(runStarted.format(current.title.ifBlank { untitled })) } },
+                    onCommand = { action ->
+                        if (action == "run") {
+                            if (!busy) {
+                                busy = true; error = null
+                                scope.launch {
+                                    val decision = try {
+                                        state.inspectManualRun(current)
+                                    } finally {
+                                        busy = false
+                                    }
+                                    when (decision) {
+                                        ManualRunCheck.RunImmediately -> write("run") { onNotice(runStarted.format(current.title.ifBlank { untitled })) }
+                                        is ManualRunCheck.ConfirmBusy, is ManualRunCheck.ConfirmUnknown -> confirmRun = decision
+                                        null -> Unit
+                                    }
+                                }
+                            }
+                        } else {
+                            write(action)
+                        }
+                    },
                     onOpenSession = onOpenSession,
                 )
                 EditorSection(stringResource(R.string.schedules_section_task)) {
@@ -250,6 +272,20 @@ fun ScheduleEditorScreen(
     if (deleting && current != null) DeleteDialog(current, onDismiss = { deleting = false }) {
         deleting = false
         write("delete") { onClose() }
+    }
+    confirmRun?.let { decision ->
+        if (current != null) {
+            RunNowConfirmDialog(
+                decision = decision,
+                snapshot = snapshot,
+                detail = editable && dirty,
+                onDismiss = { confirmRun = null },
+                onConfirm = {
+                    confirmRun = null
+                    write("run") { onNotice(runStarted.format(current.title.ifBlank { untitled })) }
+                },
+            )
+        }
     }
 }
 
