@@ -121,22 +121,26 @@ class SessionInfoBarTest {
         assertNull(writes.mergeState(credential, "w", "lody/zed", 7))
     }
 
-    @Test fun projectPullRequestLinksOpenThePanelAndOthersStayInTheBrowser() {
+    @Test fun anyValidGitHubPullRequestLinkOpensThePanelAndNonPrLinksStayInTheBrowser() {
         val members = listOf("Lody/Zed", "lody/docs")
-        // Case-insensitive, named with the project's spelling; tabs, queries and fragments allowed.
-        assertEquals(PullRequestLink("Lody/Zed", 7), PullRequestLink.inProject("https://github.com/lody/zed/pull/7/files?w=1#diff", members))
-        assertEquals(PullRequestLink("lody/docs", 12), PullRequestLink.inProject("http://www.github.com/lody/docs/pull/12", members))
-        // Another repository, a non-PR page, a malformed number or another host stays in the browser.
-        assertNull(PullRequestLink.inProject("https://github.com/other/zed/pull/7", members))
-        assertNull(PullRequestLink.inProject("https://github.com/lody/zed/issues/7", members))
-        assertNull(PullRequestLink.inProject("https://github.com/lody/zed/pull/+7", members))
-        assertNull(PullRequestLink.inProject("https://github.com/lody/zed/pull/0", members))
-        assertNull(PullRequestLink.inProject("https://gist.github.com/lody/zed/pull/7", members))
-        assertNull(PullRequestLink.inProject("https://github.com/lody/zed/pull/7", emptyList()))
-        // The session's reported PR keeps its catalog state; an unknown one starts without a status.
+        // Same-project links normalize repository casing; tabs, queries and fragments allowed.
+        assertEquals(PullRequestLink("Lody/Zed", 7), PullRequestLink.resolve("https://github.com/lody/zed/pull/7/files?w=1#diff", members))
+        assertEquals(PullRequestLink("lody/docs", 12), PullRequestLink.resolve("http://www.github.com/lody/docs/pull/12", members))
+        // Cross-repository PR links and sessions with no repository binding still open the PR panel.
+        assertEquals(PullRequestLink("other/zed", 7), PullRequestLink.resolve("https://github.com/other/zed/pull/7", members))
+        assertEquals(PullRequestLink("lody/zed", 7), PullRequestLink.resolve("https://github.com/lody/zed/pull/7", emptyList()))
+        // Non-PR pages, malformed numbers, traversal segments, and other hosts stay in the browser.
+        assertNull(PullRequestLink.resolve("https://github.com/lody/zed/issues/7", members))
+        assertNull(PullRequestLink.resolve("https://github.com/lody/zed/pull/+7", members))
+        assertNull(PullRequestLink.resolve("https://github.com/lody/zed/pull/0", members))
+        assertNull(PullRequestLink.resolve("https://github.com/../zed/pull/7", members))
+        assertNull(PullRequestLink.resolve("https://github.com/lody/../pull/7", members))
+        assertNull(PullRequestLink.resolve("https://gist.github.com/lody/zed/pull/7", members))
+        // The session's reported PR keeps its catalog state; an unknown or cross-repo one starts without a status.
         val link = PullRequestLink("lody/zed", 7)
         assertEquals(pr("draft", ci = "p"), link.reference(listOf(pr("draft", ci = "p"))))
         assertEquals(CatalogPullRequest("lody/zed", 8, "", url = "https://github.com/lody/zed/pull/8"), PullRequestLink("lody/zed", 8).reference(listOf(pr())))
+        assertEquals(CatalogPullRequest("other/repo", 99, "", url = "https://github.com/other/repo/pull/99"), PullRequestLink("other/repo", 99).reference(listOf(pr())))
     }
 
     @Test fun linkedPullRequestDetailsUseCatalogStatesFromGitHub() {

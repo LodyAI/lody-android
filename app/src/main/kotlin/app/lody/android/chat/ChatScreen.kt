@@ -878,8 +878,8 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
     }
     val pullRequestPanel = bar?.pullRequest?.let(panelFor)
     // Transcript links to a file on the session's computer open its preview (Markdown and HTML
-    // for now, iOS `openMessageLink`); links to a PR of this project (a multi-repository project's
-    // members included) open the PR panel; other links go to the browser. iOS `openPullRequestLink`.
+    // for now, iOS `openMessageLink`); any valid GitHub PR link opens the PR panel; other links go
+    // to the browser. iOS `openPullRequestLink`.
     val browser = androidx.compose.ui.platform.LocalUriHandler.current
     val repositories = context.repositories
     var previewFile by remember(id) { mutableStateOf<String?>(null) }
@@ -888,7 +888,7 @@ fun ChatScreen(repository: ChatRepository, scope: RuntimeScope, id: String, cont
         object : androidx.compose.ui.platform.UriHandler {
             override fun openUri(uri: String) {
                 val file = ChatFileLink.parse(uri)
-                val link = if (file == null) PullRequestLink.inProject(uri, repositories) else null
+                val link = if (file == null) PullRequestLink.resolve(uri, repositories) else null
                 when {
                     file != null && file.isPreviewable -> previewFile = file.path
                     file != null -> coroutines.launch { snackbar.currentSnackbarData?.dismiss(); snackbar.showSnackbar(markdownOnly) }
@@ -2769,7 +2769,7 @@ private fun ciVerdict(ci: String?): String? = when (ci) {
 }
 
 /**
- * The PR panel for a project PR opened from a transcript link that is not the action bar's PR:
+ * The PR panel for a PR opened from a transcript link that is not the action bar's PR:
  * what the catalog knows at once (any PR the session reported), then GitHub's state, branch and
  * ±lines from a read. Merge and Delete branch appear only once that state is known.
  */

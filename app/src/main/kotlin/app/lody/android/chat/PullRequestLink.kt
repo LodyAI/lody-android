@@ -22,6 +22,7 @@ data class PullRequestLink(val repository: String, val number: Int) {
             if (uri.host?.lowercase() !in setOf("github.com", "www.github.com")) return null
             val parts = uri.path.orEmpty().split('/').filter { it.isNotEmpty() }
             if (parts.size < 4 || parts[2] != "pull") return null
+            if (parts[0] in setOf(".", "..") || parts[1] in setOf(".", "..")) return null
             val digits = parts[3]
             if (digits.isEmpty() || digits.length > 9 || !digits.all { it in '0'..'9' }) return null
             val number = digits.toInt().takeIf { it > 0 } ?: return null
@@ -29,12 +30,13 @@ data class PullRequestLink(val repository: String, val number: Int) {
         }
 
         /**
-         * The link when it belongs to one of [repositories] (case-insensitive), named with the
-         * project's spelling; null leaves it to the browser.
+         * Parse any valid GitHub PR URL, preferring the project's spelling when it happens to
+         * match one of [repositories] (case-insensitive) while keeping any other repository intact.
          */
-        fun inProject(href: String, repositories: List<String>): PullRequestLink? {
+        fun resolve(href: String, repositories: List<String> = emptyList()): PullRequestLink? {
             val link = parse(href) ?: return null
-            val repository = repositories.firstOrNull { it.equals(link.repository, ignoreCase = true) } ?: return null
+            val repository = repositories.firstOrNull { it.equals(link.repository, ignoreCase = true) }
+                ?: link.repository
             return link.copy(repository = repository)
         }
     }

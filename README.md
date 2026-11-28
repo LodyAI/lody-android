@@ -240,14 +240,15 @@ their ordinary list behavior.
 ### PR links
 
 The PR panel (`PullRequestSheet`) describes any PR through `PullRequestView`, not
-only the action bar's. The transcript's `LocalUriHandler` matches links with
-`PullRequestLink` (case-insensitive) against `ChatContext.repositories`: the
-project's repository, or a multi-repository project's GitHub members from catalog
-`Project.repositories`. Matching links open the panel; other links go to the
-browser. The bar's own PR opens with the bar's data. Another PR starts from the
-session's catalog entry, then fills state, merge state, branch and ±lines from a
-GitHub read grant (`PullRequestDetails`); Merge and Delete branch appear only once
-that read lands.
+only the action bar's. The transcript's `LocalUriHandler` resolves any valid GitHub
+PR link with `PullRequestLink.resolve` (case-insensitively reusing project spelling
+from `ChatContext.repositories` when it matches, and otherwise keeping the URL's
+`owner/repo` and number — including cross-repository PRs and sessions without a
+repository binding). Valid GitHub PR links open the panel without associating the
+PR with the session; non-PR links go to the browser. The bar's own PR opens with
+the bar's data. Another PR starts from the session's catalog entry when present,
+then fills state, merge state, branch and ±lines from a GitHub read grant
+(`PullRequestDetails`); Merge and Delete branch appear only once that read lands.
 
 ### Project files
 
